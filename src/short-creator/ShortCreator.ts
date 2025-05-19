@@ -13,6 +13,7 @@ import { Config } from "../config";
 import { logger } from "../logger";
 import { MusicManager } from "./music";
 import { type Music } from "../types/shorts";
+import { SileroTTS } from "./libraries/SileroTTS";
 import type {
   SceneInput,
   RenderConfig,
@@ -29,6 +30,8 @@ export class ShortCreator {
     config: RenderConfig;
     id: string;
   }[] = [];
+  private sileroTTS: SileroTTS | null = null;
+
   constructor(
     private config: Config,
     private remotion: Remotion,
@@ -50,17 +53,17 @@ export class ShortCreator {
     return "failed";
   }
 
-  public addToQueue(sceneInput: SceneInput[], config: RenderConfig): string {
-    // todo add mutex lock
+  public addToQueue(
+    sceneInput: SceneInput[],
+    config: RenderConfig,
+  ): string {
     const id = cuid();
     this.queue.push({
       sceneInput,
       config,
       id,
     });
-    if (this.queue.length === 1) {
-      this.processQueue();
-    }
+    this.processQueue();
     return id;
   }
 
@@ -107,10 +110,31 @@ export class ShortCreator {
 
     let index = 0;
     for (const scene of inputScenes) {
-      const audio = await this.kokoro.generate(
-        scene.text,
-        config.voice ?? "af_heart",
-      );
+      let audio: { audio: ArrayBuffer; audioLength: number };
+      
+      // Use Silero TTS for Portuguese, Kokoro for other languages
+      if (this.config.language === "pt") {
+        if (!this.sileroTTS) {
+          this.sileroTTS = await SileroTTS.init(this.config);
+        }
+        const tempId = cuid();
+        const tempWavFileName = `${tempId}.wav`;
+        const tempWavPath = path.join(this.config.tempDirPath, tempWavFileName);
+        tempFiles.push(tempWavPath);
+        
+        await this.sileroTTS.generateSpeech(scene.text, tempWavPath);
+        const audioBuffer = await fs.readFile(tempWavPath);
+        audio = {
+          audio: audioBuffer.buffer,
+          audioLength: await this.ffmpeg.getAudioDuration(tempWavPath)
+        };
+      } else {
+        audio = await this.kokoro.generate(
+          scene.text,
+          config.voice ?? "af_heart",
+        );
+      }
+
       let { audioLength } = audio;
       const { audio: audioStream } = audio;
 

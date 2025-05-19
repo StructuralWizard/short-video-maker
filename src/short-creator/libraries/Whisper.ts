@@ -11,6 +11,9 @@ import { logger } from "../../logger";
 
 export const ErrorWhisper = new Error("There was an error with WhisperCpp");
 
+// Define supported languages using full language names
+export type Language = "English" | "Portuguese" | "auto";
+
 export class Whisper {
   constructor(private config: Config) {}
 
@@ -54,6 +57,7 @@ export class Whisper {
       inputPath: audioPath,
       tokenLevelTimestamps: true,
       printOutput: this.config.whisperVerbose,
+      language: this.config.language === "pt" ? "Portuguese" : this.config.language === "en" ? "English" : "auto",
       onProgress: (progress) => {
         logger.debug({ audioPath }, `Transcribing is ${progress} complete`);
       },

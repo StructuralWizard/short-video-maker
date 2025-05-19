@@ -14,7 +14,8 @@ console.log('DATA_DIR_PATH:', process.env.DATA_DIR_PATH);
 const defaultLogLevel: pino.Level = "info";
 const defaultPort = 3123;
 const whisperVersion = "1.7.1";
-const defaultWhisperModel: whisperModels = "medium.en"; // possible options: "tiny", "tiny.en", "base", "base.en", "small", "small.en", "medium", "medium.en", "large-v1", "large-v2", "large-v3", "large-v3-turbo"
+const defaultWhisperModel: whisperModels = "medium"; // Changed from medium.en to medium to support multiple languages
+const defaultLanguage = "auto"; // Added default language setting
 
 // Create the global logger
 export const logger = pino({
@@ -29,7 +30,7 @@ export const logger = pino({
 });
 
 export class Config {
-  private dataDirPath: string;
+  public dataDirPath: string;
   private libsDirPath: string;
   private staticDirPath: string;
 
@@ -47,11 +48,14 @@ export class Config {
   public devMode: boolean;
   public whisperVersion: string = whisperVersion;
   public whisperModel: whisperModels = defaultWhisperModel;
+  public language: string = defaultLanguage;
   public kokoroModelPrecision: kokoroModelPrecision = "fp32";
 
   // docker-specific, performance-related settings to prevent memory issues
   public concurrency?: number;
   public videoCacheSizeInBytes: number | null = null;
+
+  public referenceAudioPath: string;
 
   constructor() {
     this.dataDirPath =
@@ -86,6 +90,9 @@ export class Config {
     if (process.env.WHISPER_MODEL) {
       this.whisperModel = process.env.WHISPER_MODEL as whisperModels;
     }
+    if (process.env.LANGUAGE) {
+      this.language = process.env.LANGUAGE;
+    }
     if (process.env.KOKORO_MODEL_PRECISION) {
       this.kokoroModelPrecision = process.env
         .KOKORO_MODEL_PRECISION as kokoroModelPrecision;
@@ -100,6 +107,8 @@ export class Config {
         process.env.VIDEO_CACHE_SIZE_IN_BYTES,
       );
     }
+
+    this.referenceAudioPath = process.env.REFERENCE_AUDIO_PATH || path.join(process.cwd(), "NinoSample.wav");
   }
 
   public ensureConfig() {
