@@ -5,6 +5,7 @@ from TTS.tts.configs.xtts_config import XttsConfig
 from TTS.tts.models.xtts import XttsAudioConfig, XttsArgs
 from TTS.config.shared_configs import BaseDatasetConfig
 from torch.serialization import add_safe_globals
+import re
 
 # Add required classes to safe globals
 add_safe_globals([XttsConfig, XttsAudioConfig, BaseDatasetConfig, XttsArgs])
@@ -17,7 +18,13 @@ tts = TTS(
 )
 
 # Test text in Portuguese
-text = "Vivemos em uma geração que esqueceu o peso da honra, falamos alto, mas silenciamos no que importa, a honra foi trocada por orgulho, mas ainda há um caminho de volta"
+text = " , , , Vivemos em uma geração que esqueceu o peso da honra , , , "
+# Preprocess text: replace punctuation with commas and ellipsis with hyphens
+text = ", , " + text.replace("\n", ", , ")
+text = re.sub(r'[.!?]', ',', text)  # Replace punctuation with commas
+text = re.sub(r'…', '-', text)      # Replace ellipsis with hyphens
+text = re.sub(r'\s*,\s*', ', ', text)  # Normalize spaces around commas
+text = f" , , , {text} , , , "
 output_path = "test_output.wav"
 reference_audio = "Noel.mp3"  # Make sure this file exists in the same directory
 
