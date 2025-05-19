@@ -1,9 +1,15 @@
 import path from "path";
-import "dotenv/config";
+import { config } from "dotenv";
 import os from "os";
 import fs from "fs-extra";
 import pino from "pino";
 import { kokoroModelPrecision, whisperModels } from "./types/shorts";
+
+// Load .env file from project root
+config({ path: path.resolve(process.cwd(), '.env') });
+
+console.log('ENV file path:', path.resolve(process.cwd(), '.env'));
+console.log('DATA_DIR_PATH:', process.env.DATA_DIR_PATH);
 
 const defaultLogLevel: pino.Level = "info";
 const defaultPort = 3123;
@@ -12,13 +18,14 @@ const defaultWhisperModel: whisperModels = "medium.en"; // possible options: "ti
 
 // Create the global logger
 export const logger = pino({
-  level: process.env.LOG_LEVEL || defaultLogLevel,
-  timestamp: pino.stdTimeFunctions.isoTime,
+  level: 'info',
+  base: undefined,
+  timestamp: () => `,"time":"${new Date().toISOString()}"`,
   formatters: {
     level: (label) => {
       return { level: label };
     },
-  },
+  }
 });
 
 export class Config {
