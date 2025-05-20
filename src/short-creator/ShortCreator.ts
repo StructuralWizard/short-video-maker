@@ -30,13 +30,11 @@ export class ShortCreator {
     config: RenderConfig;
     id: string;
   }[] = [];
-  private sileroTTS: SileroTTS | null = null;
 
   constructor(
-    private config: Config,
+    private globalConfig: Config,
     private remotion: Remotion,
     private kokoro: Kokoro,
-    private whisper: Whisper,
     private ffmpeg: FFMpeg,
     private pexelsApi: PexelsAPI,
     private musicManager: MusicManager,
@@ -108,21 +106,42 @@ export class ShortCreator {
     const orientation: OrientationEnum =
       config.orientation || OrientationEnum.portrait;
 
+    const whisper = await Whisper.init(this.globalConfig);
+    const sileroTTS = await SileroTTS.init(this.globalConfig);
+
     let index = 0;
     for (const scene of inputScenes) {
       let audio: { audio: ArrayBuffer; audioLength: number };
       
-      // Use Silero TTS for Portuguese, Kokoro for other languages
-      if (this.config.language === "pt") {
-        if (!this.sileroTTS) {
-          this.sileroTTS = await SileroTTS.init(this.config);
-        }
+      if (config.language === "pt") {
         const tempId = cuid();
         const tempWavFileName = `${tempId}.wav`;
-        const tempWavPath = path.join(this.config.tempDirPath, tempWavFileName);
+        const tempWavPath = path.join(this.globalConfig.tempDirPath, tempWavFileName);
         tempFiles.push(tempWavPath);
+
+        let emotion = "emotional";
+        if (scene.text.trim().endsWith("?")) {
+          emotion = "question";
+        } else if (scene.text.trim().endsWith("!")) {
+          emotion = "excited";
+        } else {
+          emotion = "neutral";
+        }
+        const referenceAudioPath = config.referenceAudioPath || this.globalConfig.referenceAudioPath;
+        logger.info({ 
+          sceneText: scene.text,
+          tempWavPath,
+          emotion,
+          language: config.language,
+          referenceAudioPath,
+          configReferenceAudioPath: config.referenceAudioPath,
+          globalConfigReferenceAudioPath: this.globalConfig.referenceAudioPath,
+          cwd: process.cwd()
+        }, "🎙️ Preparando para gerar áudio com TTS");
         
-        await this.sileroTTS.generateSpeech(scene.text, tempWavPath);
+        await sileroTTS.generateSpeech(scene.text, tempWavPath, emotion, config.language, referenceAudioPath);
+        
+        logger.info({ tempWavPath }, "✅ Áudio gerado com sucesso, lendo arquivo");
         const audioBuffer = await fs.readFile(tempWavPath);
         audio = {
           audio: audioBuffer.buffer,
@@ -138,7 +157,6 @@ export class ShortCreator {
       let { audioLength } = audio;
       const { audio: audioStream } = audio;
 
-      // add the paddingBack in seconds to the last scene
       if (index + 1 === inputScenes.length && config.paddingBack) {
         audioLength += config.paddingBack / 1000;
       }
@@ -146,12 +164,12 @@ export class ShortCreator {
       const tempId = cuid();
       const tempWavFileName = `${tempId}.wav`;
       const tempMp3FileName = `${tempId}.mp3`;
-      const tempWavPath = path.join(this.config.tempDirPath, tempWavFileName);
-      const tempMp3Path = path.join(this.config.tempDirPath, tempMp3FileName);
+      const tempWavPath = path.join(this.globalConfig.tempDirPath, tempWavFileName);
+      const tempMp3Path = path.join(this.globalConfig.tempDirPath, tempMp3FileName);
       tempFiles.push(tempWavPath, tempMp3Path);
 
       await this.ffmpeg.saveNormalizedAudio(audioStream, tempWavPath);
-      const captions = await this.whisper.CreateCaption(tempWavPath);
+      const captions = await whisper.CreateCaption(tempWavPath, config.language);
 
       await this.ffmpeg.saveToMp3(audioStream, tempMp3Path);
       const video = await this.pexelsApi.findVideo(
@@ -166,7 +184,7 @@ export class ShortCreator {
         captions,
         video: video.url,
         audio: {
-          url: `http://localhost:${this.config.port}/api/tmp/${tempMp3FileName}`,
+          url: `http://localhost:${this.globalConfig.port}/api/tmp/${tempMp3FileName}`,
           duration: audioLength,
         },
       });
@@ -207,7 +225,7 @@ export class ShortCreator {
   }
 
   public getVideoPath(videoId: string): string {
-    return path.join(this.config.videosDirPath, `${videoId}.mp4`);
+    return path.join(this.globalConfig.videosDirPath, `${videoId}.mp4`);
   }
 
   public deleteVideo(videoId: string): void {
@@ -246,12 +264,12 @@ export class ShortCreator {
     const videos: { id: string; status: VideoStatus }[] = [];
 
     // Check if videos directory exists
-    if (!fs.existsSync(this.config.videosDirPath)) {
+    if (!fs.existsSync(this.globalConfig.videosDirPath)) {
       return videos;
     }
 
     // Read all files in the videos directory
-    const files = fs.readdirSync(this.config.videosDirPath);
+    const files = fs.readdirSync(this.globalConfig.videosDirPath);
 
     // Filter for MP4 files and extract video IDs
     for (const file of files) {

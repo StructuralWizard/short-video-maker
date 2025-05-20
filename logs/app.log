@@ -1,0 +1,374 @@
+ENV file path: /Users/nino/CursorProjects/short-video-maker/.env
+DATA_DIR_PATH: 
+Whisper already exists at /Users/nino/.ai-agents-az-video-generator/libs/whisper
+Model already exists at /Users/nino/.ai-agents-az-video-generator/libs/whisper/models/ggml-medium.bin
+{"level":"info","time":"2025-05-20T10:08:58.125Z","msg":"FFmpeg path set to:"}
+{"level":"info","time":"2025-05-20T10:08:58.125Z","msg":"the installation is successful - starting the server"}
+{"level":"info","time":"2025-05-20T10:08:58.127Z","port":3123,"mcp":"/mcp","api":"/api","msg":"MCP and API server is running"}
+{"level":"info","time":"2025-05-20T10:08:58.127Z","msg":"UI server is running on http://localhost:3123"}
+{"level":"info","time":"2025-05-20T10:09:44.532Z","validated":{"success":true,"data":{"scenes":[{"text":"Have you ever noticed how we've replaced our best friends with smartphones? I mean, my phone knows my secrets!","searchTerms":["smartphone therapist","digital best friend"]},{"text":"It’s like my phone is judging me. Every time I open a dating app, I hear it whisper, 'Really? Again?'","searchTerms":["dating app disappointment","smartphone judgment"]},{"text":"And let’s talk about smart homes! My smart fridge keeps telling me I need to eat healthier. Who programmed it? My ex?","searchTerms":["smart fridge therapy","ex-lover tech"]},{"text":"Next thing you know, my toaster is sending me motivational quotes: 'You can rise to the occasion!' I just want toast!","searchTerms":["motivational toaster","toaster therapy"]}],"config":{"paddingBack":1000,"captionPosition":"bottom","captionBackgroundColor":"#000000","musicVolume":"medium","language":"en"}}},"msg":"Validated input"}
+Whisper already exists at /Users/nino/.ai-agents-az-video-generator/libs/whisper
+Model already exists at /Users/nino/.ai-agents-az-video-generator/libs/whisper/models/ggml-medium.bin
+{"level":"info","time":"2025-05-20T10:09:44.532Z","input":{"scenes":[{"text":"Have you ever noticed how we've replaced our best friends with smartphones? I mean, my phone knows my secrets!","searchTerms":["smartphone therapist","digital best friend"]},{"text":"It’s like my phone is judging me. Every time I open a dating app, I hear it whisper, 'Really? Again?'","searchTerms":["dating app disappointment","smartphone judgment"]},{"text":"And let’s talk about smart homes! My smart fridge keeps telling me I need to eat healthier. Who programmed it? My ex?","searchTerms":["smart fridge therapy","ex-lover tech"]},{"text":"Next thing you know, my toaster is sending me motivational quotes: 'You can rise to the occasion!' I just want toast!","searchTerms":["motivational toaster","toaster therapy"]}],"config":{"paddingBack":1000,"captionPosition":"bottom","captionBackgroundColor":"#000000","musicVolume":"medium","language":"en"}},"msg":"Creating short video"}
+whisper_init_from_file_with_params_no_state: loading model from '/Users/nino/.ai-agents-az-video-generator/libs/whisper/models/ggml-medium.bin'
+whisper_init_with_params_no_state: use gpu    = 1
+whisper_init_with_params_no_state: flash attn = 0
+whisper_init_with_params_no_state: gpu_device = 0
+whisper_init_with_params_no_state: dtw        = 1
+whisper_model_load: loading model
+whisper_model_load: n_vocab       = 51865
+whisper_model_load: n_audio_ctx   = 1500
+whisper_model_load: n_audio_state = 1024
+whisper_model_load: n_audio_head  = 16
+whisper_model_load: n_audio_layer = 24
+whisper_model_load: n_text_ctx    = 448
+whisper_model_load: n_text_state  = 1024
+whisper_model_load: n_text_head   = 16
+whisper_model_load: n_text_layer  = 24
+whisper_model_load: n_mels        = 80
+whisper_model_load: ftype         = 1
+whisper_model_load: qntvr         = 0
+whisper_model_load: type          = 4 (medium)
+whisper_model_load: adding 1608 extra tokens
+whisper_model_load: n_langs       = 99
+whisper_model_load:    Metal total size =  1533.14 MB
+whisper_model_load: model size    = 1533.14 MB
+whisper_backend_init_gpu: using Metal backend
+ggml_metal_init: allocating
+ggml_metal_init: found device: Apple M1 Max
+ggml_metal_init: picking default device: Apple M1 Max
+ggml_metal_init: using embedded metal library
+ggml_metal_init: GPU name:   Apple M1 Max
+ggml_metal_init: GPU family: MTLGPUFamilyApple7  (1007)
+ggml_metal_init: GPU family: MTLGPUFamilyCommon3 (3003)
+ggml_metal_init: GPU family: MTLGPUFamilyMetal3  (5001)
+ggml_metal_init: simdgroup reduction support   = true
+ggml_metal_init: simdgroup matrix mul. support = true
+ggml_metal_init: hasUnifiedMemory              = true
+ggml_metal_init: recommendedMaxWorkingSetSize  = 22906.50 MB
+whisper_backend_init: using BLAS backend
+whisper_init_state: kv self size  =   50.33 MB
+whisper_init_state: kv cross size =  150.99 MB
+whisper_init_state: kv pad  size  =    6.29 MB
+whisper_init_state: alignment heads masks size = 384 B
+whisper_init_state: compute buffer (conv)   =   29.51 MB
+whisper_init_state: compute buffer (encode) =  170.15 MB
+whisper_init_state: compute buffer (cross)  =    7.72 MB
+whisper_init_state: compute buffer (decode) =  223.96 MB
+
+system_info: n_threads = 4 / 10 | AVX = 0 | AVX2 = 0 | AVX512 = 0 | FMA = 0 | NEON = 0 | ARM_FMA = 1 | METAL = 1 | F16C = 0 | FP16_VA = 1 | WASM_SIMD = 0 | BLAS = 1 | SSE3 = 0 | SSSE3 = 0 | VSX = 0 | CUDA = 0 | COREML = 0 | OPENVINO = 0 | CANN = 0
+
+main: processing '/Users/nino/.ai-agents-az-video-generator/temp/cmawcrfj50001cxsb6rqphm8w.wav' (116400 samples, 7.3 sec), 4 threads, 1 processors, 5 beams + best of 5, lang = en, task = transcribe, timestamps = 1 ...
+
+
+[00:00:00.000 --> 00:00:00.300]  
+[00:00:00.300 --> 00:00:00.330]   Have
+[00:00:00.330 --> 00:00:00.540]   you
+[00:00:00.540 --> 00:00:00.850]   ever
+[00:00:00.850 --> 00:00:01.530]   noticed
+[00:00:01.530 --> 00:00:01.550]   how
+[00:00:01.550 --> 00:00:01.650]   we
+[00:00:01.650 --> 00:00:01.860]  've
+[00:00:01.860 --> 00:00:02.340]   replaced
+[00:00:02.340 --> 00:00:02.360]   our
+[00:00:02.360 --> 00:00:02.800]   best
+[00:00:02.800 --> 00:00:03.000]   friends
+[00:00:03.000 --> 00:00:03.330]   with
+[00:00:03.330 --> 00:00:04.220]   smartphones
+[00:00:04.220 --> 00:00:04.520]  ?
+[00:00:04.520 --> 00:00:04.820]   I
+[00:00:04.820 --> 00:00:04.950]   mean
+[00:00:04.950 --> 00:00:05.120]  ,
+[00:00:05.120 --> 00:00:05.340]   my
+[00:00:05.340 --> 00:00:05.730]   phone
+[00:00:05.730 --> 00:00:06.170]   knows
+[00:00:06.170 --> 00:00:06.340]   my
+[00:00:06.340 --> 00:00:07.020]   secrets
+[00:00:07.020 --> 00:00:07.120]  .
+whisper_print_progress_callback: progress =  97%
+output_json: saving output to '/Users/nino/CursorProjects/short-video-maker/tmp.json'
+
+whisper_print_timings:     load time =   511.89 ms
+whisper_print_timings:     fallbacks =   0 p /   0 h
+whisper_print_timings:      mel time =     4.01 ms
+whisper_print_timings:   sample time =    32.50 ms /   138 runs (    0.24 ms per run)
+whisper_print_timings:   encode time =   460.31 ms /     1 runs (  460.31 ms per run)
+whisper_print_timings:   decode time =     0.00 ms /     1 runs (    0.00 ms per run)
+whisper_print_timings:   batchd time =   738.46 ms /   136 runs (    5.43 ms per run)
+whisper_print_timings:   prompt time =    32.91 ms /    27 runs (    1.22 ms per run)
+whisper_print_timings:    total time =  1866.37 ms
+ggml_metal_free: deallocating
+whisper_init_from_file_with_params_no_state: loading model from '/Users/nino/.ai-agents-az-video-generator/libs/whisper/models/ggml-medium.bin'
+whisper_init_with_params_no_state: use gpu    = 1
+whisper_init_with_params_no_state: flash attn = 0
+whisper_init_with_params_no_state: gpu_device = 0
+whisper_init_with_params_no_state: dtw        = 1
+whisper_model_load: loading model
+whisper_model_load: n_vocab       = 51865
+whisper_model_load: n_audio_ctx   = 1500
+whisper_model_load: n_audio_state = 1024
+whisper_model_load: n_audio_head  = 16
+whisper_model_load: n_audio_layer = 24
+whisper_model_load: n_text_ctx    = 448
+whisper_model_load: n_text_state  = 1024
+whisper_model_load: n_text_head   = 16
+whisper_model_load: n_text_layer  = 24
+whisper_model_load: n_mels        = 80
+whisper_model_load: ftype         = 1
+whisper_model_load: qntvr         = 0
+whisper_model_load: type          = 4 (medium)
+whisper_model_load: adding 1608 extra tokens
+whisper_model_load: n_langs       = 99
+whisper_model_load:    Metal total size =  1533.14 MB
+whisper_model_load: model size    = 1533.14 MB
+whisper_backend_init_gpu: using Metal backend
+ggml_metal_init: allocating
+ggml_metal_init: found device: Apple M1 Max
+ggml_metal_init: picking default device: Apple M1 Max
+ggml_metal_init: using embedded metal library
+ggml_metal_init: GPU name:   Apple M1 Max
+ggml_metal_init: GPU family: MTLGPUFamilyApple7  (1007)
+ggml_metal_init: GPU family: MTLGPUFamilyCommon3 (3003)
+ggml_metal_init: GPU family: MTLGPUFamilyMetal3  (5001)
+ggml_metal_init: simdgroup reduction support   = true
+ggml_metal_init: simdgroup matrix mul. support = true
+ggml_metal_init: hasUnifiedMemory              = true
+ggml_metal_init: recommendedMaxWorkingSetSize  = 22906.50 MB
+whisper_backend_init: using BLAS backend
+whisper_init_state: kv self size  =   50.33 MB
+whisper_init_state: kv cross size =  150.99 MB
+whisper_init_state: kv pad  size  =    6.29 MB
+whisper_init_state: alignment heads masks size = 384 B
+whisper_init_state: compute buffer (conv)   =   29.51 MB
+whisper_init_state: compute buffer (encode) =  170.15 MB
+whisper_init_state: compute buffer (cross)  =    7.72 MB
+whisper_init_state: compute buffer (decode) =  223.96 MB
+
+system_info: n_threads = 4 / 10 | AVX = 0 | AVX2 = 0 | AVX512 = 0 | FMA = 0 | NEON = 0 | ARM_FMA = 1 | METAL = 1 | F16C = 0 | FP16_VA = 1 | WASM_SIMD = 0 | BLAS = 1 | SSE3 = 0 | SSSE3 = 0 | VSX = 0 | CUDA = 0 | COREML = 0 | OPENVINO = 0 | CANN = 0
+
+main: processing '/Users/nino/.ai-agents-az-video-generator/temp/cmawcri9l0002cxsb272n3b72.wav' (110000 samples, 6.9 sec), 4 threads, 1 processors, 5 beams + best of 5, lang = en, task = transcribe, timestamps = 1 ...
+
+
+[00:00:00.000 --> 00:00:00.150]  
+[00:00:00.150 --> 00:00:00.300]   It
+[00:00:00.300 --> 00:00:00.310]  's
+[00:00:00.310 --> 00:00:00.620]   like
+[00:00:00.620 --> 00:00:00.750]   my
+[00:00:00.750 --> 00:00:01.130]   phone
+[00:00:01.130 --> 00:00:01.330]   is
+[00:00:01.330 --> 00:00:01.800]   judging
+[00:00:01.800 --> 00:00:02.660]   me
+[00:00:02.660 --> 00:00:02.880]  .
+[00:00:02.880 --> 00:00:03.170]   Every
+[00:00:03.170 --> 00:00:03.400]   time
+[00:00:03.400 --> 00:00:03.450]   I
+[00:00:03.450 --> 00:00:03.680]   open
+[00:00:03.680 --> 00:00:03.730]   a
+[00:00:03.730 --> 00:00:04.080]   dating
+[00:00:04.080 --> 00:00:04.330]   app
+[00:00:04.330 --> 00:00:04.390]  ,
+[00:00:04.390 --> 00:00:04.530]   I
+[00:00:04.530 --> 00:00:04.640]   hear
+[00:00:04.640 --> 00:00:04.740]   it
+[00:00:04.740 --> 00:00:05.080]   whisper
+[00:00:05.080 --> 00:00:05.200]  ,
+[00:00:05.200 --> 00:00:05.840]   really
+[00:00:05.840 --> 00:00:05.940]  ,
+[00:00:05.940 --> 00:00:06.190]   again
+[00:00:06.190 --> 00:00:06.400]  .
+whisper_print_progress_callback: progress =  93%
+output_json: saving output to '/Users/nino/CursorProjects/short-video-maker/tmp.json'
+
+whisper_print_timings:     load time =   506.24 ms
+whisper_print_timings:     fallbacks =   0 p /   0 h
+whisper_print_timings:      mel time =     3.91 ms
+whisper_print_timings:   sample time =    35.43 ms /   153 runs (    0.23 ms per run)
+whisper_print_timings:   encode time =   457.04 ms /     1 runs (  457.04 ms per run)
+whisper_print_timings:   decode time =     0.00 ms /     1 runs (    0.00 ms per run)
+whisper_print_timings:   batchd time =   843.49 ms /   151 runs (    5.59 ms per run)
+whisper_print_timings:   prompt time =    33.51 ms /    30 runs (    1.12 ms per run)
+whisper_print_timings:    total time =  1960.70 ms
+ggml_metal_free: deallocating
+whisper_init_from_file_with_params_no_state: loading model from '/Users/nino/.ai-agents-az-video-generator/libs/whisper/models/ggml-medium.bin'
+whisper_init_with_params_no_state: use gpu    = 1
+whisper_init_with_params_no_state: flash attn = 0
+whisper_init_with_params_no_state: gpu_device = 0
+whisper_init_with_params_no_state: dtw        = 1
+whisper_model_load: loading model
+whisper_model_load: n_vocab       = 51865
+whisper_model_load: n_audio_ctx   = 1500
+whisper_model_load: n_audio_state = 1024
+whisper_model_load: n_audio_head  = 16
+whisper_model_load: n_audio_layer = 24
+whisper_model_load: n_text_ctx    = 448
+whisper_model_load: n_text_state  = 1024
+whisper_model_load: n_text_head   = 16
+whisper_model_load: n_text_layer  = 24
+whisper_model_load: n_mels        = 80
+whisper_model_load: ftype         = 1
+whisper_model_load: qntvr         = 0
+whisper_model_load: type          = 4 (medium)
+whisper_model_load: adding 1608 extra tokens
+whisper_model_load: n_langs       = 99
+whisper_model_load:    Metal total size =  1533.14 MB
+whisper_model_load: model size    = 1533.14 MB
+whisper_backend_init_gpu: using Metal backend
+ggml_metal_init: allocating
+ggml_metal_init: found device: Apple M1 Max
+ggml_metal_init: picking default device: Apple M1 Max
+ggml_metal_init: using embedded metal library
+ggml_metal_init: GPU name:   Apple M1 Max
+ggml_metal_init: GPU family: MTLGPUFamilyApple7  (1007)
+ggml_metal_init: GPU family: MTLGPUFamilyCommon3 (3003)
+ggml_metal_init: GPU family: MTLGPUFamilyMetal3  (5001)
+ggml_metal_init: simdgroup reduction support   = true
+ggml_metal_init: simdgroup matrix mul. support = true
+ggml_metal_init: hasUnifiedMemory              = true
+ggml_metal_init: recommendedMaxWorkingSetSize  = 22906.50 MB
+whisper_backend_init: using BLAS backend
+whisper_init_state: kv self size  =   50.33 MB
+whisper_init_state: kv cross size =  150.99 MB
+whisper_init_state: kv pad  size  =    6.29 MB
+whisper_init_state: alignment heads masks size = 384 B
+whisper_init_state: compute buffer (conv)   =   29.51 MB
+whisper_init_state: compute buffer (encode) =  170.15 MB
+whisper_init_state: compute buffer (cross)  =    7.72 MB
+whisper_init_state: compute buffer (decode) =  223.96 MB
+
+system_info: n_threads = 4 / 10 | AVX = 0 | AVX2 = 0 | AVX512 = 0 | FMA = 0 | NEON = 0 | ARM_FMA = 1 | METAL = 1 | F16C = 0 | FP16_VA = 1 | WASM_SIMD = 0 | BLAS = 1 | SSE3 = 0 | SSSE3 = 0 | VSX = 0 | CUDA = 0 | COREML = 0 | OPENVINO = 0 | CANN = 0
+
+main: processing '/Users/nino/.ai-agents-az-video-generator/temp/cmawcrlfi0003cxsb4p020arp.wav' (152800 samples, 9.6 sec), 4 threads, 1 processors, 5 beams + best of 5, lang = en, task = transcribe, timestamps = 1 ...
+
+
+[00:00:00.000 --> 00:00:00.220]  
+[00:00:00.220 --> 00:00:00.300]   And
+[00:00:00.300 --> 00:00:00.440]   let
+[00:00:00.440 --> 00:00:00.630]  's
+[00:00:00.630 --> 00:00:00.900]   talk
+[00:00:00.900 --> 00:00:01.240]   about
+[00:00:01.240 --> 00:00:01.600]   smart
+[00:00:01.600 --> 00:00:02.500]   homes
+[00:00:02.500 --> 00:00:02.500]  .
+[00:00:02.500 --> 00:00:02.680]   My
+[00:00:02.680 --> 00:00:03.260]   smart
+[00:00:03.260 --> 00:00:03.810]   fridge
+[00:00:03.810 --> 00:00:04.000]   keeps
+[00:00:04.000 --> 00:00:04.370]   telling
+[00:00:04.370 --> 00:00:04.500]   me
+[00:00:04.500 --> 00:00:04.700]   I
+[00:00:04.700 --> 00:00:04.880]   need
+[00:00:04.880 --> 00:00:05.070]   to
+[00:00:05.070 --> 00:00:05.330]   eat
+[00:00:05.330 --> 00:00:06.460]   healthier
+[00:00:06.460 --> 00:00:06.460]  .
+[00:00:06.460 --> 00:00:06.770]   Who
+[00:00:06.770 --> 00:00:07.550]   programmed
+[00:00:07.550 --> 00:00:08.230]   it
+[00:00:08.230 --> 00:00:08.260]  ?
+[00:00:08.260 --> 00:00:08.760]   My
+[00:00:08.760 --> 00:00:09.040]   ex
+[00:00:09.040 --> 00:00:09.260]  .
+whisper_print_progress_callback: progress =  97%
+output_json: saving output to '/Users/nino/CursorProjects/short-video-maker/tmp.json'
+
+whisper_print_timings:     load time =   523.28 ms
+whisper_print_timings:     fallbacks =   0 p /   0 h
+whisper_print_timings:      mel time =     5.04 ms
+whisper_print_timings:   sample time =    41.05 ms /   176 runs (    0.23 ms per run)
+whisper_print_timings:   encode time =   472.85 ms /     1 runs (  472.85 ms per run)
+whisper_print_timings:   decode time =    11.32 ms /     1 runs (   11.32 ms per run)
+whisper_print_timings:   batchd time =   923.80 ms /   173 runs (    5.34 ms per run)
+whisper_print_timings:   prompt time =    32.74 ms /    31 runs (    1.06 ms per run)
+whisper_print_timings:    total time =  2094.98 ms
+ggml_metal_free: deallocating
+whisper_init_from_file_with_params_no_state: loading model from '/Users/nino/.ai-agents-az-video-generator/libs/whisper/models/ggml-medium.bin'
+whisper_init_with_params_no_state: use gpu    = 1
+whisper_init_with_params_no_state: flash attn = 0
+whisper_init_with_params_no_state: gpu_device = 0
+whisper_init_with_params_no_state: dtw        = 1
+whisper_model_load: loading model
+whisper_model_load: n_vocab       = 51865
+whisper_model_load: n_audio_ctx   = 1500
+whisper_model_load: n_audio_state = 1024
+whisper_model_load: n_audio_head  = 16
+whisper_model_load: n_audio_layer = 24
+whisper_model_load: n_text_ctx    = 448
+whisper_model_load: n_text_state  = 1024
+whisper_model_load: n_text_head   = 16
+whisper_model_load: n_text_layer  = 24
+whisper_model_load: n_mels        = 80
+whisper_model_load: ftype         = 1
+whisper_model_load: qntvr         = 0
+whisper_model_load: type          = 4 (medium)
+whisper_model_load: adding 1608 extra tokens
+whisper_model_load: n_langs       = 99
+whisper_model_load:    Metal total size =  1533.14 MB
+whisper_model_load: model size    = 1533.14 MB
+whisper_backend_init_gpu: using Metal backend
+ggml_metal_init: allocating
+ggml_metal_init: found device: Apple M1 Max
+ggml_metal_init: picking default device: Apple M1 Max
+ggml_metal_init: using embedded metal library
+ggml_metal_init: GPU name:   Apple M1 Max
+ggml_metal_init: GPU family: MTLGPUFamilyApple7  (1007)
+ggml_metal_init: GPU family: MTLGPUFamilyCommon3 (3003)
+ggml_metal_init: GPU family: MTLGPUFamilyMetal3  (5001)
+ggml_metal_init: simdgroup reduction support   = true
+ggml_metal_init: simdgroup matrix mul. support = true
+ggml_metal_init: hasUnifiedMemory              = true
+ggml_metal_init: recommendedMaxWorkingSetSize  = 22906.50 MB
+whisper_backend_init: using BLAS backend
+whisper_init_state: kv self size  =   50.33 MB
+whisper_init_state: kv cross size =  150.99 MB
+whisper_init_state: kv pad  size  =    6.29 MB
+whisper_init_state: alignment heads masks size = 384 B
+whisper_init_state: compute buffer (conv)   =   29.51 MB
+whisper_init_state: compute buffer (encode) =  170.15 MB
+whisper_init_state: compute buffer (cross)  =    7.72 MB
+whisper_init_state: compute buffer (decode) =  223.96 MB
+
+system_info: n_threads = 4 / 10 | AVX = 0 | AVX2 = 0 | AVX512 = 0 | FMA = 0 | NEON = 0 | ARM_FMA = 1 | METAL = 1 | F16C = 0 | FP16_VA = 1 | WASM_SIMD = 0 | BLAS = 1 | SSE3 = 0 | SSSE3 = 0 | VSX = 0 | CUDA = 0 | COREML = 0 | OPENVINO = 0 | CANN = 0
+
+main: processing '/Users/nino/.ai-agents-az-video-generator/temp/cmawcrohh0004cxsbg11uajr8.wav' (123200 samples, 7.7 sec), 4 threads, 1 processors, 5 beams + best of 5, lang = en, task = transcribe, timestamps = 1 ...
+
+
+[00:00:00.000 --> 00:00:00.280]  
+[00:00:00.280 --> 00:00:00.320]   Next
+[00:00:00.320 --> 00:00:00.640]   thing
+[00:00:00.640 --> 00:00:00.840]   you
+[00:00:00.840 --> 00:00:01.110]   know
+[00:00:01.110 --> 00:00:01.380]  ,
+[00:00:01.380 --> 00:00:01.440]   my
+[00:00:01.440 --> 00:00:01.660]   to
+[00:00:01.660 --> 00:00:02.000]  aster
+[00:00:02.000 --> 00:00:02.220]   is
+[00:00:02.220 --> 00:00:02.420]   sending
+[00:00:02.420 --> 00:00:02.560]   me
+[00:00:02.560 --> 00:00:03.520]   motivational
+[00:00:03.520 --> 00:00:04.120]   quotes
+[00:00:04.120 --> 00:00:04.120]  .
+[00:00:04.120 --> 00:00:04.420]   You
+[00:00:04.420 --> 00:00:04.570]   can
+[00:00:04.570 --> 00:00:04.820]   rise
+[00:00:04.820 --> 00:00:04.960]   to
+[00:00:04.960 --> 00:00:05.170]   the
+[00:00:05.170 --> 00:00:05.730]   occasion
+[00:00:05.730 --> 00:00:05.920]  ,
+[00:00:05.920 --> 00:00:06.150]   I
+[00:00:06.150 --> 00:00:06.350]   just
+[00:00:06.350 --> 00:00:06.710]   want
+[00:00:06.710 --> 00:00:07.140]   toast
+[00:00:07.140 --> 00:00:07.420]  .
+whisper_print_progress_callback: progress =  96%
+output_json: saving output to '/Users/nino/CursorProjects/short-video-maker/tmp.json'
+
+whisper_print_timings:     load time =   526.90 ms
+whisper_print_timings:     fallbacks =   0 p /   0 h
+whisper_print_timings:      mel time =     4.21 ms
+whisper_print_timings:   sample time =    33.76 ms /   150 runs (    0.23 ms per run)
+whisper_print_timings:   encode time =   455.00 ms /     1 runs (  455.00 ms per run)
+whisper_print_timings:   decode time =     0.00 ms /     1 runs (    0.00 ms per run)
+whisper_print_timings:   batchd time =   800.31 ms /   148 runs (    5.41 ms per run)
+whisper_print_timings:   prompt time =    33.14 ms /    30 runs (    1.10 ms per run)
+whisper_print_timings:    total time =  1938.60 ms
+ggml_metal_free: deallocating

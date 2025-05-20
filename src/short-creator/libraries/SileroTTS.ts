@@ -11,13 +11,11 @@ const execAsync = promisify(exec);
 export class SileroTTS {
   private modelPath: string;
   private device: string;
-  private referenceAudioPath: string;
   private scriptPath: string;
 
   constructor(private config: Config) {
     this.modelPath = path.join(config.dataDirPath, "models", "silero_tts");
     this.device = "cpu"; // or "cuda" if you have NVIDIA GPU
-    this.referenceAudioPath = config.referenceAudioPath || path.join(process.cwd(), "NinoSample.wav");
     this.scriptPath = path.join(__dirname, "generate_speech.py");
   }
 
@@ -32,27 +30,59 @@ export class SileroTTS {
       logger.debug("Downloading Silero TTS model");
       fs.ensureDirSync(this.modelPath);
     }
-
-    // Verify reference audio exists
-    if (!fs.existsSync(this.referenceAudioPath)) {
-      throw new Error(`Reference audio file not found at ${this.referenceAudioPath}`);
-    }
-
     // Verify Python script exists
     if (!fs.existsSync(this.scriptPath)) {
       throw new Error(`Python script not found at ${this.scriptPath}`);
     }
   }
 
-  async generateSpeech(text: string, outputPath: string): Promise<void> {
-    logger.debug({ text, outputPath }, "Generating speech with YourTTS");
+  async generateSpeech(
+    text: string,
+    outputPath: string,
+    emotion: string = "emotional",
+    language: string = "pt",
+    referenceAudioPath?: string
+  ): Promise<void> {
+    logger.info({ 
+      text, 
+      outputPath, 
+      emotion, 
+      language, 
+      referenceAudioPath,
+      scriptPath: this.scriptPath,
+      modelPath: this.modelPath,
+      cwd: process.cwd()
+    }, "🚀 Iniciando geração de áudio com YourTTS");
 
     try {
-      const command = `python3 ${this.scriptPath} --text "${text}" --output "${outputPath}" --reference "${this.referenceAudioPath}" --language "${this.config.language}"`;
-      await execAsync(command);
-      logger.debug({ outputPath }, "Speech generated successfully");
+      const refPath = referenceAudioPath;
+      logger.info({ 
+        refPath,
+        exists: fs.existsSync(refPath || 'NinoSample.wav'),
+        absolutePath: path.resolve(refPath || 'NinoSample.wav')
+      }, "📂 Verificando arquivo de referência");
+
+      if (!refPath) {
+        logger.warn("⚠️ No referenceAudioPath provided, using default NinoSample.wav");
+      }
+      
+      const command = `python3 ${this.scriptPath} --text "${text}" --output "${outputPath}" --reference "${refPath || 'NinoSample.wav'}" --language "${language}" --emotion "${emotion}"`;
+      logger.info({ command }, "🔧 Executando comando Python");
+      
+      const { stdout, stderr } = await execAsync(command);
+      logger.info({ stdout, stderr }, "✅ Comando Python executado");
+      
+      logger.info({ outputPath }, "🎵 Speech generated successfully");
     } catch (error) {
-      logger.error({ error }, "Failed to generate speech");
+      logger.error({ 
+        error,
+        text,
+        outputPath,
+        emotion,
+        language,
+        referenceAudioPath,
+        cwd: process.cwd()
+      }, "❌ Failed to generate speech");
       throw error;
     }
   }

@@ -41,13 +41,14 @@ const VideoCreator: React.FC = () => {
     { text: "", searchTerms: "" },
   ]);
   const [config, setConfig] = useState<RenderConfig>({
-    paddingBack: 1500,
+    paddingBack: 1000,
     music: MusicMoodEnum.chill,
     captionPosition: CaptionPositionEnum.bottom,
-    captionBackgroundColor: "blue",
+    captionBackgroundColor: "#000000",
     voice: VoiceEnum.af_heart,
     orientation: OrientationEnum.portrait,
-    musicVolume: MusicVolumeEnum.high,
+    musicVolume: MusicVolumeEnum.medium,
+    language: "pt",
   });
 
   const [loading, setLoading] = useState(false);
@@ -357,6 +358,20 @@ const VideoCreator: React.FC = () => {
                       {voice}
                     </MenuItem>
                   ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel>Language</InputLabel>
+                <Select
+                  value={config.language}
+                  label="Language"
+                  onChange={(e) => handleConfigChange("language", e.target.value)}
+                >
+                  <MenuItem value="pt">Portuguese</MenuItem>
+                  <MenuItem value="en">English</MenuItem>
                 </Select>
               </FormControl>
             </Grid>

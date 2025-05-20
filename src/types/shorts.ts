@@ -116,6 +116,8 @@ export const renderConfig = z.object({
     .nativeEnum(MusicVolumeEnum)
     .optional()
     .describe("Volume of the music, default is high"),
+  language: z.enum(["pt", "en"]).default("pt").describe("Language for text-to-speech"),
+  referenceAudioPath: z.string().optional().describe("Path to reference audio file for TTS"),
 });
 export type RenderConfig = z.infer<typeof renderConfig>;
 
@@ -131,6 +133,7 @@ export type Caption = {
   text: string;
   startMs: number;
   endMs: number;
+  emotion?: "question" | "exclamation" | "neutral";
 };
 
 export type CaptionLine = {

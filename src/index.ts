@@ -46,7 +46,6 @@ async function main() {
     config,
     remotion,
     kokoro,
-    whisper,
     ffmpeg,
     pexelsApi,
     musicManager,
