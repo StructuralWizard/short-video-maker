@@ -2,38 +2,18 @@ import { Config } from "../../config";
 import { logger } from "../../logger";
 import path from "path";
 import fs from "fs-extra";
-import { exec } from "child_process";
-import { promisify } from "util";
-import os from "os";
-
-const execAsync = promisify(exec);
+import axios from "axios";
+import FormData from "form-data";
 
 export class SileroTTS {
-  private modelPath: string;
-  private device: string;
-  private scriptPath: string;
+  private readonly ttsServerUrl: string;
 
   constructor(private config: Config) {
-    this.modelPath = path.join(config.dataDirPath, "models", "silero_tts");
-    this.device = "cpu"; // or "cuda" if you have NVIDIA GPU
-    this.scriptPath = path.join(__dirname, "generate_speech.py");
+    this.ttsServerUrl = "http://localhost:5001/tts";
   }
 
   static async init(config: Config): Promise<SileroTTS> {
-    const tts = new SileroTTS(config);
-    await tts.ensureModel();
-    return tts;
-  }
-
-  private async ensureModel() {
-    if (!fs.existsSync(this.modelPath)) {
-      logger.debug("Downloading Silero TTS model");
-      fs.ensureDirSync(this.modelPath);
-    }
-    // Verify Python script exists
-    if (!fs.existsSync(this.scriptPath)) {
-      throw new Error(`Python script not found at ${this.scriptPath}`);
-    }
+    return new SileroTTS(config);
   }
 
   async generateSpeech(
@@ -49,10 +29,8 @@ export class SileroTTS {
       emotion, 
       language, 
       referenceAudioPath,
-      scriptPath: this.scriptPath,
-      modelPath: this.modelPath,
       cwd: process.cwd()
-    }, "🚀 Iniciando geração de áudio com YourTTS");
+    }, "🚀 Iniciando geração de áudio com TTS");
 
     try {
       const refPath = referenceAudioPath;
@@ -65,24 +43,53 @@ export class SileroTTS {
       if (!refPath) {
         logger.warn("⚠️ No referenceAudioPath provided, using default NinoSample.wav");
       }
-      
-      const command = `python3 ${this.scriptPath} --text "${text}" --output "${outputPath}" --reference "${refPath || 'NinoSample.wav'}" --language "${language}" --emotion "${emotion}"`;
-      logger.info({ command }, "🔧 Executando comando Python");
-      
-      const { stdout, stderr } = await execAsync(command);
-      logger.info({ stdout, stderr }, "✅ Comando Python executado");
+
+      const formData = new FormData();
+      formData.append("text", text);
+      formData.append("reference_audio", path.basename(refPath || "NinoSample.wav"));
+      formData.append("language", language);
+      formData.append("emotion", emotion);
+
+      logger.info({ formData }, "📤 Sending request to TTS server");
+
+      const response = await axios.post(this.ttsServerUrl, formData, {
+        responseType: "arraybuffer",
+        headers: {
+          ...formData.getHeaders(),
+        },
+      });
+
+      await fs.writeFile(outputPath, Buffer.from(response.data));
       
       logger.info({ outputPath }, "🎵 Speech generated successfully");
     } catch (error) {
-      logger.error({ 
-        error,
-        text,
-        outputPath,
-        emotion,
-        language,
-        referenceAudioPath,
-        cwd: process.cwd()
-      }, "❌ Failed to generate speech");
+      if (axios.isAxiosError(error)) {
+        const errorData = error.response?.data ? 
+          Buffer.from(error.response.data).toString() : 
+          'No error data';
+        
+        logger.error({ 
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          errorData,
+          text,
+          outputPath,
+          emotion,
+          language,
+          referenceAudioPath,
+          cwd: process.cwd()
+        }, "❌ Failed to generate speech");
+      } else {
+        logger.error({ 
+          error,
+          text,
+          outputPath,
+          emotion,
+          language,
+          referenceAudioPath,
+          cwd: process.cwd()
+        }, "❌ Failed to generate speech");
+      }
       throw error;
     }
   }

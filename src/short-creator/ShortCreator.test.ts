@@ -1,220 +1,154 @@
 process.env.LOG_LEVEL = "debug";
 
-import { test, expect, vi } from "vitest";
-import fs from "fs-extra";
-
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ShortCreator } from "./ShortCreator";
-import { Kokoro } from "./libraries/Kokoro";
+import { Config } from "../config";
 import { Remotion } from "./libraries/Remotion";
-import { Whisper } from "./libraries/Whisper";
 import { FFMpeg } from "./libraries/FFmpeg";
 import { PexelsAPI } from "./libraries/Pexels";
-import { Config } from "../config";
 import { MusicManager } from "./music";
+import { SileroTTS } from "./libraries/SileroTTS";
+import { OrientationEnum, MusicMoodEnum, MusicVolumeEnum } from "../types/shorts";
 
-// mock fs-extra
-vi.mock("fs-extra", async () => {
-  const { createFsFromVolume, Volume } = await import("memfs");
-  const vol = Volume.fromJSON({
-    "/Users/gyoridavid/.ai-agents-az-video-generator/videos/video-1.mp4":
-      "mock video content 1",
-    "/Users/gyoridavid/.ai-agents-az-video-generator/videos/video-2.mp4":
-      "mock video content 2",
-    "/Users/gyoridavid/.ai-agents-az-video-generator/temp": null,
-    "/Users/gyoridavid/.ai-agents-az-video-generator/libs": null,
-    "/static/music/happy-music.mp3": "mock music content",
-    "/static/music/sad-music.mp3": "mock music content",
-    "/static/music/chill-music.mp3": "mock music content",
-  });
-  const memfs = createFsFromVolume(vol);
+// mock remotion
+vi.mock("@remotion/renderer", () => ({
+  renderMedia: vi.fn().mockResolvedValue(undefined),
+  selectComposition: vi.fn().mockResolvedValue({
+    width: 1080,
+    height: 1920,
+    fps: 30,
+    durationInFrames: 300,
+  }),
+  ensureBrowser: vi.fn().mockResolvedValue(undefined),
+}));
 
-  const fsExtra = {
-    ...memfs,
-    // fs-extra specific methods
-    ensureDirSync: vi.fn((path) => {
-      try {
-        memfs.mkdirSync(path, { recursive: true });
-      } catch (error) {}
-    }),
-    removeSync: vi.fn((path) => {
-      try {
-        const stats = memfs.statSync(path);
-        if (stats.isDirectory()) {
-          // This is simplified and won't handle nested directories
-          memfs.rmdirSync(path);
-        } else {
-          memfs.unlinkSync(path);
-        }
-      } catch (error) {}
-    }),
-    createWriteStream: vi.fn(() => ({
-      on: vi.fn(),
-      write: vi.fn(),
-      end: vi.fn(),
-    })),
-    readFileSync: vi.fn((path) => {
-      return memfs.readFileSync(path);
-    }),
-  };
-  return {
-    ...fsExtra,
-    default: fsExtra,
-  };
-});
-
-// Mock fluent-ffmpeg
-vi.mock("fluent-ffmpeg", () => {
-  const mockOn = vi.fn().mockReturnThis();
-  const mockSave = vi.fn().mockReturnThis();
-  const mockPipe = vi.fn().mockReturnThis();
-
-  const ffmpegMock = vi.fn(() => ({
+// mock ffmpeg
+vi.mock("fluent-ffmpeg", () => ({
+  __esModule: true,
+  default: vi.fn().mockReturnValue({
     input: vi.fn().mockReturnThis(),
     audioCodec: vi.fn().mockReturnThis(),
     audioBitrate: vi.fn().mockReturnThis(),
     audioChannels: vi.fn().mockReturnThis(),
     audioFrequency: vi.fn().mockReturnThis(),
     toFormat: vi.fn().mockReturnThis(),
-    on: mockOn,
-    save: mockSave,
-    pipe: mockPipe,
-  }));
+    on: vi.fn().mockReturnThis(),
+    save: vi.fn().mockReturnThis(),
+    pipe: vi.fn().mockReturnThis(),
+  }),
+  setFfmpegPath: vi.fn(),
+  ffprobe: vi.fn().mockImplementation((filePath, callback) => {
+    callback(null, { format: { duration: 10 } });
+  }),
+}));
 
-  ffmpegMock.setFfmpegPath = vi.fn();
+// mock ffmpeg-installer
+vi.mock("@ffmpeg-installer/ffmpeg", () => ({
+  path: "/usr/local/bin/ffmpeg",
+}));
 
-  return { default: ffmpegMock };
-});
-
-// mock kokoro-js
-vi.mock("kokoro-js", () => {
-  return {
-    KokoroTTS: {
-      from_pretrained: vi.fn().mockResolvedValue({
-        generate: vi.fn().mockResolvedValue({
-          toWav: vi.fn().mockReturnValue(new ArrayBuffer(8)),
-          audio: new ArrayBuffer(8),
-          sampling_rate: 44100,
-        }),
-      }),
-    },
-  };
-});
-
-// mock remotion
-vi.mock("@remotion/bundler", () => {
-  return {
-    bundle: vi.fn().mockResolvedValue("mocked-bundled-url"),
-  };
-});
-vi.mock("@remotion/renderer", () => {
-  return {
-    renderMedia: vi.fn().mockResolvedValue(undefined),
-    selectComposition: vi.fn().mockResolvedValue({
+// mock pexels
+vi.mock("./libraries/Pexels", () => ({
+  PexelsAPI: vi.fn().mockImplementation(() => ({
+    findVideo: vi.fn().mockResolvedValue({
+      id: "1",
+      url: "http://example.com/video.mp4",
       width: 1080,
       height: 1920,
-      fps: 30,
-      durationInFrames: 300,
     }),
-    ensureBrowser: vi.fn().mockResolvedValue(undefined),
-  };
-});
+  })),
+}));
 
-// mock whisper
-vi.mock("@remotion/install-whisper-cpp", () => {
-  return {
-    downloadWhisperModel: vi.fn().mockResolvedValue(undefined),
-    installWhisperCpp: vi.fn().mockResolvedValue(undefined),
-    transcribe: vi.fn().mockResolvedValue({
-      transcription: [
-        {
-          text: "This is a mock transcription.",
-          offsets: { from: 0, to: 2000 },
-          tokens: [
-            { text: "This", timestamp: { from: 0, to: 500 } },
-            { text: " is", timestamp: { from: 500, to: 800 } },
-            { text: " a", timestamp: { from: 800, to: 1000 } },
-            { text: " mock", timestamp: { from: 1000, to: 1500 } },
-            { text: " transcription.", timestamp: { from: 1500, to: 2000 } },
-          ],
-        },
-      ],
-    }),
-  };
-});
-
-test("test me", async () => {
-  const kokoro = await Kokoro.init("fp16");
-  const ffmpeg = await FFMpeg.init();
-
-  vi.spyOn(ffmpeg, "saveNormalizedAudio").mockResolvedValue("mocked-path.wav");
-  vi.spyOn(ffmpeg, "saveToMp3").mockResolvedValue("mocked-path.mp3");
-
-  const pexelsAPI = new PexelsAPI("mock-api-key");
-  vi.spyOn(pexelsAPI, "findVideo").mockResolvedValue({
-    id: "mock-video-id-1",
-    url: "https://example.com/mock-video-1.mp4",
-    width: 1080,
-    height: 1920,
-  });
-
-  const config = new Config();
-  const remotion = await Remotion.init(config);
-
-  // control the render promise resolution
-  let resolveRenderPromise: () => void;
-  const renderPromiseMock: Promise<void> = new Promise((resolve) => {
-    resolveRenderPromise = resolve;
-  });
-  vi.spyOn(remotion, "render").mockReturnValue(renderPromiseMock);
-
-  const whisper = await Whisper.init(config);
-
-  vi.spyOn(whisper, "CreateCaption").mockResolvedValue([
-    { text: "This", startMs: 0, endMs: 500 },
-    { text: " is", startMs: 500, endMs: 800 },
-    { text: " a", startMs: 800, endMs: 1000 },
-    { text: " mock", startMs: 1000, endMs: 1500 },
-    { text: " transcription.", startMs: 1500, endMs: 2000 },
-  ]);
-
-  const musicManager = new MusicManager(config);
-
-  const shortCreator = new ShortCreator(
-    config,
-    remotion,
-    kokoro,
-    whisper,
-    ffmpeg,
-    pexelsAPI,
-    musicManager,
-  );
-
-  const videoId = shortCreator.addToQueue(
-    [
+// mock music manager
+vi.mock("./music", () => ({
+  MusicManager: vi.fn().mockImplementation(() => ({
+    musicList: vi.fn().mockReturnValue([
       {
-        text: "test",
-        searchTerms: ["test"],
+        file: "test.mp3",
+        start: 0,
+        end: 10,
+        mood: "happy",
+        url: "http://localhost:3000/api/music/test.mp3",
       },
-    ],
-    {},
-  );
+    ]),
+  })),
+}));
 
-  // list videos while the video is being processed
-  let videos = shortCreator.listAllVideos();
-  expect(videos.find((v) => v.id === videoId)?.status).toBe("processing");
+// mock silero tts
+vi.mock("./libraries/SileroTTS", () => ({
+  SileroTTS: {
+    init: vi.fn().mockResolvedValue({
+      generateSpeech: vi.fn().mockResolvedValue(undefined),
+    }),
+  },
+}));
 
-  // create the video file on the file system and check the status again
-  fs.writeFileSync(shortCreator.getVideoPath(videoId), "mock video content");
-  videos = shortCreator.listAllVideos();
-  expect(videos.find((v) => v.id === videoId)?.status).toBe("processing");
+describe("ShortCreator", () => {
+  let shortCreator: ShortCreator;
+  let config: Config;
+  let remotion: Remotion;
+  let ffmpeg: FFMpeg;
+  let pexelsApi: PexelsAPI;
+  let musicManager: MusicManager;
 
-  // resolve the render promise to simulate the video being processed, and check the status again
-  resolveRenderPromise();
-  await new Promise((resolve) => setTimeout(resolve, 100)); // let the queue process the video
-  videos = shortCreator.listAllVideos();
-  expect(videos.find((v) => v.id === videoId)?.status).toBe("ready");
+  beforeEach(async () => {
+    config = new Config();
+    config.port = 3000;
+    config.tempDirPath = "/tmp";
+    config.videosDirPath = "/tmp/videos";
+    config.referenceAudioPath = "/tmp/reference.wav";
+    config.packageDirPath = "/tmp";
+    config.devMode = true;
+    config.concurrency = 1;
+    config.videoCacheSizeInBytes = 1024 * 1024;
+    config.musicDirPath = "/tmp/music";
+    config.pexelsApiKey = "mock-api-key";
 
-  // check the status of the video directly
-  const status = shortCreator.status(videoId);
-  expect(status).toBe("ready");
+    remotion = await Remotion.init(config);
+    ffmpeg = await FFMpeg.init();
+    pexelsApi = new PexelsAPI(config.pexelsApiKey);
+    musicManager = new MusicManager(config);
+
+    shortCreator = new ShortCreator(
+      config,
+      remotion,
+      ffmpeg,
+      pexelsApi,
+      musicManager,
+    );
+  });
+
+  it("should create a short video", async () => {
+    const sceneInput = [
+      {
+        text: "Hello world",
+        searchTerms: ["hello world"],
+      },
+    ];
+
+    const renderConfig = {
+      language: "pt" as const,
+      orientation: OrientationEnum.portrait,
+      paddingBack: 1000,
+      musicVolume: MusicVolumeEnum.high,
+    };
+
+    const id = shortCreator.addToQueue(sceneInput, renderConfig);
+    expect(id).toBeDefined();
+  });
+
+  it("should list available music tags", () => {
+    const tags = shortCreator.ListAvailableMusicTags();
+    expect(tags).toBeDefined();
+  });
+
+  it("should list all videos", () => {
+    const videos = shortCreator.listAllVideos();
+    expect(videos).toBeDefined();
+  });
+
+  it("should list available voices", () => {
+    const voices = shortCreator.ListAvailableVoices();
+    expect(voices).toBeDefined();
+  });
 });

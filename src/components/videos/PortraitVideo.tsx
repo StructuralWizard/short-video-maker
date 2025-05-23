@@ -26,9 +26,11 @@ export const PortraitVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
   const { fps } = useVideoConfig();
 
   const captionBackgroundColor = config.captionBackgroundColor ?? "blue";
+  const captionTextColor = config.captionTextColor ?? "#ffffff";
 
   const activeStyle = {
     backgroundColor: captionBackgroundColor,
+    color: captionTextColor,
     padding: "10px",
     marginLeft: "-10px",
     marginRight: "-10px",

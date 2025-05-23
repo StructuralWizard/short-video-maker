@@ -54,10 +54,13 @@ export class PexelsAPI {
       }[];
     }[];
 
+    // Considere apenas os 10 primeiros vídeos
+    const topVideos = videos.slice(0, 10);
+
     const { width: requiredVideoWidth, height: requiredVideoHeight } =
       getOrientationConfig(orientation);
 
-    if (!videos || videos.length === 0) {
+    if (!topVideos || topVideos.length === 0) {
       logger.error(
         { searchTerm, orientation },
         "No videos found in Pexels API",
@@ -66,7 +69,7 @@ export class PexelsAPI {
     }
 
     // find all the videos that fits the criteria, then select one randomly
-    const filteredVideos = videos
+    const filteredVideos = topVideos
       .map((video) => {
         if (excludeIds.includes(video.id)) {
           return;

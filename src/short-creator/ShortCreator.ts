@@ -1,12 +1,10 @@
-import { OrientationEnum } from "./../types/shorts";
+import { OrientationEnum, MusicMoodEnum, VoiceEnum } from "./../types/shorts";
 /* eslint-disable @remotion/deterministic-randomness */
 import fs from "fs-extra";
 import cuid from "cuid";
 import path from "path";
 
-import { Kokoro } from "./libraries/Kokoro";
 import { Remotion } from "./libraries/Remotion";
-import { Whisper } from "./libraries/Whisper";
 import { FFMpeg } from "./libraries/FFmpeg";
 import { PexelsAPI } from "./libraries/Pexels";
 import { Config } from "../config";
@@ -19,9 +17,9 @@ import type {
   RenderConfig,
   Scene,
   VideoStatus,
-  MusicMoodEnum,
   MusicTag,
   MusicForVideo,
+  Caption,
 } from "../types/shorts";
 
 export class ShortCreator {
@@ -34,7 +32,6 @@ export class ShortCreator {
   constructor(
     private globalConfig: Config,
     private remotion: Remotion,
-    private kokoro: Kokoro,
     private ffmpeg: FFMpeg,
     private pexelsApi: PexelsAPI,
     private musicManager: MusicManager,
@@ -106,53 +103,41 @@ export class ShortCreator {
     const orientation: OrientationEnum =
       config.orientation || OrientationEnum.portrait;
 
-    const whisper = await Whisper.init(this.globalConfig);
     const sileroTTS = await SileroTTS.init(this.globalConfig);
 
     let index = 0;
     for (const scene of inputScenes) {
-      let audio: { audio: ArrayBuffer; audioLength: number };
-      
-      if (config.language === "pt") {
-        const tempId = cuid();
-        const tempWavFileName = `${tempId}.wav`;
-        const tempWavPath = path.join(this.globalConfig.tempDirPath, tempWavFileName);
-        tempFiles.push(tempWavPath);
+      const tempId = cuid();
+      const tempWavFileName = `${tempId}.wav`;
+      const tempWavPath = path.join(this.globalConfig.tempDirPath, tempWavFileName);
+      tempFiles.push(tempWavPath);
 
-        let emotion = "emotional";
-        if (scene.text.trim().endsWith("?")) {
-          emotion = "question";
-        } else if (scene.text.trim().endsWith("!")) {
-          emotion = "excited";
-        } else {
-          emotion = "neutral";
-        }
-        const referenceAudioPath = config.referenceAudioPath || this.globalConfig.referenceAudioPath;
-        logger.info({ 
-          sceneText: scene.text,
-          tempWavPath,
-          emotion,
-          language: config.language,
-          referenceAudioPath,
-          configReferenceAudioPath: config.referenceAudioPath,
-          globalConfigReferenceAudioPath: this.globalConfig.referenceAudioPath,
-          cwd: process.cwd()
-        }, "🎙️ Preparando para gerar áudio com TTS");
-        
-        await sileroTTS.generateSpeech(scene.text, tempWavPath, emotion, config.language, referenceAudioPath);
-        
-        logger.info({ tempWavPath }, "✅ Áudio gerado com sucesso, lendo arquivo");
-        const audioBuffer = await fs.readFile(tempWavPath);
-        audio = {
-          audio: audioBuffer.buffer,
-          audioLength: await this.ffmpeg.getAudioDuration(tempWavPath)
-        };
-      } else {
-        audio = await this.kokoro.generate(
-          scene.text,
-          config.voice ?? "af_heart",
-        );
+      let emotion = "neutral";
+      if (scene.text.trim().endsWith("?")) {
+        emotion = "question";
+      } else if (scene.text.trim().endsWith("!")) {
+        emotion = "exclamation";
       }
+      const referenceAudioPath = config.referenceAudioPath || this.globalConfig.referenceAudioPath;
+      logger.info({ 
+        sceneText: scene.text,
+        tempWavPath,
+        emotion,
+        language: config.language,
+        referenceAudioPath,
+        configReferenceAudioPath: config.referenceAudioPath,
+        globalConfigReferenceAudioPath: this.globalConfig.referenceAudioPath,
+        cwd: process.cwd()
+      }, "🎙️ Preparando para gerar áudio com TTS");
+      
+      await sileroTTS.generateSpeech(scene.text, tempWavPath, emotion, config.language, referenceAudioPath);
+      
+      logger.info({ tempWavPath }, "✅ Áudio gerado com sucesso, lendo arquivo");
+      const audioBuffer = await fs.readFile(tempWavPath);
+      const audio = {
+        audio: audioBuffer.buffer,
+        audioLength: await this.ffmpeg.getAudioDuration(tempWavPath)
+      };
 
       let { audioLength } = audio;
       const { audio: audioStream } = audio;
@@ -161,15 +146,9 @@ export class ShortCreator {
         audioLength += config.paddingBack / 1000;
       }
 
-      const tempId = cuid();
-      const tempWavFileName = `${tempId}.wav`;
       const tempMp3FileName = `${tempId}.mp3`;
-      const tempWavPath = path.join(this.globalConfig.tempDirPath, tempWavFileName);
       const tempMp3Path = path.join(this.globalConfig.tempDirPath, tempMp3FileName);
-      tempFiles.push(tempWavPath, tempMp3Path);
-
-      await this.ffmpeg.saveNormalizedAudio(audioStream, tempWavPath);
-      const captions = await whisper.CreateCaption(tempWavPath, config.language);
+      tempFiles.push(tempMp3Path);
 
       await this.ffmpeg.saveToMp3(audioStream, tempMp3Path);
       const video = await this.pexelsApi.findVideo(
@@ -179,6 +158,14 @@ export class ShortCreator {
         orientation,
       );
       excludeVideoIds.push(video.id);
+
+      // Generate captions
+      const captions: Caption[] = [{
+        text: scene.text,
+        startMs: 0,
+        endMs: audioLength * 1000,
+        emotion: emotion as "question" | "exclamation" | "neutral"
+      }];
 
       scenes.push({
         captions,
@@ -207,7 +194,8 @@ export class ShortCreator {
           durationMs: totalDuration * 1000,
           paddingBack: config.paddingBack,
           ...{
-            captionBackgroundColor: config.captionBackgroundColor,
+            captionBackgroundColor: config.captionBackgroundColor || "#dd0000",
+            captionTextColor: config.captionTextColor || "#ffffff",
             captionPosition: config.captionPosition,
           },
           musicVolume: config.musicVolume,
@@ -249,55 +237,43 @@ export class ShortCreator {
       }
       return true;
     });
-    return musicFiles[Math.floor(Math.random() * musicFiles.length)];
+
+    if (musicFiles.length === 0) {
+      throw new Error("No music files found");
+    }
+
+    const music = musicFiles[Math.floor(Math.random() * musicFiles.length)];
+    const musicDuration = music.end - music.start;
+    const musicStart = Math.random() * (musicDuration - videoDuration);
+
+    return {
+      ...music,
+      url: `http://localhost:${this.globalConfig.port}/api/music/${encodeURIComponent(music.file)}`,
+    };
   }
 
   public ListAvailableMusicTags(): MusicTag[] {
-    const tags = new Set<MusicTag>();
-    this.musicManager.musicList().forEach((music) => {
-      tags.add(music.mood as MusicTag);
-    });
-    return Array.from(tags.values());
+    return Object.values(MusicMoodEnum);
   }
 
   public listAllVideos(): { id: string; status: VideoStatus }[] {
-    const videos: { id: string; status: VideoStatus }[] = [];
-
-    // Check if videos directory exists
     if (!fs.existsSync(this.globalConfig.videosDirPath)) {
-      return videos;
+      return [];
     }
 
-    // Read all files in the videos directory
     const files = fs.readdirSync(this.globalConfig.videosDirPath);
-
-    // Filter for MP4 files and extract video IDs
-    for (const file of files) {
-      if (file.endsWith(".mp4")) {
-        const videoId = file.replace(".mp4", "");
-
-        let status: VideoStatus = "ready";
-        const inQueue = this.queue.find((item) => item.id === videoId);
-        if (inQueue) {
-          status = "processing";
-        }
-
-        videos.push({ id: videoId, status });
-      }
-    }
-
-    // Add videos that are in the queue but not yet rendered
-    for (const queueItem of this.queue) {
-      const existingVideo = videos.find((v) => v.id === queueItem.id);
-      if (!existingVideo) {
-        videos.push({ id: queueItem.id, status: "processing" });
-      }
-    }
-
-    return videos;
+    return files
+      .filter((file) => file.endsWith(".mp4"))
+      .map((file) => {
+        const id = file.replace(".mp4", "");
+        return {
+          id,
+          status: this.status(id),
+        };
+      });
   }
 
   public ListAvailableVoices(): string[] {
-    return this.kokoro.listAvailableVoices();
+    return Object.values(VoiceEnum);
   }
 }

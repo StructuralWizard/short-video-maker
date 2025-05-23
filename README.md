@@ -4,7 +4,7 @@ An open source automated video creation tool for generating short-form video con
 
 This project is meant to provide a free alternative to heavy GPU-power hungry video generation (and a free alternative to expensive, third-party API calls). It doesn't generate a video from scratch based on an image or an image prompt.
 
-The repository was open-sourced by the [AI Agents A-Z Youtube Channel](https://www.youtube.com/channel/UCloXqLhp_KGhHBe1kwaL2Tg). We encourage you to check out the channel for more AI-related content and tutorials.
+The repository was open-sourced by the [AI Agents A-Z Youtube Channel](https://www.youtube.com/channel/UCloXqLhp_KGhHBe1kwaL2Tg). We encourage you to check out the channel for more AI-related content and tutorials.
 
 The server exposes an [MCP](https://github.com/modelcontextprotocol) and a REST server.
 
@@ -83,7 +83,7 @@ Shorts Creator takes simple text inputs and search terms, then:
 
 # Limitations
 
-- The project only capable generating videos with English voiceover (kokoro-js doesn’t support other languages at the moment)
+- The project only capable generating videos with English voiceover (kokoro-js doesn't support other languages at the moment)
 - The background videos are sourced from Pexels
 
 # General Requirements
@@ -179,7 +179,7 @@ services:
 
 ```
 
-If you are using the [Self-hosted AI starter kit](https://github.com/n8n-io/self-hosted-ai-starter-kit) you want to add `networks: ['demo']` to the** `short-video-maker` service so you can reach it with http://short-video-maker:3123 in n8n.
+If you are using the [Self-hosted AI starter kit](https://github.com/n8n-io/self-hosted-ai-starter-kit) you want to add `networks: ['demo']` to the `short-video-maker` service so you can reach it with http://short-video-maker:3123 in n8n.
 
 # Web UI
 
@@ -188,16 +188,16 @@ If you are using the [Self-hosted AI starter kit](https://github.com/n8n-io/self
 <table>
   <tr>
     <td>
-      <img width="1088" alt="Screenshot 2025-05-12 at 1 45 11 PM" src="https://github.com/user-attachments/assets/2ab64aea-f639-41b0-bd19-2fcf73bb1a3d" />
+      <img width="1088" alt="Screenshot 2025-05-12 at 1 45 11 PM" src="https://github.com/user-attachments/assets/2ab64aea-f639-41b0-bd19-2fcf73bb1a3d" />
     </td>
     <td>
-      <img width="1075" alt="Screenshot 2025-05-12 at 1 45 44 PM" src="https://github.com/user-attachments/assets/0ff568fe-ddcb-4dad-ae62-2640290aef1e" />
+      <img width="1075" alt="Screenshot 2025-05-12 at 1 45 44 PM" src="https://github.com/user-attachments/assets/0ff568fe-ddcb-4dad-ae62-2640290aef1e" />
     </td>
     <td>
-      <img width="1083" alt="Screenshot 2025-05-12 at 1 45 51 PM" src="https://github.com/user-attachments/assets/d3c1c826-3cb3-4313-b17c-605ff612fb63" />
+      <img width="1083" alt="Screenshot 2025-05-12 at 1 45 51 PM" src="https://github.com/user-attachments/assets/d3c1c826-3cb3-4313-b17c-605ff612fb63" />
     </td>
     <td>
-      <img width="1070" alt="Screenshot 2025-05-12 at 1 46 42 PM" src="https://github.com/user-attachments/assets/18edb1a0-9fc2-48b3-8896-e919e7dc57ff" />
+      <img width="1070" alt="Screenshot 2025-05-12 at 1 46 42 PM" src="https://github.com/user-attachments/assets/18edb1a0-9fc2-48b3-8896-e919e7dc57ff" />
     </td>
   </tr>
 </table>
@@ -206,7 +206,7 @@ You can load it on http://localhost:3123
 
 # Environment variables
 
-## 🟢 Configuration
+## 🟢 Configuration
 
 | key | description | default |
 | --- | --- | --- |
@@ -215,15 +215,15 @@ You can load it on http://localhost:3123
 | WHISPER_VERBOSE | whether the output of whisper.cpp should be forwarded to stdout | false |
 | PORT | the port the server will listen on | 3123 |
 
-## ⚙️ System configuration
+## ⚙️ System configuration
 
 | key | description | default |
 | --- | --- | --- |
 | KOKORO_MODEL_PRECISION | The size of the Kokoro model to use. Valid options are `fp32`, `fp16`, `q8`, `q4`, `q4f16` | depends, see the descriptions of the docker images above ^^ |
 | CONCURRENCY | [concurrency refers to how many browser tabs are opened in parallel during a render. Each Chrome tab renders web content and then screenshots it.](https://www.remotion.dev/docs/terminology/concurrency). Tweaking this value helps with running the project with limited resources. | depends, see the descriptions of the docker images above ^^ |
-| VIDEO_CACHE_SIZE_IN_BYTES | Cache for [<OffthreadVideo>](https://remotion.dev/docs/offthreadvideo) frames in Remotion. Tweaking this value helps with running the project with limited resources. | depends, see the descriptions of the docker images above ^^ |
+| VIDEO_CACHE_SIZE_IN_BYTES | Cache for [<OffthreadVideo>](https://remotion.dev/docs/offthreadvideo) frames in Remotion. Tweaking this value helps with running the project with limited resources. | depends, see the descriptions of the docker images above ^^ |
 
-## ⚠️ Danger zone
+## ⚠️ Danger zone
 
 | key | description | default |
 | --- | --- | --- |
@@ -257,7 +257,7 @@ You can load it on http://localhost:3123
 ## Available tools
 
 - `create-short-video` Creates a short video - the LLM will figure out the right configuration. If you want to use specific configuration, you need to specify those in you prompt.
-- `get-video-status` Somewhat useless, it’s meant for checking the status of the video, but since the AI agents aren’t really good with the concept of time, you’ll probably will end up using the REST API for that anyway.
+- `get-video-status` Somewhat useless, it's meant for checking the status of the video, but since the AI agents aren't really good with the concept of time, you'll probably will end up using the REST API for that anyway.
 
 # REST API
 
@@ -429,24 +429,28 @@ Setting up the MCP (or REST) server depends on how you run n8n and the server. P
 
 |  | n8n is running locally, using `n8n start` | n8n is running locally using Docker | n8n is running in the cloud |
 | --- | --- | --- | --- |
-| `short-video-maker` is running in Docker, locally | `http://localhost:3123` | It depends. You can technically use `http://host.docker.internal:3123` as it points to the host, but you could configure to use the same network and use the service name to communicate like `http://short-video-maker:3123` | won’t work - deploy `short-video-maker` to the cloud |
-| `short-video-maker` is running with npm/npx | `http://localhost:3123` | `http://host.docker.internal:3123` | won’t work - deploy `short-video-maker` to the cloud |
+| `short-video-maker` is running in Docker, locally | `http://localhost:3123` | It depends. You can technically use `http://host.docker.internal:3123` as it points to the host, but you could configure to use the same network and use the service name to communicate like `http://short-video-maker:3123` | won't work - deploy `short-video-maker` to the cloud |
+| `short-video-maker` is running with npm/npx | `http://localhost:3123` | `http://host.docker.internal:3123` | won't work - deploy `short-video-maker` to the cloud |
 | `short-video-maker` is running in the cloud | You should use your IP address `http://{YOUR_IP}:3123` | You should use your IP address `http://{YOUR_IP}:3123` | You should use your IP address `http://{YOUR_IP}:3123` |
 
 # Deploying to the cloud
 
-While each VPS provider is different, and it’s impossible to provide configuration to all of them, here are some tips.
+While each VPS provider is different, and it's impossible to provide configuration to all of them, here are some tips.
 
 - Use Ubuntu ≥ 22.04
 - Have ≥ 4gb RAM, ≥ 2vCPUs and ≥5gb storage
-- Use [pm2](https://pm2.keymetrics.io/) to run/manage the server
+- Run the server directly with Node.js:
+  ```bash
+  npm run build
+  npm start
+  ```
 - Put the environment variables to the `.bashrc` file (or similar)
 
 # FAQ
 
 ## Can I use other languages? (French, German etc.)
 
-Unfortunately, it’s not possible at the moment. Kokoro-js only supports English.
+Unfortunately, it's not possible at the moment. Kokoro-js only supports English.
 
 ## Can I pass in images and videos and can it stitch it together
 

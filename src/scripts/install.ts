@@ -1,38 +1,36 @@
-import { ensureBrowser } from "@remotion/renderer";
-
-import { logger } from "../logger";
-import { Kokoro } from "../short-creator/libraries/Kokoro";
-import { MusicManager } from "../short-creator/music";
 import { Config } from "../config";
-import { Whisper } from "../short-creator/libraries/Whisper";
+import { logger } from "../logger";
+import { FFMpeg } from "../short-creator/libraries/FFmpeg";
+import { Remotion } from "../short-creator/libraries/Remotion";
+import { PexelsAPI } from "../short-creator/libraries/Pexels";
+import { SileroTTS } from "../short-creator/libraries/SileroTTS";
 
-// runs in docker
-export async function install() {
+async function main() {
   const config = new Config();
-
-  logger.info("Installing dependencies...");
-  logger.info("Installing Kokoro...");
-  await Kokoro.init(config.kokoroModelPrecision);
-  logger.info("Installing browser shell...");
-  await ensureBrowser();
-  logger.info("Installing whisper.cpp");
-  await Whisper.init(config);
-  logger.info("Installing dependencies complete");
-
-  logger.info("Ensuring the music files exist...");
-  const musicManager = new MusicManager(config);
   try {
-    musicManager.ensureMusicFilesExist();
-  } catch (error: unknown) {
-    logger.error(error, "Missing music files");
+    config.ensureConfig();
+  } catch (err: unknown) {
+    logger.error(err, "Error in config");
     process.exit(1);
   }
+
+  logger.info("Installing FFmpeg...");
+  await FFMpeg.init();
+
+  logger.info("Installing Remotion...");
+  await Remotion.init(config);
+
+  logger.info("Installing SileroTTS...");
+  await SileroTTS.init(config);
+
+  logger.info("Testing Pexels API...");
+  const pexelsApi = new PexelsAPI(config.pexelsApiKey);
+  await pexelsApi.findVideo(["dog"], 2.4);
+
+  logger.info("Installation completed successfully!");
 }
 
-install()
-  .then(() => {
-    logger.info("Installation complete");
-  })
-  .catch((error: unknown) => {
-    logger.error(error, "Installation failed");
-  });
+main().catch((error: unknown) => {
+  logger.error(error, "Error during installation");
+  process.exit(1);
+});
