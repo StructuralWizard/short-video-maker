@@ -13,6 +13,9 @@ export enum MusicMoodEnum {
   hopeful = "hopeful",
   contemplative = "contemplative",
   funny = "funny/quirky",
+  inspirational = "inspirational",
+  cinematic = "cinematic",
+  worship = "worship",
 }
 
 export enum CaptionPositionEnum {

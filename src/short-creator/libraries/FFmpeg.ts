@@ -1,14 +1,22 @@
 import ffmpeg from "fluent-ffmpeg";
 import { Readable } from "node:stream";
 import { logger } from "../../logger";
+import { Config } from "../../config";
+import path from "path";
 
 export class FFMpeg {
+  private config: Config;
+
   static async init(): Promise<FFMpeg> {
     return import("@ffmpeg-installer/ffmpeg").then((ffmpegInstaller) => {
       ffmpeg.setFfmpegPath(ffmpegInstaller.path);
       logger.info("FFmpeg path set to:", ffmpegInstaller.path);
-      return new FFMpeg();
+      return new FFMpeg(new Config());
     });
+  }
+
+  constructor(config: Config) {
+    this.config = config;
   }
 
   async saveNormalizedAudio(
@@ -105,6 +113,33 @@ export class FFMpeg {
         }
         resolve(duration);
       });
+    });
+  }
+
+  /**
+   * Une múltiplos arquivos de áudio em sequência
+   * @param inputFiles Array de caminhos dos arquivos de áudio a serem unidos
+   * @param outputPath Caminho do arquivo de saída
+   */
+  async concatAudioFiles(inputFiles: string[], outputPath: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const command = ffmpeg();
+      
+      // Adiciona cada arquivo de entrada
+      inputFiles.forEach(file => {
+        command.input(file);
+      });
+
+      command
+        .on('error', (err) => {
+          logger.error(err, "Error concatenating audio files");
+          reject(err);
+        })
+        .on('end', () => {
+          logger.debug("Audio concatenation complete");
+          resolve(outputPath);
+        })
+        .mergeToFile(outputPath, path.dirname(outputPath));
     });
   }
 }

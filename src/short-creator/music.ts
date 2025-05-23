@@ -7,6 +7,54 @@ import { Config } from "../config";
 export class MusicManager {
   private static musicList: Music[] = [
     {
+      file: "Rise and Shine v1.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.inspirational,
+    },
+    {
+      file: "Rise and Shine v2.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.inspirational,
+    },
+    {
+      file: "Rise and Shine v3.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.inspirational,
+    },
+    {
+      file: "Rise and Shine v4.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.inspirational,
+    },
+    {
+      file: "Rise and Shine v5.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.inspirational,
+    },
+    {
+      file: "Rise and Shine v6.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.inspirational,
+    },
+    {
+      file: "Rise and Soar v1.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.inspirational,
+    },
+    {
+      file: "Rise and Soar v2.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.inspirational,
+    },
+    {
       file: "Sly Sky - Telecasted.mp3",
       start: 0,
       end: 152,
@@ -191,6 +239,30 @@ export class MusicManager {
       start: 0,
       end: 95,
       mood: MusicMoodEnum.dark,
+    },
+    {
+      file: "WorshipRehearsal1.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.worship,
+    },
+    {
+      file: "WorshipRehearsal2.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.worship,
+    },
+    {
+      file: "WorshipRehearsal3.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.worship,
+    },
+    {
+      file: "VemMeTocar.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.worship,
     },
   ];
 

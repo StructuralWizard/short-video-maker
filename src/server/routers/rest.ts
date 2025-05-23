@@ -194,7 +194,7 @@ export class APIRouter {
 
     this.router.get(
       "/short-video/:videoId",
-      (req: ExpressRequest, res: ExpressResponse) => {
+      async (req: ExpressRequest, res: ExpressResponse) => {
         try {
           const { videoId } = req.params;
           if (!videoId) {
@@ -203,7 +203,7 @@ export class APIRouter {
             });
             return;
           }
-          const video = this.shortCreator.getVideo(videoId);
+          const video = await this.shortCreator.getVideo(videoId);
           res.setHeader("Content-Type", "video/mp4");
           res.setHeader(
             "Content-Disposition",

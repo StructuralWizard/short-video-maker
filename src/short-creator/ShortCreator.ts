@@ -15,13 +15,14 @@ import { VideoSearch } from "./libraries/VideoSearch";
 import { PixabayAPI } from "./libraries/Pixabay";
 import { ThreadPool } from './libraries/ThreadPool';
 import { VideoProcessor } from './libraries/VideoProcessor';
-import { cleanSceneText } from "./utils/textCleaner";
+import { cleanSceneText, splitTextByPunctuation } from "./utils/textCleaner";
 
 export class ShortCreator {
   private queue: {
     sceneInput: SceneInput[];
     config: RenderConfig;
     id: string;
+    status: "pending" | "processing" | "completed" | "failed";
   }[] = [];
   private videoSearch: VideoSearch;
   private threadPool: ThreadPool;
@@ -49,9 +50,18 @@ export class ShortCreator {
 
   public status(id: string): VideoStatus {
     const videoPath = this.getVideoPath(id);
-    if (this.queue.find((item) => item.id === id)) {
+    const queueItem = this.queue.find((item) => item.id === id);
+    
+    if (queueItem) {
+      if (queueItem.status === "completed") {
+        return "ready";
+      }
+      if (queueItem.status === "failed") {
+        return "failed";
+      }
       return "processing";
     }
+    
     if (fs.existsSync(videoPath)) {
       return "ready";
     }
@@ -66,7 +76,8 @@ export class ShortCreator {
     this.queue.push({
       sceneInput,
       config,
-      id
+      id,
+      status: "pending"
     });
     this.processQueue();
     return id;
@@ -76,19 +87,24 @@ export class ShortCreator {
     if (this.queue.length === 0) {
       return;
     }
-    const { sceneInput, config, id } = this.queue[0];
-    logger.debug(
-      { sceneInput, config, id },
-      "Processing video item in the queue",
-    );
-    try {
-      await this.createShort(id, sceneInput, config);
-      logger.debug({ id }, "Video created successfully");
-    } catch (error: unknown) {
-      logger.error(error, "Error creating video");
-    } finally {
-      this.queue.shift();
-      this.processQueue();
+    const queueItem = this.queue[0];
+    if (queueItem.status === "pending") {
+      queueItem.status = "processing";
+      logger.debug(
+        { sceneInput: queueItem.sceneInput, config: queueItem.config, id: queueItem.id },
+        "Processing video item in the queue",
+      );
+      try {
+        await this.createShort(queueItem.id, queueItem.sceneInput, queueItem.config);
+        queueItem.status = "completed";
+        logger.debug({ id: queueItem.id }, "Video created successfully");
+      } catch (error: unknown) {
+        queueItem.status = "failed";
+        logger.error(error, "Error creating video");
+      } finally {
+        this.queue.shift();
+        this.processQueue();
+      }
     }
   }
 
@@ -131,25 +147,38 @@ export class ShortCreator {
       const [audioResult, video] = await Promise.all([
         (async () => {
           const sceneText = cleanSceneText(scene.text);
+          const phrases = splitTextByPunctuation(sceneText);
           
           logger.info("🎙️ Preparando para gerar áudio com TTS", {
             sceneText,
+            phrases,
             tempWavPath,
             emotion,
             language: config.language,
             referenceAudioPath,
-            configReferenceAudioPath: config.referenceAudioPath,
-            globalConfigReferenceAudioPath: this.globalConfig.referenceAudioPath,
-            cwd: process.cwd()
           });
-          
-          await this.sileroTTS.generateSpeech(
-            sceneText,
-            tempWavPath,
-            emotion,
-            config.language,
-            referenceAudioPath
-          );
+
+          // Gerar áudio para cada frase
+          const phraseAudioFiles: string[] = [];
+          for (let i = 0; i < phrases.length; i++) {
+            const phrase = phrases[i];
+            const phraseTempId = cuid();
+            const phraseWavPath = path.join(this.globalConfig.tempDirPath, `${phraseTempId}.wav`);
+            tempFiles.push(phraseWavPath);
+
+            await this.sileroTTS.generateSpeech(
+              phrase,
+              phraseWavPath,
+              emotion,
+              config.language,
+              referenceAudioPath
+            );
+
+            phraseAudioFiles.push(phraseWavPath);
+          }
+
+          // Unir os áudios das frases
+          await this.ffmpeg.concatAudioFiles(phraseAudioFiles, tempWavPath);
           
           logger.info({ tempWavPath }, "✅ Áudio gerado com sucesso, lendo arquivo");
           const audioBuffer = await fs.readFile(tempWavPath);
@@ -300,11 +329,50 @@ export class ShortCreator {
       .map(file => file.replace('.mp4', ''));
   }
 
-  public getVideo(videoId: string): Buffer {
+  public async getVideo(videoId: string): Promise<Buffer> {
     const videoPath = this.getVideoPath(videoId);
+    const queueItem = this.queue.find((item) => item.id === videoId);
+    
+    // Se o vídeo ainda está na fila, verifica o status
+    if (queueItem) {
+      if (queueItem.status === "failed") {
+        throw new Error('Video generation failed');
+      }
+      if (queueItem.status !== "completed") {
+        throw new Error('Video is still being processed');
+      }
+    }
+    
+    // Verifica se o arquivo existe
     if (!fs.existsSync(videoPath)) {
       throw new Error('Video not found');
     }
+
+    // Espera até que o arquivo esteja completamente escrito
+    let lastSize = 0;
+    let currentSize = fs.statSync(videoPath).size;
+    let attempts = 0;
+    const maxAttempts = 30; // 30 segundos máximo de espera
+    
+    // Espera até que o tamanho do arquivo pare de mudar ou atinja o tempo máximo
+    while (currentSize !== lastSize && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Espera 1 segundo
+      lastSize = currentSize;
+      currentSize = fs.statSync(videoPath).size;
+      attempts++;
+      
+      // Se o arquivo não existe mais, lança erro
+      if (!fs.existsSync(videoPath)) {
+        throw new Error('Video file was removed during processing');
+      }
+    }
+
+    // Se atingiu o tempo máximo e o arquivo ainda está mudando, lança erro
+    if (currentSize !== lastSize) {
+      throw new Error('Video file is still being written after maximum wait time');
+    }
+
+    // Lê o arquivo
     return fs.readFileSync(videoPath);
   }
 }
