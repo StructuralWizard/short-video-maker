@@ -1,8 +1,7 @@
-import React from "react";
 import {
   AbsoluteFill,
   Sequence,
-  useCurrentFrame,
+  useCurrentFrame, 
   useVideoConfig,
   Audio,
   OffthreadVideo,
@@ -19,18 +18,20 @@ import {
 
 const { fontFamily } = loadFont(); // "Barlow Condensed"
 
-type ShortVideoProps = z.infer<typeof shortVideoSchema>;
-
-export const LandscapeVideo = ({ scenes, music, config }: { scenes: any[]; music: any; config: any }) => {
+export const LandscapeVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
+  scenes,
+  music,
+  config,
+}) => {
   const frame = useCurrentFrame();
-  const { fps, durationInFrames, width, height } = useVideoConfig();
+  const { fps } = useVideoConfig();
 
   const captionBackgroundColor = config.captionBackgroundColor ?? "blue";
-
   const captionTextColor = config.captionTextColor ?? "#ffffff";
 
   const activeStyle = {
     backgroundColor: captionBackgroundColor,
+    color: captionTextColor,
     padding: "10px",
     marginLeft: "-10px",
     marginRight: "-10px",
@@ -50,8 +51,6 @@ export const LandscapeVideo = ({ scenes, music, config }: { scenes: any[]; music
   }
 
   const [musicVolume, musicMuted] = calculateVolume(config.musicVolume);
-
-  console.log('Overlay recebido em LandscapeVideo:', config.overlay);
 
   return (
     <AbsoluteFill style={{ backgroundColor: "white" }}>
@@ -79,7 +78,7 @@ export const LandscapeVideo = ({ scenes, music, config }: { scenes: any[]; music
         />
       )}
 
-      {scenes.map((scene: any, i: number) => {
+      {scenes.map((scene, i) => {
         const { captions, audio, video } = scene;
         const pages = createCaptionPages({
           captions,
@@ -124,24 +123,45 @@ export const LandscapeVideo = ({ scenes, music, config }: { scenes: any[]; music
                       left: 0,
                       width: "100%",
                       ...captionStyle,
-                      zIndex: 2,
                     }}
                   >
                     {page.lines.map((line, k) => {
                       return (
                         <p
                           style={{
-                            fontSize: "6em",
+                            fontSize: "8em",
                             fontFamily: fontFamily,
                             fontWeight: "black",
+                            color: captionTextColor,
                             WebkitTextStroke: "2px black",
                             WebkitTextFillColor: captionTextColor,
+                            textShadow: "0px 0px 10px black",
                             textAlign: "center",
-                            ...activeStyle,
+                            width: "100%",
+                            textTransform: "uppercase",
                           }}
-                          key={`line-${k}`}
+                          key={`scene-${i}-page-${j}-line-${k}`}
                         >
-                          {line.texts.map((text) => text.text).join(" ")}
+                          {line.texts.map((text, l) => {
+                            const active =
+                              frame >=
+                                startFrame + (text.startMs / 1000) * fps &&
+                              frame <= startFrame + (text.endMs / 1000) * fps;
+                            return (
+                              <>
+                                <span
+                                  style={{
+                                    fontWeight: "bold",
+                                    ...(active ? activeStyle : {}),
+                                  }}
+                                  key={`scene-${i}-page-${j}-line-${k}-text-${l}`}
+                                >
+                                  {text.text}
+                                </span>
+                                {l < line.texts.length - 1 ? " " : ""}
+                              </>
+                            );
+                          })}
                         </p>
                       );
                     })}

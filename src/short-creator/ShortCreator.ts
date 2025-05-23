@@ -160,7 +160,7 @@ export class ShortCreator {
             referenceAudioPath,
           });
 
-          // Gerar áudio para cada frase
+          // Garanta que phraseAudioFiles é inicializado aqui, dentro do loop da cena
           const phraseAudioFiles: string[] = [];
           const silencePath = path.join(this.globalConfig.dataDirPath, "silence-1s.wav");
 
@@ -171,7 +171,8 @@ export class ShortCreator {
           }
 
           for (let i = 0; i < phrases.length; i++) {
-            const phrase = phrases[i];
+            let phrase = phrases[i].replace(/[\.:!?]$/, "");
+            logger.info(`[TTS] Cena ${index}, frase ${i}: \"${phrase}\"`, { sceneIndex: index, phraseIndex: i, phrase });
             const phraseTempId = cuid();
             const phraseWavPath = path.join(this.globalConfig.tempDirPath, `${phraseTempId}.wav`);
             tempFiles.push(phraseWavPath);

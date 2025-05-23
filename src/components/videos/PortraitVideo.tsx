@@ -1,12 +1,10 @@
-import React from "react";
 import {
   AbsoluteFill,
-  Sequence,
+  Sequence, 
   useCurrentFrame,
   useVideoConfig,
   Audio,
   OffthreadVideo,
-  interpolate,
   Img,
 } from "remotion";
 import { z } from "zod";
@@ -17,21 +15,23 @@ import {
   createCaptionPages,
   shortVideoSchema,
 } from "../utils";
-import path from "path";
 
 const { fontFamily } = loadFont(); // "Barlow Condensed"
 
-type ShortVideoProps = z.infer<typeof shortVideoSchema>;
-
-export const PortraitVideo = ({ scenes, music, config }: { scenes: any[]; music: any; config: any }) => {
+export const PortraitVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
+  scenes,
+  music,
+  config,
+}) => {
   const frame = useCurrentFrame();
-  const { fps, durationInFrames, width, height } = useVideoConfig();
+  const { fps } = useVideoConfig();
 
-  const captionBackgroundColor = config.captionBackgroundColor ?? "blue";
+  const captionBackgroundColor = config.captionBackgroundColor ?? "#dd0000";
   const captionTextColor = config.captionTextColor ?? "#ffffff";
 
   const activeStyle = {
     backgroundColor: captionBackgroundColor,
+    color: captionTextColor,
     padding: "10px",
     marginLeft: "-10px",
     marginRight: "-10px",
@@ -52,40 +52,22 @@ export const PortraitVideo = ({ scenes, music, config }: { scenes: any[]; music:
 
   const [musicVolume, musicMuted] = calculateVolume(config.musicVolume);
 
-  // Calculate fade in and fade out volumes
-  const fadeInDuration = 1; // 1 second fade in
-  const fadeOutDuration = 2; // 2 seconds fade out
-  const fadeInEndFrame = fadeInDuration * fps;
-  const fadeOutStartFrame = durationInFrames - (fadeOutDuration * fps);
+  // Fade out de 2 segundos no final do vídeo
+  const durationInFrames = Math.round(
+    scenes.reduce((acc, curr) => acc + curr.audio.duration, 0) * fps
+  ) + (config.paddingBack ? Math.round((config.paddingBack / 1000) * fps) : 0);
+  const fadeOutDuration = 2; // segundos
+  const fadeOutStartFrame = durationInFrames - fadeOutDuration * fps;
 
-  // Calculate volume with both fade in and fade out
-  const fadeOutVolume = interpolate(
-    frame,
-    [fadeOutStartFrame, durationInFrames],
-    [musicVolume, 0],
-    {
-      extrapolateLeft: 'clamp',
-      extrapolateRight: 'clamp',
+  const finalVolume = (frame: number) => {
+    if (frame >= fadeOutStartFrame) {
+      // Interpola o volume de musicVolume até 0 nos últimos 2 segundos
+      return (
+        musicVolume * (durationInFrames - frame) / (fadeOutDuration * fps)
+      );
     }
-  );
-
-  const fadeInVolume = interpolate(
-    frame,
-    [0, fadeInEndFrame],
-    [0, musicVolume],
-    {
-      extrapolateLeft: 'clamp',
-      extrapolateRight: 'clamp',
-    }
-  );
-
-  // Combine fade in and fade out volumes
-  const finalVolume = frame < fadeInEndFrame 
-    ? fadeInVolume 
-    : frame > fadeOutStartFrame 
-      ? fadeOutVolume 
-      : musicVolume;
-  console.log('Music URL:', music.url);
+    return musicVolume;
+  };
 
   return (
     <AbsoluteFill style={{ backgroundColor: "white" }}>
@@ -94,7 +76,7 @@ export const PortraitVideo = ({ scenes, music, config }: { scenes: any[]; music:
         src={music.url}
         startFrom={music.start * fps}
         endAt={music.end * fps}
-        volume={() => finalVolume}
+        volume={finalVolume}
         muted={musicMuted}
       />
 
@@ -113,13 +95,13 @@ export const PortraitVideo = ({ scenes, music, config }: { scenes: any[]; music:
         />
       )}
 
-      {scenes.map((scene: any, i: number) => {
+      {scenes.map((scene, i) => {
         const { captions, audio, video } = scene;
         const pages = createCaptionPages({
           captions,
-          lineMaxLength: 30,
-          lineCount: 2,
-          maxDistanceMs: 500,
+          lineMaxLength: 20,
+          lineCount: 1,
+          maxDistanceMs: 1000,
         });
 
         // Calculate the start and end time of the scene
@@ -135,15 +117,6 @@ export const PortraitVideo = ({ scenes, music, config }: { scenes: any[]; music:
           durationInFrames += (config.paddingBack / 1000) * fps;
         }
 
-        // Determina a página ativa de legenda para o frame atual
-        const sceneFrame = frame - startFrame;
-        const currentPageIndex = pages.findIndex(
-          (page) =>
-            sceneFrame >= Math.round((page.startMs / 1000) * fps) &&
-            sceneFrame < Math.round((page.endMs / 1000) * fps)
-        );
-        const currentPage = pages[currentPageIndex];
-
         return (
           <Sequence
             from={startFrame}
@@ -152,42 +125,69 @@ export const PortraitVideo = ({ scenes, music, config }: { scenes: any[]; music:
           >
             <OffthreadVideo src={video} muted />
             <Audio src={audio.url} />
-            {currentPage && (
-              <div
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  width: "100%",
-                  ...captionStyle,
-                  display: "flex",
-                  justifyContent: "center",
-                  zIndex: 2,
-                }}
-              >
-                {currentPage.lines.map((line, k) => (
-                  <span
+            {pages.map((page, j) => {
+              return (
+                <Sequence
+                  key={`scene-${i}-page-${j}`}
+                  from={Math.round((page.startMs / 1000) * fps)}
+                  durationInFrames={Math.round(
+                    ((page.endMs - page.startMs) / 1000) * fps,
+                  )}
+                >
+                  <div
                     style={{
-                      fontSize: "6em",
-                      fontFamily: fontFamily + ', sans-serif',
-                      fontWeight: "bold",
-                      color: captionTextColor,
-                      backgroundColor: captionBackgroundColor,
-                      borderRadius: "2em",
-                      padding: "0.25em 1.2em",
-                      margin: "0.2em 0",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.10)",
-                      display: "inline-block",
-                      WebkitTextStroke: "1px black",
-                      WebkitTextFillColor: captionTextColor,
-                      textAlign: "center",
+                      position: "absolute",
+                      left: 0,
+                      width: "100%",
+                      ...captionStyle,
                     }}
-                    key={`line-${k}`}
                   >
-                    {line.texts.map((text) => text.text).join(" ")}
-                  </span>
-                ))}
-              </div>
-            )}
+                    {page.lines.map((line, k) => {
+                      return (
+                        <p
+                          style={{
+                            fontSize: "5em",
+                            fontFamily: fontFamily,
+                            fontWeight: "black",
+                            color: captionTextColor,
+                            WebkitTextStroke: "2px black",
+                            WebkitTextFillColor: captionTextColor,
+                            textShadow: "0px 0px 10px black",
+                            textAlign: "center",
+                            width: "100%",
+                            textTransform: "uppercase",
+                          }}
+                          key={`scene-${i}-page-${j}-line-${k}`}
+                        >
+                          {line.texts.map((text, l) => {
+                            const active =
+                              frame >=
+                                startFrame + (text.startMs / 1000) * fps &&
+                              frame <= startFrame + (text.endMs / 1000) * fps;
+                            const wordStart = Math.round((text.startMs / 1000) * fps) - Math.round(0.1 * fps);
+                            const wordEnd = Math.round((text.endMs / 1000) * fps) - Math.round(0.1 * fps);
+                            return (
+                              <>
+                                <span
+                                  style={{
+                                    fontWeight: "bold",
+                                    ...(active ? activeStyle : {}),
+                                  }}
+                                  key={`scene-${i}-page-${j}-line-${k}-text-${l}`}
+                                >
+                                  {text.text}
+                                </span>
+                                {l < line.texts.length - 1 ? " " : ""}
+                              </>
+                            );
+                          })}
+                        </p>
+                      );
+                    })}
+                  </div>
+                </Sequence>
+              );
+            })}
           </Sequence>
         );
       })}
