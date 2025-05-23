@@ -159,13 +159,18 @@ export class ShortCreator {
       );
       excludeVideoIds.push(video.id);
 
-      // Generate captions
-      const captions: Caption[] = [{
-        text: scene.text,
-        startMs: 0,
-        endMs: audioLength * 1000,
-        emotion: emotion as "question" | "exclamation" | "neutral"
-      }];
+      // Generate captions with actual timing from TTS
+      const words = scene.text.split(" ");
+      const wordTimings = await sileroTTS.getWordTimings(scene.text, config.language);
+      const captions: Caption[] = words.map((word, i) => {
+        const timing = wordTimings[i] || { start: i * (audioLength * 1000 / words.length), end: (i + 1) * (audioLength * 1000 / words.length) };
+        return {
+          text: word + (i < words.length - 1 ? " " : ""),
+          startMs: timing.start,
+          endMs: timing.end,
+          emotion: emotion as "question" | "exclamation" | "neutral"
+        };
+      });
 
       scenes.push({
         captions,

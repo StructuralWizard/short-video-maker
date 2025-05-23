@@ -116,13 +116,12 @@ export const PortraitVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
                             fontSize: "6em",
                             fontFamily: fontFamily,
                             fontWeight: "black",
-                            color: "white",
+                            color: captionTextColor,
                             WebkitTextStroke: "2px black",
-                            WebkitTextFillColor: "white",
+                            WebkitTextFillColor: captionTextColor,
                             textShadow: "0px 0px 10px black",
                             textAlign: "center",
                             width: "100%",
-                            // uppercase
                             textTransform: "uppercase",
                           }}
                           key={`scene-${i}-page-${j}-line-${k}`}

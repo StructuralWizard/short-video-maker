@@ -93,4 +93,18 @@ export class SileroTTS {
       throw error;
     }
   }
+
+  async getWordTimings(text: string, language: string = "pt"): Promise<{ start: number; end: number }[]> {
+    const words = text.split(" ");
+    const wordCount = words.length;
+    const totalDuration = 3000; // 3 seconds per word as a fallback
+    const wordDuration = totalDuration / wordCount;
+
+    // For now, we'll use a simple timing calculation
+    // In the future, this could be improved by using the actual TTS timing information
+    return words.map((_, i) => ({
+      start: i * wordDuration,
+      end: (i + 1) * wordDuration
+    }));
+  }
 } 
