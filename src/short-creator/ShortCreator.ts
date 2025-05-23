@@ -1,5 +1,4 @@
-import { OrientationEnum, MusicMoodEnum, VoiceEnum } from "./../types/shorts";
-/* eslint-disable @remotion/deterministic-randomness */
+import { OrientationEnum, MusicMoodEnum, VoiceEnum, Video, ShortResult, AudioResult, SceneInput, RenderConfig, Scene, VideoStatus, MusicTag, MusicForVideo, Caption, ShortQueue } from "../types/shorts";
 import fs from "fs-extra";
 import cuid from "cuid";
 import path from "path";
@@ -12,15 +11,11 @@ import { logger } from "../logger";
 import { MusicManager } from "./music";
 import { type Music } from "../types/shorts";
 import { SileroTTS } from "./libraries/SileroTTS";
-import type {
-  SceneInput,
-  RenderConfig,
-  Scene,
-  VideoStatus,
-  MusicTag,
-  MusicForVideo,
-  Caption,
-} from "../types/shorts";
+import { VideoSearch } from "./libraries/VideoSearch";
+import { PixabayAPI } from "./libraries/Pixabay";
+import { ThreadPool } from './libraries/ThreadPool';
+import { VideoProcessor } from './libraries/VideoProcessor';
+import { cleanSceneText } from "./utils/textCleaner";
 
 export class ShortCreator {
   private queue: {
@@ -28,6 +23,9 @@ export class ShortCreator {
     config: RenderConfig;
     id: string;
   }[] = [];
+  private videoSearch: VideoSearch;
+  private threadPool: ThreadPool;
+  private outputDir: string;
 
   constructor(
     private globalConfig: Config,
@@ -35,7 +33,19 @@ export class ShortCreator {
     private ffmpeg: FFMpeg,
     private pexelsApi: PexelsAPI,
     private musicManager: MusicManager,
-  ) {}
+    private sileroTTS: SileroTTS,
+    private pixabayApiKey: string,
+    private pexelsApiKey: string,
+    private videoProcessor: VideoProcessor,
+    private maxWorkers: number = 4
+  ) {
+    this.videoSearch = new VideoSearch(
+      new PixabayAPI(pixabayApiKey),
+      new PexelsAPI(pexelsApiKey)
+    );
+    this.threadPool = new ThreadPool(maxWorkers);
+    this.outputDir = this.globalConfig.videosDirPath;
+  }
 
   public status(id: string): VideoStatus {
     const videoPath = this.getVideoPath(id);
@@ -56,14 +66,13 @@ export class ShortCreator {
     this.queue.push({
       sceneInput,
       config,
-      id,
+      id
     });
     this.processQueue();
     return id;
   }
 
   private async processQueue(): Promise<void> {
-    // todo add a semaphore
     if (this.queue.length === 0) {
       return;
     }
@@ -97,16 +106,14 @@ export class ShortCreator {
     );
     const scenes: Scene[] = [];
     let totalDuration = 0;
-    const excludeVideoIds = [];
-    const tempFiles = [];
+    const excludeVideoIds: string[] = [];
+    const tempFiles: string[] = [];
 
     const orientation: OrientationEnum =
       config.orientation || OrientationEnum.portrait;
 
-    const sileroTTS = await SileroTTS.init(this.globalConfig);
-
-    let index = 0;
-    for (const scene of inputScenes) {
+    // Process all scenes in parallel
+    const scenePromises = inputScenes.map(async (scene, index) => {
       const tempId = cuid();
       const tempWavFileName = `${tempId}.wav`;
       const tempWavPath = path.join(this.globalConfig.tempDirPath, tempWavFileName);
@@ -119,71 +126,93 @@ export class ShortCreator {
         emotion = "exclamation";
       }
       const referenceAudioPath = config.referenceAudioPath || this.globalConfig.referenceAudioPath;
-      logger.info({ 
-        sceneText: scene.text,
-        tempWavPath,
-        emotion,
-        language: config.language,
-        referenceAudioPath,
-        configReferenceAudioPath: config.referenceAudioPath,
-        globalConfigReferenceAudioPath: this.globalConfig.referenceAudioPath,
-        cwd: process.cwd()
-      }, "🎙️ Preparando para gerar áudio com TTS");
       
-      await sileroTTS.generateSpeech(scene.text, tempWavPath, emotion, config.language, referenceAudioPath);
-      
-      logger.info({ tempWavPath }, "✅ Áudio gerado com sucesso, lendo arquivo");
-      const audioBuffer = await fs.readFile(tempWavPath);
-      const audio = {
-        audio: audioBuffer.buffer,
-        audioLength: await this.ffmpeg.getAudioDuration(tempWavPath)
-      };
+      // Generate audio and search for video in parallel
+      const [audioResult, video] = await Promise.all([
+        (async () => {
+          const sceneText = cleanSceneText(scene.text);
+          
+          logger.info("🎙️ Preparando para gerar áudio com TTS", {
+            sceneText,
+            tempWavPath,
+            emotion,
+            language: config.language,
+            referenceAudioPath,
+            configReferenceAudioPath: config.referenceAudioPath,
+            globalConfigReferenceAudioPath: this.globalConfig.referenceAudioPath,
+            cwd: process.cwd()
+          });
+          
+          await this.sileroTTS.generateSpeech(
+            sceneText,
+            tempWavPath,
+            emotion,
+            config.language,
+            referenceAudioPath
+          );
+          
+          logger.info({ tempWavPath }, "✅ Áudio gerado com sucesso, lendo arquivo");
+          const audioBuffer = await fs.readFile(tempWavPath);
+          const audioLength = await this.ffmpeg.getAudioDuration(tempWavPath);
+          
+          const tempMp3FileName = `${tempId}.mp3`;
+          const tempMp3Path = path.join(this.globalConfig.tempDirPath, tempMp3FileName);
+          tempFiles.push(tempMp3Path);
 
-      let { audioLength } = audio;
-      const { audio: audioStream } = audio;
+          await this.ffmpeg.saveToMp3(audioBuffer.buffer, tempMp3Path);
+          
+          return {
+            audioLength,
+            tempMp3FileName
+          };
+        })(),
+        // Busca o vídeo com a duração estimada inicial
+        this.videoSearch.findVideo(
+          scene.searchTerms,
+          10, // Initial duration estimate
+          excludeVideoIds,
+          orientation
+        )
+      ]);
 
+      let { audioLength } = audioResult;
       if (index + 1 === inputScenes.length && config.paddingBack) {
         audioLength += config.paddingBack / 1000;
       }
 
-      const tempMp3FileName = `${tempId}.mp3`;
-      const tempMp3Path = path.join(this.globalConfig.tempDirPath, tempMp3FileName);
-      tempFiles.push(tempMp3Path);
-
-      await this.ffmpeg.saveToMp3(audioStream, tempMp3Path);
-      const video = await this.pexelsApi.findVideo(
-        scene.searchTerms,
-        audioLength,
-        excludeVideoIds,
-        orientation,
-      );
-      excludeVideoIds.push(video.id);
-
-      // Generate captions with actual timing from TTS
+      // Generate captions with actual timing from audio
       const words = scene.text.split(" ");
-      const wordTimings = await sileroTTS.getWordTimings(scene.text, config.language);
-      const captions: Caption[] = words.map((word, i) => {
-        const timing = wordTimings[i] || { start: i * (audioLength * 1000 / words.length), end: (i + 1) * (audioLength * 1000 / words.length) };
-        return {
-          text: word + (i < words.length - 1 ? " " : ""),
-          startMs: timing.start,
-          endMs: timing.end,
-          emotion: emotion as "question" | "exclamation" | "neutral"
-        };
-      });
+      const wordCount = words.length;
+      const wordDuration = (audioLength * 1000) / wordCount; // ms
+
+      const captions: Caption[] = words.map((word, i) => ({
+        text: word + (i < words.length - 1 ? " " : ""),
+        startMs: i * wordDuration,
+        endMs: (i + 1) * wordDuration,
+        emotion: emotion as "question" | "exclamation" | "neutral"
+      }));
 
       scenes.push({
-        captions,
+        id: tempId,
+        text: scene.text,
+        searchTerms: scene.searchTerms,
+        duration: audioLength,
+        orientation,
+        captions: captions,
         video: video.url,
         audio: {
-          url: `http://localhost:${this.globalConfig.port}/api/tmp/${tempMp3FileName}`,
+          url: `http://localhost:${this.globalConfig.port}/api/tmp/${audioResult.tempMp3FileName}`,
           duration: audioLength,
         },
       });
 
       totalDuration += audioLength;
-      index++;
-    }
+      excludeVideoIds.push(video.id);
+    });
+
+    // Wait for all scenes to be processed
+    await Promise.all(scenePromises);
+
     if (config.paddingBack) {
       totalDuration += config.paddingBack / 1000;
     }
@@ -207,9 +236,10 @@ export class ShortCreator {
         },
       },
       videoId,
-      orientation,
+      orientation
     );
 
+    // Clean up temp files
     for (const file of tempFiles) {
       fs.removeSync(file);
     }
@@ -227,18 +257,10 @@ export class ShortCreator {
     logger.debug({ videoId }, "Deleted video file");
   }
 
-  public getVideo(videoId: string): Buffer {
-    const videoPath = this.getVideoPath(videoId);
-    if (!fs.existsSync(videoPath)) {
-      throw new Error(`Video ${videoId} not found`);
-    }
-    return fs.readFileSync(videoPath);
-  }
-
-  private findMusic(videoDuration: number, tag?: MusicMoodEnum): MusicForVideo {
+  private findMusic(duration: number, mood?: MusicTag): MusicForVideo {
     const musicFiles = this.musicManager.musicList().filter((music) => {
-      if (tag) {
-        return music.mood === tag;
+      if (mood) {
+        return music.mood === mood;
       }
       return true;
     });
@@ -249,36 +271,40 @@ export class ShortCreator {
 
     const music = musicFiles[Math.floor(Math.random() * musicFiles.length)];
     const musicDuration = music.end - music.start;
-    const musicStart = Math.random() * (musicDuration - videoDuration);
+    const musicStart = Math.random() * (musicDuration - duration);
 
     return {
-      ...music,
+      file: music.file,
       url: `http://localhost:${this.globalConfig.port}/api/music/${encodeURIComponent(music.file)}`,
+      start: musicStart,
+      end: musicStart + duration,
+      mood: music.mood
     };
   }
 
-  public ListAvailableMusicTags(): MusicTag[] {
+  public ListAvailableMusicTags(): MusicMoodEnum[] {
     return Object.values(MusicMoodEnum);
   }
 
-  public listAllVideos(): { id: string; status: VideoStatus }[] {
-    if (!fs.existsSync(this.globalConfig.videosDirPath)) {
-      return [];
-    }
-
-    const files = fs.readdirSync(this.globalConfig.videosDirPath);
-    return files
-      .filter((file) => file.endsWith(".mp4"))
-      .map((file) => {
-        const id = file.replace(".mp4", "");
-        return {
-          id,
-          status: this.status(id),
-        };
-      });
+  public ListAvailableVoices(): VoiceEnum[] {
+    return Object.values(VoiceEnum);
   }
 
-  public ListAvailableVoices(): string[] {
-    return Object.values(VoiceEnum);
+  public listAllVideos(): string[] {
+    const videosDir = this.globalConfig.videosDirPath;
+    if (!fs.existsSync(videosDir)) {
+      return [];
+    }
+    return fs.readdirSync(videosDir)
+      .filter(file => file.endsWith('.mp4'))
+      .map(file => file.replace('.mp4', ''));
+  }
+
+  public getVideo(videoId: string): Buffer {
+    const videoPath = this.getVideoPath(videoId);
+    if (!fs.existsSync(videoPath)) {
+      throw new Error('Video not found');
+    }
+    return fs.readFileSync(videoPath);
   }
 }

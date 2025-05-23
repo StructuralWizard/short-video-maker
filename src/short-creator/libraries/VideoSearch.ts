@@ -1,138 +1,209 @@
+import { OrientationEnum } from "../../types/shorts";
+import { VideoProvider, VideoResult, VideoSearchError } from "./VideoProvider";
 import { logger } from "../../logger";
-import { OrientationEnum, type Video } from "../../types/shorts";
-import { PexelsAPI } from "./Pexels";
-import { PixabayAPI } from "./Pixabay";
 
-const defaultTimeoutMs = 5000;
-const retryTimes = 3;
+// Singleton para compartilhar o cache entre instâncias
+class VideoCache {
+  private static instance: VideoCache;
+  private usedVideoIds: Set<string> = new Set();
 
-// Words to remove from search terms
-const stopWords = new Set([
-  "of", "an", "or", "and", "in", "the", "as", "a", "to", "for", "with", "on", "at", "from", "by", "about", "like", "through", "over", "before", "between", "after", "since", "without", "under", "within", "along", "following", "across", "behind", "beyond", "plus", "except", "but", "up", "out", "around", "down", "off", "above", "near"
-]);
+  private constructor() {}
+
+  static getInstance(): VideoCache {
+    if (!VideoCache.instance) {
+      VideoCache.instance = new VideoCache();
+    }
+    return VideoCache.instance;
+  }
+
+  addVideo(id: string) {
+    this.usedVideoIds.add(id);
+  }
+
+  hasVideo(id: string): boolean {
+    return this.usedVideoIds.has(id);
+  }
+
+  clear() {
+    this.usedVideoIds.clear();
+  }
+}
 
 export class VideoSearch {
-  private pixabayApi: PixabayAPI;
-  private pexelsApi: PexelsAPI;
+  private readonly fallbackTerms = [
+    "technology",
+    "future",
+    "innovation",
+    "digital",
+    "modern",
+    "business",
+    "office",
+    "city",
+    "nature",
+    "abstract"
+  ];
 
-  constructor(pixabayApiKey: string, pexelsApiKey: string) {
-    this.pixabayApi = new PixabayAPI(pixabayApiKey);
-    this.pexelsApi = new PexelsAPI(pexelsApiKey);
+  private videoCache: VideoCache;
+
+  constructor(
+    private pixabayProvider: VideoProvider,
+    private pexelsProvider: VideoProvider
+  ) {
+    this.videoCache = VideoCache.getInstance();
   }
 
-  private cleanSearchTerms(phrase: string): string[] {
-    return phrase
-      .toLowerCase()
-      .split(/\s+/)
-      .filter(word => word.length >= 4 && !stopWords.has(word));
-  }
-
-  private async searchPixabay(
-    searchTerms: string[],
-    minDurationSeconds: number,
+  private async tryProvider(
+    provider: VideoProvider,
+    terms: string[],
+    duration: number,
     excludeIds: string[],
-    orientation: OrientationEnum,
-    timeout: number,
-  ): Promise<Video | null> {
+    orientation: OrientationEnum
+  ): Promise<VideoResult | null> {
     try {
-      return await this.pixabayApi.findVideo(
-        searchTerms,
-        minDurationSeconds,
-        excludeIds,
-        orientation,
-        timeout,
-      );
+      const result = await provider.findVideo(terms, duration, excludeIds, orientation);
+      
+      // Verifica se o vídeo já foi usado
+      if (this.videoCache.hasVideo(result.id)) {
+        logger.debug({ videoId: result.id }, "Video already used, skipping");
+        return null;
+      }
+
+      // Adiciona o vídeo ao cache
+      this.videoCache.addVideo(result.id);
+      return result;
     } catch (error) {
-      logger.debug({ searchTerms }, "No results found in Pixabay");
+      if (error instanceof VideoSearchError) {
+        logger.debug({ error, provider: provider.constructor.name }, "No videos found in provider");
+      } else {
+        logger.error({ error, provider: provider.constructor.name }, "Provider search failed");
+      }
       return null;
     }
   }
 
-  private async searchPexels(
-    searchTerms: string[],
-    minDurationSeconds: number,
-    excludeIds: string[],
-    orientation: OrientationEnum,
-    timeout: number,
-  ): Promise<Video | null> {
-    try {
-      return await this.pexelsApi.findVideo(
-        searchTerms,
-        minDurationSeconds,
-        excludeIds,
-        orientation,
-        timeout,
-      );
-    } catch (error) {
-      logger.debug({ searchTerms }, "No results found in Pexels");
-      return null;
+  private getProgressiveTerms(term: string): string[] {
+    const words = term.split(" ").filter(w => w.length > 3);
+    const terms: string[] = [];
+    
+    // Add the full term
+    terms.push(term);
+    
+    // Add individual words
+    terms.push(...words);
+    
+    // Add progressive combinations (removing last word each time)
+    let currentWords = [...words];
+    while (currentWords.length > 1) {
+      currentWords.pop();
+      terms.push(currentWords.join(" "));
     }
+
+    // Add variations with common prefixes/suffixes
+    const variations = words.map(word => {
+      const variations = [];
+      if (word.endsWith('ing')) {
+        variations.push(word.slice(0, -3)); // remove 'ing'
+        variations.push(word.slice(0, -3) + 'ed'); // change to past tense
+      }
+      if (word.endsWith('ed')) {
+        variations.push(word.slice(0, -2)); // remove 'ed'
+        variations.push(word.slice(0, -2) + 'ing'); // change to present tense
+      }
+      return variations;
+    }).flat();
+
+    terms.push(...variations);
+    
+    return terms;
   }
 
   async findVideo(
-    searchPhrases: string[],
-    minDurationSeconds: number,
-    excludeIds: string[] = [],
-    orientation: OrientationEnum = OrientationEnum.portrait,
-    timeout: number = defaultTimeoutMs,
-  ): Promise<Video> {
-    // Try each phrase as is in Pixabay
-    for (const phrase of searchPhrases) {
-      logger.debug({ phrase }, "Searching Pixabay with exact phrase");
-      const result = await this.searchPixabay(
-        [phrase],
-        minDurationSeconds,
+    searchTerms: string[],
+    duration: number,
+    excludeIds: string[],
+    orientation: OrientationEnum
+  ): Promise<VideoResult> {
+    logger.info({ searchTerms, duration, excludeIds, orientation }, "🔍 Starting video search");
+
+    // Estratégia 1: Buscar com os termos originais
+    for (const term of searchTerms) {
+      logger.debug({ term }, "Trying original search term");
+      
+      // Tentar Pixabay primeiro
+      const pixabayResult = await this.tryProvider(
+        this.pixabayProvider,
+        [term],
+        duration,
         excludeIds,
-        orientation,
-        timeout,
+        orientation
       );
-      if (result) return result;
+      if (pixabayResult) return pixabayResult;
+
+      // Tentar Pexels
+      const pexelsResult = await this.tryProvider(
+        this.pexelsProvider,
+        [term],
+        duration,
+        excludeIds,
+        orientation
+      );
+      if (pexelsResult) return pexelsResult;
     }
 
-    // Try each phrase as is in Pexels
-    for (const phrase of searchPhrases) {
-      logger.debug({ phrase }, "Searching Pexels with exact phrase");
-      const result = await this.searchPexels(
-        [phrase],
-        minDurationSeconds,
-        excludeIds,
-        orientation,
-        timeout,
-      );
-      if (result) return result;
+    // Estratégia 2: Buscar com termos progressivos
+    for (const term of searchTerms) {
+      const progressiveTerms = this.getProgressiveTerms(term);
+      
+      for (const progressiveTerm of progressiveTerms) {
+        logger.debug({ progressiveTerm }, "Trying progressive search term");
+        
+        // Tentar Pixabay
+        const pixabayResult = await this.tryProvider(
+          this.pixabayProvider,
+          [progressiveTerm],
+          duration,
+          excludeIds,
+          orientation
+        );
+        if (pixabayResult) return pixabayResult;
+
+        // Tentar Pexels
+        const pexelsResult = await this.tryProvider(
+          this.pexelsProvider,
+          [progressiveTerm],
+          duration,
+          excludeIds,
+          orientation
+        );
+        if (pexelsResult) return pexelsResult;
+      }
     }
 
-    // Convert phrases to cleaned words and try Pixabay again
-    const cleanedWords = searchPhrases
-      .map(phrase => this.cleanSearchTerms(phrase))
-      .flat()
-      .filter((word, index, self) => self.indexOf(word) === index); // Remove duplicates
-
-    if (cleanedWords.length > 0) {
-      logger.debug({ cleanedWords }, "Searching Pixabay with cleaned words");
-      const result = await this.searchPixabay(
-        cleanedWords,
-        minDurationSeconds,
+    // Estratégia 3: Usar termos de fallback
+    for (const fallbackTerm of this.fallbackTerms) {
+      logger.debug({ fallbackTerm }, "Trying fallback search term");
+      
+      // Tentar Pixabay
+      const pixabayResult = await this.tryProvider(
+        this.pixabayProvider,
+        [fallbackTerm],
+        duration,
         excludeIds,
-        orientation,
-        timeout,
+        orientation
       );
-      if (result) return result;
+      if (pixabayResult) return pixabayResult;
+
+      // Tentar Pexels
+      const pexelsResult = await this.tryProvider(
+        this.pexelsProvider,
+        [fallbackTerm],
+        duration,
+        excludeIds,
+        orientation
+      );
+      if (pexelsResult) return pexelsResult;
     }
 
-    // Finally, try Pexels with cleaned words
-    if (cleanedWords.length > 0) {
-      logger.debug({ cleanedWords }, "Searching Pexels with cleaned words");
-      const result = await this.searchPexels(
-        cleanedWords,
-        minDurationSeconds,
-        excludeIds,
-        orientation,
-        timeout,
-      );
-      if (result) return result;
-    }
-
-    throw new Error("No videos found in any source");
+    throw new Error("No videos found with any search strategy");
   }
 } 

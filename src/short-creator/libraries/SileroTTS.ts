@@ -1,19 +1,49 @@
 import { Config } from "../../config";
-import { logger } from "../../logger";
+import { logger } from "../../utils/logger";
 import path from "path";
-import fs from "fs-extra";
+import fs from "fs/promises";
 import axios from "axios";
 import FormData from "form-data";
 
 export class SileroTTS {
   private readonly ttsServerUrl: string;
+  private outputDir: string;
 
-  constructor(private config: Config) {
+  constructor(private config: Config, outputDir: string = "output/audio") {
     this.ttsServerUrl = "http://localhost:5001/tts";
+    this.outputDir = outputDir;
   }
 
   static async init(config: Config): Promise<SileroTTS> {
     return new SileroTTS(config);
+  }
+
+  async generateAudio(text: string): Promise<string> {
+    try {
+      const outputPath = path.join(this.outputDir, `${Date.now()}.wav`);
+      await fs.mkdir(this.outputDir, { recursive: true });
+
+      const formData = new FormData();
+      formData.append("text", text);
+      formData.append("output_path", outputPath);
+
+      const response = await axios.post(this.ttsServerUrl, formData, {
+        headers: {
+          ...formData.getHeaders(),
+        },
+        responseType: "arraybuffer",
+      });
+
+      if (response.status !== 200) {
+        throw new Error(`TTS server returned status ${response.status}`);
+      }
+
+      await fs.writeFile(outputPath, response.data);
+      return outputPath;
+    } catch (error) {
+      logger.error("Error generating audio:", error);
+      throw error;
+    }
   }
 
   async generateSpeech(
@@ -23,34 +53,30 @@ export class SileroTTS {
     language: string = "pt",
     referenceAudioPath?: string
   ): Promise<void> {
-    logger.info({ 
-      text, 
-      outputPath, 
-      emotion, 
-      language, 
+    logger.info("🚀 Iniciando geração de áudio com TTS", {
+      text,
+      outputPath,
+      emotion,
+      language,
       referenceAudioPath,
       cwd: process.cwd()
-    }, "🚀 Iniciando geração de áudio com TTS");
+    });
 
     try {
-      const refPath = referenceAudioPath;
-      logger.info({ 
+      const refPath = referenceAudioPath || "NinoSample.wav";
+      
+      logger.info("📂 Usando arquivo de referência", {
         refPath,
-        exists: fs.existsSync(refPath || 'NinoSample.wav'),
-        absolutePath: path.resolve(refPath || 'NinoSample.wav')
-      }, "📂 Verificando arquivo de referência");
-
-      if (!refPath) {
-        logger.warn("⚠️ No referenceAudioPath provided, using default NinoSample.wav");
-      }
+        absolutePath: path.resolve(refPath)
+      });
 
       const formData = new FormData();
       formData.append("text", text);
-      formData.append("reference_audio", path.basename(refPath || "NinoSample.wav"));
+      formData.append("reference_audio", path.basename(refPath));
       formData.append("language", language);
       formData.append("emotion", emotion);
 
-      logger.info({ formData }, "📤 Sending request to TTS server");
+      logger.info("📤 Sending request to TTS server", { formData });
 
       const response = await axios.post(this.ttsServerUrl, formData, {
         responseType: "arraybuffer",
@@ -61,14 +87,14 @@ export class SileroTTS {
 
       await fs.writeFile(outputPath, Buffer.from(response.data));
       
-      logger.info({ outputPath }, "🎵 Speech generated successfully");
+      logger.info("🎵 Speech generated successfully", { outputPath });
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const errorData = error.response?.data ? 
           Buffer.from(error.response.data).toString() : 
           'No error data';
         
-        logger.error({ 
+        logger.error("❌ Failed to generate speech", {
           status: error.response?.status,
           statusText: error.response?.statusText,
           errorData,
@@ -78,9 +104,9 @@ export class SileroTTS {
           language,
           referenceAudioPath,
           cwd: process.cwd()
-        }, "❌ Failed to generate speech");
+        });
       } else {
-        logger.error({ 
+        logger.error("❌ Failed to generate speech", {
           error,
           text,
           outputPath,
@@ -88,7 +114,7 @@ export class SileroTTS {
           language,
           referenceAudioPath,
           cwd: process.cwd()
-        }, "❌ Failed to generate speech");
+        });
       }
       throw error;
     }
@@ -97,14 +123,37 @@ export class SileroTTS {
   async getWordTimings(text: string, language: string = "pt"): Promise<{ start: number; end: number }[]> {
     const words = text.split(" ");
     const wordCount = words.length;
-    const totalDuration = 3000; // 3 seconds per word as a fallback
-    const wordDuration = totalDuration / wordCount;
-
-    // For now, we'll use a simple timing calculation
-    // In the future, this could be improved by using the actual TTS timing information
-    return words.map((_, i) => ({
-      start: i * wordDuration,
-      end: (i + 1) * wordDuration
-    }));
+    
+    // Calcula a duração média por palavra baseado no tamanho do texto
+    // Palavras mais longas tendem a levar mais tempo para falar
+    const averageWordLength = words.reduce((acc, word) => acc + word.length, 0) / wordCount;
+    const baseDuration = 150; // 150ms por caractere como base (reduzido de 200ms)
+    const totalDuration = averageWordLength * baseDuration * wordCount;
+    
+    // Ajusta a duração de cada palavra baseado no seu tamanho e posição
+    return words.map((word, i) => {
+      // Palavras no início e fim tendem a ser faladas mais devagar
+      const positionFactor = i === 0 || i === wordCount - 1 ? 1.2 : 1;
+      
+      // Palavras com pontuação tendem a ter uma pausa
+      const punctuationFactor = /[.,!?]$/.test(word) ? 1.3 : 1;
+      
+      // Palavras em maiúsculas tendem a ser enfatizadas
+      const emphasisFactor = word === word.toUpperCase() ? 1.2 : 1;
+      
+      const wordDuration = (word.length * baseDuration * positionFactor * punctuationFactor * emphasisFactor);
+      const start = i === 0 ? 0 : words.slice(0, i).reduce((acc, w, idx) => {
+        const wLength = w.length;
+        const wPosFactor = idx === 0 || idx === wordCount - 1 ? 1.2 : 1;
+        const wPunctFactor = /[.,!?]$/.test(w) ? 1.3 : 1;
+        const wEmphasisFactor = w === w.toUpperCase() ? 1.2 : 1;
+        return acc + (wLength * baseDuration * wPosFactor * wPunctFactor * wEmphasisFactor);
+      }, 0);
+      
+      return {
+        start,
+        end: start + wordDuration
+      };
+    });
   }
 } 

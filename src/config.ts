@@ -21,6 +21,7 @@ const envSchema = z.object({
   CONCURRENCY: z.string().optional(),
   VIDEO_CACHE_SIZE_IN_BYTES: z.string().optional(),
   REFERENCE_AUDIO_PATH: z.string().optional(),
+  PIXABAY_API_KEY: z.string().optional(),
 });
 
 // Parse and validate environment variables
@@ -31,6 +32,26 @@ const defaultDataDirPath = path.join(process.cwd(), "data");
 const defaultLibsDirPath = path.join(process.cwd(), "libs");
 const defaultPort = 3123;
 
+export interface Config {
+  dataDirPath: string;
+  libsDirPath: string;
+  runningInDocker: boolean;
+  ttsVerbose: boolean;
+  ttsModel: string;
+  pexelsApiKey: string;
+  pixabayApiKey: string;
+  port: number;
+  devMode: boolean;
+  concurrency: number;
+  videoCacheSizeInBytes: number;
+  referenceAudioPath: string;
+  videosDirPath: string;
+  tempDirPath: string;
+  packageDirPath: string;
+  musicDirPath: string;
+  installationSuccessfulPath: string;
+}
+
 export class Config {
   public dataDirPath: string;
   public libsDirPath: string;
@@ -38,6 +59,7 @@ export class Config {
   public ttsVerbose: boolean;
   public ttsModel: string;
   public pexelsApiKey: string;
+  public pixabayApiKey: string;
   public port: number;
   public devMode: boolean;
   public concurrency: number;
@@ -56,6 +78,7 @@ export class Config {
     this.ttsVerbose = env.TTS_VERBOSE === "true";
     this.ttsModel = env.TTS_MODEL || "default";
     this.pexelsApiKey = env.PEXELS_API_KEY || "";
+    this.pixabayApiKey = env.PIXABAY_API_KEY || "";
     this.port = env.PORT ? parseInt(env.PORT) : defaultPort;
     this.devMode = env.DEV === "true";
     this.concurrency = env.CONCURRENCY ? parseInt(env.CONCURRENCY) : 4;

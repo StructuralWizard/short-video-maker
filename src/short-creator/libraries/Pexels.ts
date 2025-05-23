@@ -2,6 +2,7 @@
 import { getOrientationConfig } from "../../components/utils";
 import { logger } from "../../logger";
 import { OrientationEnum, type Video } from "../../types/shorts";
+import { VideoSearchError } from "./VideoProvider";
 
 const jokerTerms: string[] = ["nature", "globe", "space", "ocean"];
 const durationBufferSeconds = 3;
@@ -61,11 +62,11 @@ export class PexelsAPI {
       getOrientationConfig(orientation);
 
     if (!topVideos || topVideos.length === 0) {
-      logger.error(
+      logger.debug(
         { searchTerm, orientation },
         "No videos found in Pexels API",
       );
-      throw new Error("No videos found");
+      throw new VideoSearchError("No videos found");
     }
 
     // find all the videos that fits the criteria, then select one randomly
@@ -95,6 +96,7 @@ export class PexelsAPI {
                 url: file.link,
                 width: file.width,
                 height: file.height,
+                duration: duration,
               };
             }
           }
@@ -102,20 +104,25 @@ export class PexelsAPI {
       })
       .filter(Boolean);
     if (!filteredVideos.length) {
-      logger.error({ searchTerm }, "No videos found in Pexels API");
-      throw new Error("No videos found");
+      logger.debug({ searchTerm }, "No videos found in Pexels API");
+      throw new VideoSearchError("No videos found");
     }
 
     const video = filteredVideos[
       Math.floor(Math.random() * filteredVideos.length)
-    ] as Video;
+    ];
 
-    logger.debug(
-      { searchTerm, video: video, minDurationSeconds, orientation },
-      "Found video from Pexels API",
-    );
+    if (!video) {
+      throw new VideoSearchError("No videos found");
+    }
 
-    return video;
+    return {
+      id: video.id.toString(),
+      url: video.url,
+      duration: video.duration,
+      width: video.width,
+      height: video.height,
+    };
   }
 
   async findVideo(
@@ -140,6 +147,14 @@ export class PexelsAPI {
           timeout,
         );
       } catch (error: unknown) {
+        if (error instanceof VideoSearchError) {
+          logger.debug(
+            { searchTerm },
+            "No videos found in Pexels API for term",
+          );
+          continue;
+        }
+
         if (
           error instanceof Error &&
           error instanceof DOMException &&
@@ -167,12 +182,13 @@ export class PexelsAPI {
         }
 
         logger.error(error, "Error finding video in Pexels API for term");
+        throw error;
       }
     }
-    logger.error(
+    logger.debug(
       { searchTerms },
       "No videos found in Pexels API for the given terms",
     );
-    throw new Error("No videos found in Pexels API");
+    throw new VideoSearchError("No videos found in Pexels API");
   }
 }

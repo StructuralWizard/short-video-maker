@@ -7,77 +7,81 @@ import { FFMpeg } from "./short-creator/libraries/FFmpeg";
 import { PexelsAPI } from "./short-creator/libraries/Pexels";
 import { Config } from "./config";
 import { ShortCreator } from "./short-creator/ShortCreator";
-import { logger } from "./logger";
+import { logger } from "./utils/logger";
 import { Server } from "./server/server";
 import { MusicManager } from "./short-creator/music";
+import { SileroTTS } from "./short-creator/libraries/SileroTTS";
+import { ShortQueue, OrientationEnum, MusicVolumeEnum } from "./types/shorts";
+import { VideoProcessor } from "./short-creator/libraries/VideoProcessor";
+import { PixabayAPI } from "./short-creator/libraries/Pixabay";
 
 async function main() {
-  const config = new Config();
   try {
-    config.ensureConfig();
-  } catch (err: unknown) {
-    logger.error(err, "Error in config");
+    // Carregar configuração
+    const config = new Config();
+
+    // Inicializar componentes
+    const remotion = await Remotion.init(config);
+    const ffmpeg = await FFMpeg.init();
+    const pexelsApi = new PexelsAPI(config.pexelsApiKey);
+    const pixabayApi = new PixabayAPI(config.pixabayApiKey);
+    const musicManager = new MusicManager(config);
+    const sileroTTS = await SileroTTS.init(config);
+    const videoProcessor = new VideoProcessor(config.videosDirPath);
+
+    const shortCreator = new ShortCreator(
+      config,
+      remotion,
+      ffmpeg,
+      pexelsApi,
+      musicManager,
+      sileroTTS,
+      config.pixabayApiKey,
+      config.pexelsApiKey,
+      videoProcessor,
+      config.concurrency
+    );
+
+    // Iniciar servidor
+    const server = new Server(config, shortCreator);
+    await server.start();
+
+    // Exemplo de uso
+    const queue: ShortQueue = {
+      items: [
+        {
+          id: "1",
+          scenes: [
+            {
+              id: "scene1",
+              text: "Hello, this is a test video",
+              searchTerms: ["nature", "landscape"],
+              duration: 5,
+              orientation: OrientationEnum.portrait,
+              captions: [],
+              video: "",
+              audio: {
+                url: "",
+                duration: 5
+              }
+            },
+          ],
+        },
+      ],
+    };
+
+    // Processar fila
+    const id = shortCreator.addToQueue(queue.items[0].scenes, {
+      language: "en",
+      orientation: OrientationEnum.portrait,
+      paddingBack: 1000,
+      musicVolume: MusicVolumeEnum.high,
+    });
+    logger.info("Queue processing completed with id: " + id);
+  } catch (error) {
+    logger.error("Error in main:", error);
     process.exit(1);
   }
-
-  const musicManager = new MusicManager(config);
-  try {
-    logger.debug("checking music files");
-    musicManager.ensureMusicFilesExist();
-  } catch (error: unknown) {
-    logger.error(error, "Missing music files");
-    process.exit(1);
-  }
-
-  logger.debug("initializing remotion");
-  const remotion = await Remotion.init(config);
-  logger.debug("initializing ffmpeg");
-  const ffmpeg = await FFMpeg.init();
-  const pexelsApi = new PexelsAPI(config.pexelsApiKey);
-
-  logger.debug("initializing the short creator");
-  const shortCreator = new ShortCreator(
-    config,
-    remotion,
-    ffmpeg,
-    pexelsApi,
-    musicManager,
-  );
-
-  if (!config.runningInDocker) {
-    // the project is running with npm - we need to check if the installation is correct
-    if (fs.existsSync(config.installationSuccessfulPath)) {
-      logger.info("the installation is successful - starting the server");
-    } else {
-      logger.info(
-        "testing if the installation was successful - this may take a while...",
-      );
-      try {
-        await pexelsApi.findVideo(["dog"], 2.4);
-        const testVideoPath = path.join(config.tempDirPath, "test.mp4");
-        await remotion.testRender(testVideoPath);
-        fs.rmSync(testVideoPath, { force: true });
-        fs.writeFileSync(config.installationSuccessfulPath, "ok", {
-          encoding: "utf-8",
-        });
-        logger.info("the installation was successful - starting the server");
-      } catch (error: unknown) {
-        logger.fatal(
-          error,
-          "The environment is not set up correctly - please follow the instructions in the README.md file https://github.com/gyoridavid/short-video-maker",
-        );
-        process.exit(1);
-      }
-    }
-  }
-
-  logger.debug("initializing the server");
-  const server = new Server(config, shortCreator);
-  const app = server.start();
-
-  // todo add shutdown handler
 }
 
-main().catch((error: unknown) => {
-  logger.error(error, "Error starting server");
-});
+main();

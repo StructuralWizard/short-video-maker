@@ -75,6 +75,7 @@
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.5.3",
     "remotion": "^4.0.286",
+    "winston": "^3.17.0",
     "zod": "^3.24.2",
     "zod-to-json-schema": "^3.24.5"
   },

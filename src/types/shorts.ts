@@ -21,14 +21,19 @@ export enum CaptionPositionEnum {
   bottom = "bottom",
 }
 
-export type Scene = {
+export interface Scene {
+  id: string;
+  text: string;
+  searchTerms: string[];
+  duration: number;
+  orientation: OrientationEnum;
   captions: Caption[];
   video: string;
   audio: {
     url: string;
     duration: number;
   };
-};
+}
 
 export const sceneInput = z.object({
   text: z.string().describe("Text to be spoken in the video"),
@@ -72,8 +77,9 @@ export enum VoiceEnum {
 }
 
 export enum OrientationEnum {
-  landscape = "landscape",
   portrait = "portrait",
+  landscape = "landscape",
+  square = "square"
 }
 
 export enum MusicVolumeEnum {
@@ -129,12 +135,14 @@ export type RenderConfig = z.infer<typeof renderConfig>;
 
 export type Voices = `${VoiceEnum}`;
 
-export type Video = {
+export interface Video {
   id: string;
   url: string;
   width: number;
   height: number;
-};
+  duration: number;
+}
+
 export type Caption = {
   text: string;
   startMs: number;
@@ -172,3 +180,28 @@ export type MusicForVideo = Music & {
 export type MusicTag = `${MusicMoodEnum}`;
 
 export type kokoroModelPrecision = "fp32" | "fp16" | "q8" | "q4" | "q4f16";
+
+export interface AudioResult {
+  audioPath: string;
+  subtitles: Subtitle[];
+}
+
+export interface Subtitle {
+  text: string;
+  start: number;
+  end: number;
+}
+
+export interface ShortResult {
+  id: string;
+  videoPath: string;
+  scenes: Scene[];
+  audioResults: AudioResult[];
+}
+
+export interface ShortQueue {
+  items: {
+    id: string;
+    scenes: Scene[];
+  }[];
+}
