@@ -49,6 +49,7 @@ export interface Config {
   tempDirPath: string;
   packageDirPath: string;
   musicDirPath: string;
+  overlaysDirPath: string;
   installationSuccessfulPath: string;
 }
 
@@ -69,6 +70,7 @@ export class Config {
   public tempDirPath: string;
   public packageDirPath: string;
   public musicDirPath: string;
+  public overlaysDirPath: string;
   public installationSuccessfulPath: string;
 
   constructor() {
@@ -90,6 +92,7 @@ export class Config {
     this.tempDirPath = path.join(this.dataDirPath, "temp");
     this.packageDirPath = path.join(__dirname, "..");
     this.musicDirPath = path.join(this.packageDirPath, "static", "music");
+    this.overlaysDirPath = path.join(this.packageDirPath, "static", "overlays");
     this.installationSuccessfulPath = path.join(this.dataDirPath, "installation-successful");
 
     // Create directories

@@ -2,6 +2,7 @@ import { OrientationEnum, MusicMoodEnum, VoiceEnum, Video, ShortResult, AudioRes
 import fs from "fs-extra";
 import cuid from "cuid";
 import path from "path";
+import { execSync } from "child_process";
 
 import { Remotion } from "./libraries/Remotion";
 import { FFMpeg } from "./libraries/FFmpeg";
@@ -74,11 +75,12 @@ export class ShortCreator {
   ): string {
     const id = cuid();
     this.queue.push({
-      sceneInput,
-      config,
+      sceneInput: JSON.parse(JSON.stringify(sceneInput)),
+      config: JSON.parse(JSON.stringify(config)),
       id,
       status: "pending"
     });
+
     this.processQueue();
     return id;
   }
@@ -160,6 +162,14 @@ export class ShortCreator {
 
           // Gerar áudio para cada frase
           const phraseAudioFiles: string[] = [];
+          const silencePath = path.join(this.globalConfig.dataDirPath, "silence-1s.wav");
+
+          // Garante que o arquivo de silêncio existe
+          if (!fs.existsSync(silencePath)) {
+            logger.info("[TTS] Gerando arquivo de silêncio de 1s");
+            execSync(`ffmpeg -f lavfi -i anullsrc=r=16000:cl=mono -t 1 -q:a 9 -acodec pcm_s16le "${silencePath}" -y`);
+          }
+
           for (let i = 0; i < phrases.length; i++) {
             const phrase = phrases[i];
             const phraseTempId = cuid();
@@ -175,6 +185,10 @@ export class ShortCreator {
             );
 
             phraseAudioFiles.push(phraseWavPath);
+            // Adiciona 1s de silêncio entre frases, exceto após a última
+            if (i < phrases.length - 1) {
+              phraseAudioFiles.push(silencePath);
+            }
           }
 
           // Unir os áudios das frases
@@ -242,8 +256,12 @@ export class ShortCreator {
     // Wait for all scenes to be processed
     await Promise.all(scenePromises);
 
+    // Adiciona 2 segundos extras no início e fim além do padding configurado
+    const extraPadding = 2; // 2 segundos
     if (config.paddingBack) {
-      totalDuration += config.paddingBack / 1000;
+      totalDuration += (config.paddingBack / 1000) + extraPadding;
+    } else {
+      totalDuration += extraPadding;
     }
 
     const selectedMusic = this.findMusic(totalDuration, config.music);
@@ -251,17 +269,20 @@ export class ShortCreator {
 
     await this.remotion.render(
       {
-        music: selectedMusic,
+        music: {
+          ...selectedMusic,
+        },
         scenes,
         config: {
           durationMs: totalDuration * 1000,
-          paddingBack: config.paddingBack,
+          paddingBack: (config.paddingBack || 0) + (extraPadding * 1000), // Adiciona 2 segundos ao padding
           ...{
             captionBackgroundColor: config.captionBackgroundColor || "#dd0000",
             captionTextColor: config.captionTextColor || "#ffffff",
             captionPosition: config.captionPosition,
           },
           musicVolume: config.musicVolume,
+          overlay: config.overlay,
         },
       },
       videoId,
@@ -300,13 +321,30 @@ export class ShortCreator {
 
     const music = musicFiles[Math.floor(Math.random() * musicFiles.length)];
     const musicDuration = music.end - music.start;
-    const musicStart = Math.random() * (musicDuration - duration);
+    
+    // Calculate how many times the music can fit in the video duration
+    const possibleSegments = Math.floor(musicDuration / duration);
+    
+    if (possibleSegments < 1) {
+      // If music is shorter than video, start from beginning
+      return {
+        file: music.file,
+        url: `http://localhost:${this.globalConfig.port}/api/music/${encodeURIComponent(music.file)}`,
+        start: music.start,
+        end: music.start + duration,
+        mood: music.mood
+      };
+    }
 
+    // Select a random segment from the music
+    const segmentIndex = Math.floor(Math.random() * possibleSegments);
+    const startTime = music.start + (segmentIndex * duration);
+    
     return {
       file: music.file,
       url: `http://localhost:${this.globalConfig.port}/api/music/${encodeURIComponent(music.file)}`,
-      start: musicStart,
-      end: musicStart + duration,
+      start: startTime,
+      end: startTime + duration,
       mood: music.mood
     };
   }

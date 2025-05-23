@@ -133,6 +133,7 @@ export const renderConfig = z.object({
     .describe("Volume of the music, default is high"),
   language: z.enum(["pt", "en"]).default("pt").describe("Language for text-to-speech"),
   referenceAudioPath: z.string().optional().describe("Path to reference audio file for TTS"),
+  overlay: z.string().optional().describe("Name of the overlay image file (without extension) from static/overlays directory"),
 });
 export type RenderConfig = z.infer<typeof renderConfig>;
 
@@ -178,6 +179,8 @@ export type Music = {
 };
 export type MusicForVideo = Music & {
   url: string;
+  fadeOut?: boolean;
+  fadeOutDuration?: number;
 };
 
 export type MusicTag = `${MusicMoodEnum}`;

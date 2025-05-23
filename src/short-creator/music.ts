@@ -264,6 +264,24 @@ export class MusicManager {
       end: 180,
       mood: MusicMoodEnum.worship,
     },
+    {
+      file: "Vem Me Tocar.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.worship,
+    },
+    {
+      file: "Vem Me Tocar v2.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.worship,
+    },
+    {
+      file: "Pra Te Dizer v1.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.worship,
+    },
   ];
 
   constructor(private config: Config) {}

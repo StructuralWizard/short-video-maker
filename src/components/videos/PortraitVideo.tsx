@@ -1,3 +1,4 @@
+import React from "react";
 import {
   AbsoluteFill,
   Sequence,
@@ -5,6 +6,8 @@ import {
   useVideoConfig,
   Audio,
   OffthreadVideo,
+  interpolate,
+  Img,
 } from "remotion";
 import { z } from "zod";
 import { loadFont } from "@remotion/google-fonts/BarlowCondensed";
@@ -14,23 +17,21 @@ import {
   createCaptionPages,
   shortVideoSchema,
 } from "../utils";
+import path from "path";
 
 const { fontFamily } = loadFont(); // "Barlow Condensed"
 
-export const PortraitVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
-  scenes,
-  music,
-  config,
-}) => {
+type ShortVideoProps = z.infer<typeof shortVideoSchema>;
+
+export const PortraitVideo = ({ scenes, music, config }: { scenes: any[]; music: any; config: any }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, durationInFrames, width, height } = useVideoConfig();
 
   const captionBackgroundColor = config.captionBackgroundColor ?? "blue";
   const captionTextColor = config.captionTextColor ?? "#ffffff";
 
   const activeStyle = {
     backgroundColor: captionBackgroundColor,
-    color: captionTextColor,
     padding: "10px",
     marginLeft: "-10px",
     marginRight: "-10px",
@@ -51,6 +52,41 @@ export const PortraitVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
 
   const [musicVolume, musicMuted] = calculateVolume(config.musicVolume);
 
+  // Calculate fade in and fade out volumes
+  const fadeInDuration = 1; // 1 second fade in
+  const fadeOutDuration = 2; // 2 seconds fade out
+  const fadeInEndFrame = fadeInDuration * fps;
+  const fadeOutStartFrame = durationInFrames - (fadeOutDuration * fps);
+
+  // Calculate volume with both fade in and fade out
+  const fadeOutVolume = interpolate(
+    frame,
+    [fadeOutStartFrame, durationInFrames],
+    [musicVolume, 0],
+    {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    }
+  );
+
+  const fadeInVolume = interpolate(
+    frame,
+    [0, fadeInEndFrame],
+    [0, musicVolume],
+    {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    }
+  );
+
+  // Combine fade in and fade out volumes
+  const finalVolume = frame < fadeInEndFrame 
+    ? fadeInVolume 
+    : frame > fadeOutStartFrame 
+      ? fadeOutVolume 
+      : musicVolume;
+  console.log('Music URL:', music.url);
+
   return (
     <AbsoluteFill style={{ backgroundColor: "white" }}>
       <Audio
@@ -58,11 +94,26 @@ export const PortraitVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
         src={music.url}
         startFrom={music.start * fps}
         endAt={music.end * fps}
-        volume={() => musicVolume}
+        volume={() => finalVolume}
         muted={musicMuted}
       />
 
-      {scenes.map((scene, i) => {
+      {config?.overlay && (
+        <Img
+          src={`http://localhost:3123/api/overlays/${config.overlay}.png`}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            zIndex: 1,
+          }}
+        />
+      )}
+
+      {scenes.map((scene: any, i: number) => {
         const { captions, audio, video } = scene;
         const pages = createCaptionPages({
           captions,
@@ -107,46 +158,33 @@ export const PortraitVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
                       left: 0,
                       width: "100%",
                       ...captionStyle,
+                      display: "flex",
+                      justifyContent: "center",
+                      zIndex: 2,
                     }}
                   >
                     {page.lines.map((line, k) => {
                       return (
-                        <p
+                        <span
                           style={{
                             fontSize: "6em",
-                            fontFamily: fontFamily,
-                            fontWeight: "black",
+                            fontFamily: fontFamily + ', sans-serif',
+                            fontWeight: "bold",
                             color: captionTextColor,
-                            WebkitTextStroke: "2px black",
+                            backgroundColor: captionBackgroundColor,
+                            borderRadius: "2em",
+                            padding: "0.25em 1.2em",
+                            margin: "0.2em 0",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.10)",
+                            display: "inline-block",
+                            WebkitTextStroke: "1px black",
                             WebkitTextFillColor: captionTextColor,
-                            textShadow: "0px 0px 10px black",
                             textAlign: "center",
-                            width: "100%",
-                            textTransform: "uppercase",
                           }}
-                          key={`scene-${i}-page-${j}-line-${k}`}
+                          key={`line-${k}`}
                         >
-                          {line.texts.map((text, l) => {
-                            const active =
-                              frame >=
-                                startFrame + (text.startMs / 1000) * fps &&
-                              frame <= startFrame + (text.endMs / 1000) * fps;
-                            return (
-                              <>
-                                <span
-                                  style={{
-                                    fontWeight: "bold",
-                                    ...(active ? activeStyle : {}),
-                                  }}
-                                  key={`scene-${i}-page-${j}-line-${k}-text-${l}`}
-                                >
-                                  {text.text}
-                                </span>
-                                {l < line.texts.length - 1 ? " " : ""}
-                              </>
-                            );
-                          })}
-                        </p>
+                          {line.texts.map((text) => text.text).join(" ")}
+                        </span>
                       );
                     })}
                   </div>

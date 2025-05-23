@@ -193,6 +193,36 @@ export class APIRouter {
     );
 
     this.router.get(
+      "/overlays/:fileName",
+      (req: ExpressRequest, res: ExpressResponse) => {
+        const { fileName } = req.params;
+        if (!fileName) {
+          res.status(400).json({
+            error: "fileName is required",
+          });
+          return;
+        }
+        const overlayFilePath = path.join(this.config.overlaysDirPath, fileName);
+        if (!fs.existsSync(overlayFilePath)) {
+          res.status(404).json({
+            error: "overlay file not found",
+          });
+          return;
+        }
+        res.setHeader("Content-Type", "image/png");
+        const overlayFileStream = fs.createReadStream(overlayFilePath);
+        overlayFileStream.on("error", (error) => {
+          logger.error(error, "Error reading overlay file");
+          res.status(500).json({
+            error: "Error reading overlay file",
+            fileName,
+          });
+        });
+        overlayFileStream.pipe(res);
+      },
+    );
+
+    this.router.get(
       "/short-video/:videoId",
       async (req: ExpressRequest, res: ExpressResponse) => {
         try {

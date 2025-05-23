@@ -7,5 +7,5 @@ import { Config } from "@remotion/cli/config";
 
 Config.setVideoImageFormat("jpeg");
 Config.setOverwriteOutput(true);
-Config.setPublicDir("static/music");
+Config.setPublicDir("static");
 Config.setEntryPoint("src/components/root/index.ts");

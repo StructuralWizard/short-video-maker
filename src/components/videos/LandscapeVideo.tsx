@@ -1,3 +1,4 @@
+import React from "react";
 import {
   AbsoluteFill,
   Sequence,
@@ -5,6 +6,7 @@ import {
   useVideoConfig,
   Audio,
   OffthreadVideo,
+  Img,
 } from "remotion";
 import { z } from "zod";
 import { loadFont } from "@remotion/google-fonts/BarlowCondensed";
@@ -17,20 +19,18 @@ import {
 
 const { fontFamily } = loadFont(); // "Barlow Condensed"
 
-export const LandscapeVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
-  scenes,
-  music,
-  config,
-}) => {
+type ShortVideoProps = z.infer<typeof shortVideoSchema>;
+
+export const LandscapeVideo = ({ scenes, music, config }: { scenes: any[]; music: any; config: any }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, durationInFrames, width, height } = useVideoConfig();
 
   const captionBackgroundColor = config.captionBackgroundColor ?? "blue";
+
   const captionTextColor = config.captionTextColor ?? "#ffffff";
 
   const activeStyle = {
     backgroundColor: captionBackgroundColor,
-    color: captionTextColor,
     padding: "10px",
     marginLeft: "-10px",
     marginRight: "-10px",
@@ -51,6 +51,8 @@ export const LandscapeVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
 
   const [musicVolume, musicMuted] = calculateVolume(config.musicVolume);
 
+  console.log('Overlay recebido em LandscapeVideo:', config.overlay);
+
   return (
     <AbsoluteFill style={{ backgroundColor: "white" }}>
       <Audio
@@ -62,7 +64,22 @@ export const LandscapeVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
         muted={musicMuted}
       />
 
-      {scenes.map((scene, i) => {
+      {config?.overlay && (
+        <Img
+          src={`http://localhost:3123/api/overlays/${config.overlay}.png`}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            zIndex: 1,
+          }}
+        />
+      )}
+
+      {scenes.map((scene: any, i: number) => {
         const { captions, audio, video } = scene;
         const pages = createCaptionPages({
           captions,
@@ -107,45 +124,24 @@ export const LandscapeVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
                       left: 0,
                       width: "100%",
                       ...captionStyle,
+                      zIndex: 2,
                     }}
                   >
                     {page.lines.map((line, k) => {
                       return (
                         <p
                           style={{
-                            fontSize: "8em",
+                            fontSize: "6em",
                             fontFamily: fontFamily,
                             fontWeight: "black",
-                            color: captionTextColor,
                             WebkitTextStroke: "2px black",
                             WebkitTextFillColor: captionTextColor,
-                            textShadow: "0px 0px 10px black",
                             textAlign: "center",
-                            width: "100%",
-                            textTransform: "uppercase",
+                            ...activeStyle,
                           }}
-                          key={`scene-${i}-page-${j}-line-${k}`}
+                          key={`line-${k}`}
                         >
-                          {line.texts.map((text, l) => {
-                            const active =
-                              frame >=
-                                startFrame + (text.startMs / 1000) * fps &&
-                              frame <= startFrame + (text.endMs / 1000) * fps;
-                            return (
-                              <>
-                                <span
-                                  style={{
-                                    fontWeight: "bold",
-                                    ...(active ? activeStyle : {}),
-                                  }}
-                                  key={`scene-${i}-page-${j}-line-${k}-text-${l}`}
-                                >
-                                  {text.text}
-                                </span>
-                                {l < line.texts.length - 1 ? " " : ""}
-                              </>
-                            );
-                          })}
+                          {line.texts.map((text) => text.text).join(" ")}
                         </p>
                       );
                     })}

@@ -375,6 +375,16 @@ const VideoCreator: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
+
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Overlay Image"
+                value={config.overlay}
+                onChange={(e) => handleConfigChange("overlay", e.target.value)}
+                helperText="Name of the overlay image file (without extension) from static/overlays directory"
+              />
+            </Grid>
           </Grid>
         </Paper>
 

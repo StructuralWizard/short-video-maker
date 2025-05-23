@@ -1,3 +1,4 @@
+import React from "react";
 import { CalculateMetadataFunction, Composition } from "remotion";
 import { shortVideoSchema } from "../utils";
 import { PortraitVideo } from "../videos/PortraitVideo";
@@ -58,6 +59,7 @@ export const RemotionRoot: React.FC = () => {
             paddingBack: 1500,
             captionBackgroundColor: "blue",
             captionPosition: "bottom",
+            overlay: "legendario",
           },
         }}
         calculateMetadata={calculateMetadata}
@@ -272,6 +274,7 @@ export const RemotionRoot: React.FC = () => {
             paddingBack: 1500,
             captionBackgroundColor: "#ff0000",
             captionPosition: "center",
+            overlay: "legendario",
           },
         }}
         calculateMetadata={calculateMetadata}
