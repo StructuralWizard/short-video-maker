@@ -7,7 +7,7 @@ import { Remotion } from "./libraries/Remotion";
 import { FFMpeg } from "./libraries/FFmpeg";
 import { PexelsAPI } from "./libraries/Pexels";
 import { MusicManager } from "./music";
-import { SileroTTS } from "./libraries/SileroTTS";
+import { LocalTTS } from "./libraries/LocalTTS";
 import { OrientationEnum, MusicMoodEnum, MusicVolumeEnum } from "../types/shorts";
 
 // mock remotion
@@ -74,13 +74,13 @@ vi.mock("./music", () => ({
   })),
 }));
 
-// mock silero tts
-vi.mock("./libraries/SileroTTS", () => ({
-  SileroTTS: {
+// mock local tts
+vi.mock("./libraries/LocalTTS", () => ({
+  LocalTTS: {
     init: vi.fn().mockResolvedValue({
-      generateSpeech: vi.fn().mockResolvedValue(undefined),
-    }),
-  },
+      generateSpeech: vi.fn().mockResolvedValue(undefined)
+    })
+  }
 }));
 
 describe("ShortCreator", () => {

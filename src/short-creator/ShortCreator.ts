@@ -11,7 +11,7 @@ import { Config } from "../config";
 import { logger } from "../logger";
 import { MusicManager } from "./music";
 import { type Music } from "../types/shorts";
-import { SileroTTS } from "./libraries/SileroTTS";
+import { LocalTTS } from "./libraries/LocalTTS";
 import { VideoSearch } from "./libraries/VideoSearch";
 import { PixabayAPI } from "./libraries/Pixabay";
 import { ThreadPool } from './libraries/ThreadPool';
@@ -35,7 +35,7 @@ export class ShortCreator {
     private ffmpeg: FFMpeg,
     private pexelsApi: PexelsAPI,
     private musicManager: MusicManager,
-    private sileroTTS: SileroTTS,
+    private localTTS: LocalTTS,
     private pixabayApiKey: string,
     private pexelsApiKey: string,
     private videoProcessor: VideoProcessor,
@@ -176,7 +176,7 @@ export class ShortCreator {
             const phraseWavPath = path.join(this.globalConfig.tempDirPath, `${phraseTempId}.wav`);
             tempFiles.push(phraseWavPath);
 
-            await this.sileroTTS.generateSpeech(
+            await this.localTTS.generateSpeech(
               phrase,
               phraseWavPath,
               emotion,
@@ -235,14 +235,29 @@ export class ShortCreator {
       // Legendas palavra por palavra
       const words = scene.text.split(" ");
       const wordCount = words.length;
-      const wordDuration = (spokenAudioLength * 1000) / wordCount;
-
-      const captions: Caption[] = words.map((word, i) => ({
-        text: word + (i < words.length - 1 ? " " : ""),
-        startMs: i * wordDuration,
-        endMs: (i + 1) * wordDuration,
-        emotion: emotion as "question" | "exclamation" | "neutral"
-      }));
+      
+      // Calcula o tempo base para cada palavra (em milissegundos)
+      const baseWordDuration = (spokenAudioLength * 1000) / wordCount;
+      
+      // Ajusta o tempo base para palavras mais longas ou mais curtas
+      let currentTime = 0;
+      const captions: Caption[] = words.map((word, i) => {
+        // Ajusta o tempo base baseado no tamanho da palavra
+        const wordLength = word.length;
+        const durationMultiplier = Math.max(0.5, Math.min(1.5, wordLength / 5));
+        const wordDuration = baseWordDuration * durationMultiplier;
+        
+        // Calcula o tempo de início e fim
+        const startMs = currentTime;
+        currentTime += wordDuration;
+        
+        return {
+          text: word + (i < words.length - 1 ? " " : ""),
+          startMs,
+          endMs: currentTime,
+          emotion: emotion as "question" | "exclamation" | "neutral"
+        };
+      });
 
       scenes.push({
         id: tempId,

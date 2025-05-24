@@ -3,7 +3,7 @@ import { logger } from "../logger";
 import { FFMpeg } from "../short-creator/libraries/FFmpeg";
 import { Remotion } from "../short-creator/libraries/Remotion";
 import { PexelsAPI } from "../short-creator/libraries/Pexels";
-import { SileroTTS } from "../short-creator/libraries/SileroTTS";
+import { LocalTTS } from "../short-creator/libraries/LocalTTS";
 
 async function main() {
   const config = new Config();
@@ -20,8 +20,8 @@ async function main() {
   logger.info("Installing Remotion...");
   await Remotion.init(config);
 
-  logger.info("Installing SileroTTS...");
-  await SileroTTS.init(config);
+  logger.info("Installing LocalTTS...");
+  await LocalTTS.init(config);
 
   logger.info("Testing Pexels API...");
   const pexelsApi = new PexelsAPI(config.pexelsApiKey);

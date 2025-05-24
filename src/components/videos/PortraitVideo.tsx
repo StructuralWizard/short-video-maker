@@ -117,9 +117,9 @@ export const PortraitVideo = ({ scenes, music, config }: { scenes: any[]; music:
         const { captions, audio, video } = scene;
         const pages = createCaptionPages({
           captions,
-          lineMaxLength: 20,
-          lineCount: 1,
-          maxDistanceMs: 1000,
+          lineMaxLength: 30,
+          lineCount: 2,
+          maxDistanceMs: 500,
         });
 
         // Calculate the start and end time of the scene
@@ -135,6 +135,15 @@ export const PortraitVideo = ({ scenes, music, config }: { scenes: any[]; music:
           durationInFrames += (config.paddingBack / 1000) * fps;
         }
 
+        // Determina a página ativa de legenda para o frame atual
+        const sceneFrame = frame - startFrame;
+        const currentPageIndex = pages.findIndex(
+          (page) =>
+            sceneFrame >= Math.round((page.startMs / 1000) * fps) &&
+            sceneFrame < Math.round((page.endMs / 1000) * fps)
+        );
+        const currentPage = pages[currentPageIndex];
+
         return (
           <Sequence
             from={startFrame}
@@ -143,54 +152,42 @@ export const PortraitVideo = ({ scenes, music, config }: { scenes: any[]; music:
           >
             <OffthreadVideo src={video} muted />
             <Audio src={audio.url} />
-            {pages.map((page, j) => {
-              return (
-                <Sequence
-                  key={`scene-${i}-page-${j}`}
-                  from={Math.round((page.startMs / 1000) * fps)}
-                  durationInFrames={Math.round(
-                    ((page.endMs - page.startMs) / 1000) * fps,
-                  )}
-                >
-                  <div
+            {currentPage && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  width: "100%",
+                  ...captionStyle,
+                  display: "flex",
+                  justifyContent: "center",
+                  zIndex: 2,
+                }}
+              >
+                {currentPage.lines.map((line, k) => (
+                  <span
                     style={{
-                      position: "absolute",
-                      left: 0,
-                      width: "100%",
-                      ...captionStyle,
-                      display: "flex",
-                      justifyContent: "center",
-                      zIndex: 2,
+                      fontSize: "6em",
+                      fontFamily: fontFamily + ', sans-serif',
+                      fontWeight: "bold",
+                      color: captionTextColor,
+                      backgroundColor: captionBackgroundColor,
+                      borderRadius: "2em",
+                      padding: "0.25em 1.2em",
+                      margin: "0.2em 0",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.10)",
+                      display: "inline-block",
+                      WebkitTextStroke: "1px black",
+                      WebkitTextFillColor: captionTextColor,
+                      textAlign: "center",
                     }}
+                    key={`line-${k}`}
                   >
-                    {page.lines.map((line, k) => {
-                      return (
-                        <span
-                          style={{
-                            fontSize: "6em",
-                            fontFamily: fontFamily + ', sans-serif',
-                            fontWeight: "bold",
-                            color: captionTextColor,
-                            backgroundColor: captionBackgroundColor,
-                            borderRadius: "2em",
-                            padding: "0.25em 1.2em",
-                            margin: "0.2em 0",
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.10)",
-                            display: "inline-block",
-                            WebkitTextStroke: "1px black",
-                            WebkitTextFillColor: captionTextColor,
-                            textAlign: "center",
-                          }}
-                          key={`line-${k}`}
-                        >
-                          {line.texts.map((text) => text.text).join(" ")}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </Sequence>
-              );
-            })}
+                    {line.texts.map((text) => text.text).join(" ")}
+                  </span>
+                ))}
+              </div>
+            )}
           </Sequence>
         );
       })}

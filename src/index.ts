@@ -10,7 +10,7 @@ import { ShortCreator } from "./short-creator/ShortCreator";
 import { logger } from "./utils/logger";
 import { Server } from "./server/server";
 import { MusicManager } from "./short-creator/music";
-import { SileroTTS } from "./short-creator/libraries/SileroTTS";
+import { LocalTTS } from "./short-creator/libraries/LocalTTS";
 import { VideoProcessor } from "./short-creator/libraries/VideoProcessor";
 import { PixabayAPI } from "./short-creator/libraries/Pixabay";
 
@@ -25,7 +25,7 @@ async function main() {
     const pexelsApi = new PexelsAPI(config.pexelsApiKey);
     const pixabayApi = new PixabayAPI(config.pixabayApiKey);
     const musicManager = new MusicManager(config);
-    const sileroTTS = await SileroTTS.init(config);
+    const localTTS = await LocalTTS.init(config);
     const videoProcessor = new VideoProcessor(config.videosDirPath);
 
     const shortCreator = new ShortCreator(
@@ -34,7 +34,7 @@ async function main() {
       ffmpeg,
       pexelsApi,
       musicManager,
-      sileroTTS,
+      localTTS,
       config.pixabayApiKey,
       config.pexelsApiKey,
       videoProcessor,
