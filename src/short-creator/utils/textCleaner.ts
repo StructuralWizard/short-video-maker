@@ -96,7 +96,7 @@ export function cleanSceneText(text: string): string {
  */
 export function splitTextByPunctuation(text: string): string[] {
   return text
-    .split(/[.:]/)  // Divide por ponto final e dois pontos
+    .split(/(?<=[.!?:])\s+/)  // Divide após ponto, exclamação, interrogação ou dois-pontos seguidos de espaço
     .map((s) => s.trim())
     .filter((s) => s.length > 0)
     .map((s) => {

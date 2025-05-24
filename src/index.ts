@@ -11,7 +11,6 @@ import { logger } from "./utils/logger";
 import { Server } from "./server/server";
 import { MusicManager } from "./short-creator/music";
 import { SileroTTS } from "./short-creator/libraries/SileroTTS";
-import { ShortQueue, OrientationEnum, MusicVolumeEnum } from "./types/shorts";
 import { VideoProcessor } from "./short-creator/libraries/VideoProcessor";
 import { PixabayAPI } from "./short-creator/libraries/Pixabay";
 
@@ -45,39 +44,6 @@ async function main() {
     // Iniciar servidor
     const server = new Server(config, shortCreator);
     await server.start();
-
-    // Exemplo de uso
-    const queue: ShortQueue = {
-      items: [
-        {
-          id: "1",
-          scenes: [
-            {
-              id: "scene1",
-              text: "Hello, this is a test video",
-              searchTerms: ["nature", "landscape"],
-              duration: 5,
-              orientation: OrientationEnum.portrait,
-              captions: [],
-              video: "",
-              audio: {
-                url: "",
-                duration: 5
-              }
-            },
-          ],
-        },
-      ],
-    };
-
-    // Processar fila
-    const id = shortCreator.addToQueue(queue.items[0].scenes, {
-      language: "en",
-      orientation: OrientationEnum.portrait,
-      paddingBack: 1000,
-      musicVolume: MusicVolumeEnum.high,
-    });
-    logger.info("Queue processing completed with id: " + id);
   } catch (error) {
     logger.error("Error in main:", error);
     process.exit(1);

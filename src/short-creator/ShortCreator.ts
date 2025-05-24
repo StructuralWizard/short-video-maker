@@ -223,10 +223,19 @@ export class ShortCreator {
         audioLength += config.paddingBack / 1000;
       }
 
-      // Generate captions with actual timing from audio
+      const sceneText = cleanSceneText(scene.text);
+      const phrases = splitTextByPunctuation(sceneText);
+      // Calcule o tempo de silêncio total entre frases
+      const silenceBetweenPhrases = 1; // segundos
+      const numSilences = phrases.length - 1;
+      const totalSilence = numSilences * silenceBetweenPhrases;
+      // Calcule o tempo de áudio falado (sem silêncios)
+      const spokenAudioLength = audioLength - totalSilence;
+
+      // Legendas palavra por palavra
       const words = scene.text.split(" ");
       const wordCount = words.length;
-      const wordDuration = (audioLength * 1000) / wordCount; // ms
+      const wordDuration = (spokenAudioLength * 1000) / wordCount;
 
       const captions: Caption[] = words.map((word, i) => ({
         text: word + (i < words.length - 1 ? " " : ""),
