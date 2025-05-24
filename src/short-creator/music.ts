@@ -282,6 +282,7 @@ export class MusicManager {
       end: 180,
       mood: MusicMoodEnum.worship,
     },
+    
   ];
 
   constructor(private config: Config) {}
