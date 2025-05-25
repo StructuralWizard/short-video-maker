@@ -34,6 +34,27 @@ export class APIRouter {
         try {
           const input = validateCreateShortInput(req.body);
 
+          // Validação de arquivos reference audio e overlay
+          const referenceAudioPath = input.config.referenceAudioPath;
+          if (referenceAudioPath && !fs.existsSync(referenceAudioPath)) {
+            return res.status(400).json({
+              error: "Reference audio file not found",
+              path: referenceAudioPath,
+            });
+          }
+          const overlay = input.config.overlay;
+          if (overlay) {
+            // Busca o overlay no diretório /static/overlays/ com extensão .png
+            const overlayPath = path.join(this.config.overlaysDirPath, `${overlay}.png`);
+            if (!fs.existsSync(overlayPath)) {
+              return res.status(400).json({
+                error: "Overlay file not found",
+                path: `${overlay}.png`,
+                searchPath: overlayPath
+              });
+            }
+          }
+
           logger.info({ input }, "Creating short video");
 
           const videoId = this.shortCreator.addToQueue(
