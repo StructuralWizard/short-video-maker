@@ -226,10 +226,12 @@ export class ShortCreator {
 
       const sceneText = cleanSceneText(scene.text);
       const phrases = splitTextByPunctuation(sceneText);
+      
       // Calcule o tempo de silêncio total entre frases
       const silenceBetweenPhrases = 1; // segundos
       const numSilences = phrases.length - 1;
       const totalSilence = numSilences * silenceBetweenPhrases;
+      
       // Calcule o tempo de áudio falado (sem silêncios)
       const spokenAudioLength = audioLength - totalSilence;
 
@@ -245,12 +247,18 @@ export class ShortCreator {
       const captions: Caption[] = words.map((word, i) => {
         // Ajusta o tempo base baseado no tamanho da palavra
         const wordLength = word.length;
-        const durationMultiplier = Math.max(0.5, Math.min(1.5, wordLength / 5));
+        // Ajusta o multiplicador para dar mais tempo para palavras mais longas
+        const durationMultiplier = Math.max(0.7, Math.min(2.0, wordLength / 4));
         const wordDuration = baseWordDuration * durationMultiplier;
         
         // Calcula o tempo de início e fim
         const startMs = currentTime;
         currentTime += wordDuration;
+        
+        // Adiciona uma pequena pausa após pontuação
+        if (/[.,!?]$/.test(word)) {
+          currentTime += 200; // 200ms de pausa após pontuação
+        }
         
         return {
           text: word + (i < words.length - 1 ? " " : ""),
@@ -259,6 +267,18 @@ export class ShortCreator {
           emotion: emotion as "question" | "exclamation" | "neutral"
         };
       });
+
+      // Ajusta o tempo final para garantir que as legendas terminem junto com o áudio
+      const totalCaptionDuration = captions[captions.length - 1].endMs;
+      const timeAdjustment = (audioLength * 1000) - totalCaptionDuration;
+      
+      if (timeAdjustment !== 0) {
+        const adjustmentPerWord = timeAdjustment / wordCount;
+        captions.forEach((caption, i) => {
+          caption.startMs += adjustmentPerWord * i;
+          caption.endMs += adjustmentPerWord * (i + 1);
+        });
+      }
 
       scenes.push({
         id: tempId,

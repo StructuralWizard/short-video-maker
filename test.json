@@ -1,0 +1,27 @@
+```json
+{
+  "scenes": [
+    {
+      "text": "A vida é um chamado à transformação, uma jornada de moldagem na oficina do Criador.",
+      "searchTerms": ["mountain sunrise fog"] 
+    },
+    {
+      "text": "Aceite o desafio da fé. Ela não elimina as dificuldades, mas te equipa para vencê-las.",
+      "searchTerms": ["path through forest"]
+    }
+  ],
+  "config": {
+    "caption": "“Porque eu sei os planos que tenho para vocês”, declara o Senhor, “planos de paz e não de desastre, planos de dar a vocês esperança e um futuro.” — Jeremias 29:11\n\nDeus te chama por nome. Ele tem um plano único e maravilhoso para sua vida. Confie no processo, mesmo quando as coisas parecem difíceis. Você é amado, você é capaz.\n🙏⛰️✝️ #Legendarios #UmaJornadaDeTransformacao #HomensComProposito #VidaComPropositos #ChamadoDivino",
+    "title": "Sua Jornada Começa Agora",
+    "musicVolume": "low",
+    "music": "inspirational",
+    "captionBackgroundColor": "#dd0000",
+    "captionPosition": "center",
+    "paddingBack": 1000,
+    "language": "pt",
+    "referenceAudioPath": "NinoCoelho.wav",
+    "overlay": "jornada"
+  }
+}
+
+```
