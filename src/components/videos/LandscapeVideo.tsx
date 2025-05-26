@@ -32,10 +32,12 @@ export const LandscapeVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
   const activeStyle = {
     backgroundColor: captionBackgroundColor,
     color: captionTextColor,
-    padding: "10px",
+    padding: "10px 20px",
     marginLeft: "-10px",
     marginRight: "-10px",
-    borderRadius: "10px",
+    borderRadius: "50px",
+    display: "inline-block",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
   };
 
   const captionPosition = config.captionPosition ?? "center";
@@ -51,6 +53,7 @@ export const LandscapeVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
   }
 
   const [musicVolume, musicMuted] = calculateVolume(config.musicVolume);
+  const finalVolume = musicVolume;
 
   return (
     <AbsoluteFill style={{ backgroundColor: "white" }}>
@@ -59,7 +62,7 @@ export const LandscapeVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
         src={music.url}
         startFrom={music.start * fps}
         endAt={music.end * fps}
-        volume={() => musicVolume}
+        volume={finalVolume}
         muted={musicMuted}
       />
 

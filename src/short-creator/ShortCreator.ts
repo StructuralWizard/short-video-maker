@@ -170,8 +170,8 @@ export class ShortCreator {
           }
 
           for (let i = 0; i < phrases.length; i++) {
-            let phrase = phrases[i].replace(/[\.:!?]$/, "");
-            logger.info(`[TTS] Cena ${index}, frase ${i}: \"${phrase}\"`, { sceneIndex: index, phraseIndex: i, phrase });
+            let phrase = phrases[i].replace(/["']/g, '').replace(/\.$/, '');
+            logger.info(`[TTS] Cena ${index}, frase ${i}: ${phrase}`, { sceneIndex: index, phraseIndex: i, phrase });
             const phraseTempId = cuid();
             const phraseWavPath = path.join(this.globalConfig.tempDirPath, `${phraseTempId}.wav`);
             tempFiles.push(phraseWavPath);
@@ -376,13 +376,14 @@ export class ShortCreator {
     const possibleSegments = Math.floor(musicDuration / duration);
     
     if (possibleSegments < 1) {
-      // If music is shorter than video, start from beginning
+      // If music is shorter than video, loop it
       return {
         file: music.file,
         url: `http://localhost:${this.globalConfig.port}/api/music/${encodeURIComponent(music.file)}`,
         start: music.start,
         end: music.start + duration,
-        mood: music.mood
+        mood: music.mood,
+        loop: true
       };
     }
 
@@ -395,7 +396,8 @@ export class ShortCreator {
       url: `http://localhost:${this.globalConfig.port}/api/music/${encodeURIComponent(music.file)}`,
       start: startTime,
       end: startTime + duration,
-      mood: music.mood
+      mood: music.mood,
+      loop: true
     };
   }
 

@@ -181,6 +181,7 @@ export type MusicForVideo = Music & {
   url: string;
   fadeOut?: boolean;
   fadeOutDuration?: number;
+  loop?: boolean;
 };
 
 export type MusicTag = `${MusicMoodEnum}`;

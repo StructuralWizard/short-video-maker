@@ -35,6 +35,9 @@ def generate_speech(text, reference_audio, output_path, language="pt", emotion="
         if not ref_path.exists():
             raise FileNotFoundError(f"Arquivo de referência não encontrado: {ref_path}")
         
+        # Remove aspas do texto
+        text = text.replace('"', '').replace("'", "")
+        
         # Gera o áudio
         print(f"Gerando áudio para: {text}", file=sys.stderr)
         print(f"Usando arquivo de referência: {ref_path}", file=sys.stderr)

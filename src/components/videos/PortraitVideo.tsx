@@ -8,15 +8,13 @@ import {
   Img,
 } from "remotion";
 import { z } from "zod";
-import { loadFont } from "@remotion/google-fonts/BarlowCondensed";
 
 import {
   calculateVolume,
   createCaptionPages,
   shortVideoSchema,
 } from "../utils";
-
-const { fontFamily } = loadFont(); // "Barlow Condensed"
+import { fontFamily } from "./fonts";
 
 export const PortraitVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
   scenes,
@@ -32,10 +30,12 @@ export const PortraitVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
   const activeStyle = {
     backgroundColor: captionBackgroundColor,
     color: captionTextColor,
-    padding: "10px",
+    padding: "10px 20px",
     marginLeft: "-10px",
     marginRight: "-10px",
-    borderRadius: "10px",
+    borderRadius: "50px",
+    display: "inline-block",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
   };
 
   const captionPosition = config.captionPosition ?? "center";
@@ -52,18 +52,22 @@ export const PortraitVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
 
   const [musicVolume, musicMuted] = calculateVolume(config.musicVolume);
 
-  // Fade out de 2 segundos no final do vídeo
-  const durationInFrames = Math.round(
+  // Calculate total duration including padding
+  const totalDurationInFrames = Math.round(
     scenes.reduce((acc, curr) => acc + curr.audio.duration, 0) * fps
   ) + (config.paddingBack ? Math.round((config.paddingBack / 1000) * fps) : 0);
+
+  // Ensure music starts from 0 if the start time would make it end before the video
+  const startFrom = Math.min(music.start * fps, totalDurationInFrames - 1);
+
   const fadeOutDuration = 2; // segundos
-  const fadeOutStartFrame = durationInFrames - fadeOutDuration * fps;
+  const fadeOutStartFrame = totalDurationInFrames - fadeOutDuration * fps;
 
   const finalVolume = (frame: number) => {
     if (frame >= fadeOutStartFrame) {
       // Interpola o volume de musicVolume até 0 nos últimos 2 segundos
       return (
-        musicVolume * (durationInFrames - frame) / (fadeOutDuration * fps)
+        musicVolume * (totalDurationInFrames - frame) / (fadeOutDuration * fps)
       );
     }
     return musicVolume;
@@ -147,7 +151,7 @@ export const PortraitVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
                         <p
                           style={{
                             fontSize: "5em",
-                            fontFamily: fontFamily,
+                            fontFamily,
                             fontWeight: "black",
                             color: captionTextColor,
                             WebkitTextStroke: "2px black",

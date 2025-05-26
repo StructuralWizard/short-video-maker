@@ -36,11 +36,15 @@ export class APIRouter {
 
           // Validação de arquivos reference audio e overlay
           const referenceAudioPath = input.config.referenceAudioPath;
-          if (referenceAudioPath && !fs.existsSync(referenceAudioPath)) {
-            return res.status(400).json({
-              error: "Reference audio file not found",
-              path: referenceAudioPath,
-            });
+          if (referenceAudioPath) {
+            const fullReferencePath = path.join(process.cwd(), "reference_audio", referenceAudioPath);
+            if (!fs.existsSync(fullReferencePath)) {
+              return res.status(400).json({
+                error: "Reference audio file not found",
+                path: referenceAudioPath,
+                searchPath: fullReferencePath
+              });
+            }
           }
           const overlay = input.config.overlay;
           if (overlay) {

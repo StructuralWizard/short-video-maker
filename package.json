@@ -53,7 +53,7 @@
     "@mui/material": "^5.15.10",
     "@remotion/bundler": "^4.0.286",
     "@remotion/cli": "^4.0.286",
-    "@remotion/google-fonts": "^4.0.286",
+    "@remotion/google-fonts": "^4.0.306",
     "@remotion/install-whisper-cpp": "^4.0.286",
     "@remotion/renderer": "^4.0.286",
     "@remotion/zod-types": "^4.0.286",

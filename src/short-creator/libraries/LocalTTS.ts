@@ -46,7 +46,7 @@ export class LocalTTS {
 
       // Prepara a requisição
       const request = {
-        text,
+        text: text.replace(/["']/g, ''),
         reference_audio: path.basename(refPath),
         language,
         emotion

@@ -62,25 +62,15 @@ export function cleanSceneText(text: string): string {
     // Remove espaços múltiplos
     cleaned = cleaned.replace(/\s+/g, ' ');
     
-    // Remove pontuações duplicadas
-    cleaned = cleaned.replace(/\.{2,}/g, '.');
-    cleaned = cleaned.replace(/!{2,}/g, '!');
-    cleaned = cleaned.replace(/\?{2,}/g, '?');
-    
-    // Remove espaços antes de pontuação
-    cleaned = cleaned.replace(/\s+([.,!?])/g, '$1');
-    
     // Remove espaços no início e fim
     cleaned = cleaned.trim();
     
-    // Remove caracteres especiais mantendo acentuação
-    cleaned = cleaned.replace(/[^\p{L}\p{N}\s.,!?-]/gu, '');
+    // Remove caracteres especiais mantendo acentuação e pontuação
+    cleaned = cleaned.replace(/[^\p{L}\p{N}\s.,!?:;-]/gu, '');
     
-    // Garante que a frase termina com pontuação
-    if (!/[.!?]$/.test(cleaned)) {
-      cleaned += '.';
-    }
-
+    // Remove ponto final
+    cleaned = cleaned.replace(/\.$/, '');
+    
     logger.debug("Cleaned scene text", { original: text, cleaned });
     
     return cleaned;
@@ -91,19 +81,11 @@ export function cleanSceneText(text: string): string {
 }
 
 /**
- * Divide o texto em frases menores usando . e : como delimitadores.
- * Remove espaços extras e ignora frases vazias.
+ * Divide o texto em frases usando apenas pontuação de final de linha (.!?)
  */
 export function splitTextByPunctuation(text: string): string[] {
   return text
-    .split(/(?<=[.!?:])\s+/)  // Divide após ponto, exclamação, interrogação ou dois-pontos seguidos de espaço
+    .split(/(?<=[.!?])\s+/)  // Divide apenas após ponto, exclamação ou interrogação seguidos de espaço
     .map((s) => s.trim())
-    .filter((s) => s.length > 0)
-    .map((s) => {
-      // Se não termina com pontuação, adiciona ponto
-      if (!/[.!?]$/.test(s)) {
-        return s + '.';
-      }
-      return s;
-    });
+    .filter((s) => s.length > 0);
 } 

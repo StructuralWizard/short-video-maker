@@ -55,6 +55,36 @@ export class MusicManager {
       mood: MusicMoodEnum.inspirational,
     },
     {
+      file: "Inspirational 1.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.inspirational,
+    },
+    {
+      file: "Inspirational 2.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.inspirational,
+    },
+    {
+      file: "Inspirational 3.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.inspirational,
+    },
+    {
+      file: "Inspirational 4.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.inspirational,
+    },
+    {
+      file: "Pra Te Adorar.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.inspirational,
+    },
+    {
       file: "Sly Sky - Telecasted.mp3",
       start: 0,
       end: 152,
