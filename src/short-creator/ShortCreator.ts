@@ -122,7 +122,6 @@ export class ShortCreator {
       },
       "Creating short video",
     );
-    const scenes: Scene[] = [];
     let totalDuration = 0;
     const excludeVideoIds: string[] = [];
     const tempFiles: string[] = [];
@@ -280,7 +279,11 @@ export class ShortCreator {
         });
       }
 
-      scenes.push({
+      totalDuration += audioLength;
+      excludeVideoIds.push(video.id);
+
+      // Retorna a cena junto com o índice original
+      return {
         id: tempId,
         text: scene.text,
         searchTerms: scene.searchTerms,
@@ -292,14 +295,16 @@ export class ShortCreator {
           url: `http://localhost:${this.globalConfig.port}/api/tmp/${audioResult.tempMp3FileName}`,
           duration: audioLength,
         },
-      });
-
-      totalDuration += audioLength;
-      excludeVideoIds.push(video.id);
+        originalIndex: index
+      };
     });
 
-    // Wait for all scenes to be processed
-    await Promise.all(scenePromises);
+    // Espera todas as cenas serem processadas
+    const sceneResults = await Promise.all(scenePromises);
+    // Ordena pelo índice original
+    sceneResults.sort((a, b) => a.originalIndex - b.originalIndex);
+    // Remove o campo originalIndex e monta o array scenes
+    const scenes = sceneResults.map(({ originalIndex, ...scene }) => scene);
 
     // Adiciona 2 segundos extras no início e fim além do padding configurado
     const extraPadding = 2; // 2 segundos
