@@ -85,6 +85,12 @@ export class MusicManager {
       mood: MusicMoodEnum.inspirational,
     },
     {
+      file: "O Amor Escolheu Me Amar Cinematic.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.inspirational,
+    },
+    {
       file: "Sly Sky - Telecasted.mp3",
       start: 0,
       end: 152,

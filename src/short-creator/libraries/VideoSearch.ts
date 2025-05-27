@@ -58,7 +58,12 @@ export class VideoSearch {
     retryCount = 0
   ): Promise<VideoResult | null> {
     try {
-      const result = await provider.findVideo(searchTerm);
+      const result = await provider.findVideo(
+        [searchTerm],
+        10, // Initial duration estimate
+        [], // No excluded IDs
+        OrientationEnum.portrait // Default orientation
+      );
       if (result) {
         return result;
       }

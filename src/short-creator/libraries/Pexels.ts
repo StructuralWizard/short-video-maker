@@ -3,6 +3,7 @@ import { getOrientationConfig } from "../../components/utils";
 import { logger } from "../../logger";
 import { OrientationEnum, type Video } from "../../types/shorts";
 import { VideoSearchError } from "./VideoProvider";
+import { createClient, Videos } from 'pexels';
 
 const jokerTerms: string[] = ["nature", "globe", "space", "ocean"];
 const durationBufferSeconds = 3;
@@ -10,7 +11,11 @@ const defaultTimeoutMs = 5000;
 const retryTimes = 3;
 
 export class PexelsAPI {
-  constructor(private API_KEY: string) {}
+  private client: ReturnType<typeof createClient>;
+
+  constructor(private API_KEY: string) {
+    this.client = createClient(API_KEY);
+  }
 
   private async _findVideo(
     terms: string[],
@@ -22,10 +27,18 @@ export class PexelsAPI {
       const response = await this.client.videos.search({
         query: terms.join(" "),
         per_page: 20,
-        orientation: orientation === OrientationEnum.PORTRAIT ? "portrait" : "landscape",
+        orientation: orientation === OrientationEnum.portrait ? "portrait" : "landscape",
       });
 
-      if (!response?.videos?.length) {
+      if ('error' in response) {
+        logger.error(
+          { error: response.error },
+          "Error from Pexels API"
+        );
+        return null;
+      }
+
+      if (!response.videos?.length) {
         return null;
       }
 
@@ -69,12 +82,15 @@ export class PexelsAPI {
 
     for (const searchTerm of [...shuffledSearchTerms, ...shuffledJokerTerms]) {
       try {
-        return await this._findVideo(
+        const result = await this._findVideo(
           [searchTerm],
           minDurationSeconds,
           excludeIds,
           orientation,
         );
+        if (result) {
+          return result;
+        }
       } catch (error: unknown) {
         if (error instanceof VideoSearchError) {
           logger.debug(

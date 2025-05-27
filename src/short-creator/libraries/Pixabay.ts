@@ -23,7 +23,7 @@ export class PixabayAPI {
   ): Promise<Video | null> {
     try {
       const response = await fetch(
-        `https://pixabay.com/api/videos/?key=${this.API_KEY}&q=${encodeURIComponent(terms.join(" "))}&pretty=true&per_page=20&orientation=${orientation === OrientationEnum.PORTRAIT ? "vertical" : "horizontal"}`,
+        `https://pixabay.com/api/videos/?key=${this.API_KEY}&q=${encodeURIComponent(terms.join(" "))}&pretty=true&per_page=20&orientation=${orientation === OrientationEnum.portrait ? "vertical" : "horizontal"}`,
         {
           method: "GET",
         },
@@ -74,8 +74,7 @@ export class PixabayAPI {
         url: video.videos.medium.url,
         duration: video.duration,
         width: video.videos.medium.width,
-        height: video.videos.medium.height,
-        provider: "pixabay",
+        height: video.videos.medium.height
       };
     } catch (error: any) {
       // Se for erro de rate limit, propaga para tratamento no VideoSearch
