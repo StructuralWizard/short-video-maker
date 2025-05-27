@@ -4,7 +4,6 @@ import fs from "fs-extra";
 
 import { Remotion } from "./short-creator/libraries/Remotion";
 import { FFMpeg } from "./short-creator/libraries/FFmpeg";
-import { PexelsAPI } from "./short-creator/libraries/Pexels";
 import { Config } from "./config";
 import { ShortCreator } from "./short-creator/ShortCreator";
 import { logger } from "./utils/logger";
@@ -12,7 +11,7 @@ import { Server } from "./server/server";
 import { MusicManager } from "./short-creator/music";
 import { LocalTTS } from "./short-creator/libraries/LocalTTS";
 import { VideoProcessor } from "./short-creator/libraries/VideoProcessor";
-import { PixabayAPI } from "./short-creator/libraries/Pixabay";
+import { LocalImageAPI } from "./short-creator/libraries/LocalImageAPI";
 
 async function main() {
   try {
@@ -22,8 +21,7 @@ async function main() {
     // Inicializar componentes
     const remotion = await Remotion.init(config);
     const ffmpeg = await FFMpeg.init();
-    const pexelsApi = new PexelsAPI(config.pexelsApiKey);
-    const pixabayApi = new PixabayAPI(config.pixabayApiKey);
+    const localImageApi = new LocalImageAPI();
     const musicManager = new MusicManager(config);
     const localTTS = await LocalTTS.init(config);
     const videoProcessor = new VideoProcessor(config.videosDirPath);
@@ -32,11 +30,11 @@ async function main() {
       config,
       remotion,
       ffmpeg,
-      pexelsApi,
+      localImageApi,
       musicManager,
       localTTS,
-      config.pixabayApiKey,
-      config.pexelsApiKey,
+      undefined,
+      undefined,
       videoProcessor,
       config.concurrency
     );

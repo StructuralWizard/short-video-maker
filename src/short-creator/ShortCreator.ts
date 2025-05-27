@@ -6,17 +6,16 @@ import { execSync } from "child_process";
 
 import { Remotion } from "./libraries/Remotion";
 import { FFMpeg } from "./libraries/FFmpeg";
-import { PexelsAPI } from "./libraries/Pexels";
 import { Config } from "../config";
 import { logger } from "../logger";
 import { MusicManager } from "./music";
 import { type Music } from "../types/shorts";
 import { LocalTTS } from "./libraries/LocalTTS";
 import { VideoSearch } from "./libraries/VideoSearch";
-import { PixabayAPI } from "./libraries/Pixabay";
 import { ThreadPool } from './libraries/ThreadPool';
 import { VideoProcessor } from './libraries/VideoProcessor';
 import { cleanSceneText, splitTextByPunctuation } from "./utils/textCleaner";
+import { LocalImageAPI } from "./libraries/LocalImageAPI";
 
 export class ShortCreator {
   private queue: {
@@ -33,17 +32,16 @@ export class ShortCreator {
     private globalConfig: Config,
     private remotion: Remotion,
     private ffmpeg: FFMpeg,
-    private pexelsApi: PexelsAPI,
+    private localImageApi: LocalImageAPI,
     private musicManager: MusicManager,
     private localTTS: LocalTTS,
-    private pixabayApiKey: string,
-    private pexelsApiKey: string,
+    _pixabayApiKey: string | undefined,
+    _pexelsApiKey: string | undefined,
     private videoProcessor: VideoProcessor,
     private maxWorkers: number = 4
   ) {
     this.videoSearch = new VideoSearch(
-      new PixabayAPI(pixabayApiKey),
-      new PexelsAPI(pexelsApiKey)
+      localImageApi
     );
     this.threadPool = new ThreadPool(maxWorkers);
     this.outputDir = this.globalConfig.videosDirPath;

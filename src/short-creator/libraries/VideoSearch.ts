@@ -46,8 +46,7 @@ export class VideoSearch {
   private videoCache: VideoCache;
 
   constructor(
-    private pixabayProvider: VideoProvider,
-    private pexelsProvider: VideoProvider
+    private localImageProvider: VideoProvider
   ) {
     this.videoCache = VideoCache.getInstance();
   }
@@ -81,8 +80,6 @@ export class VideoSearch {
           return this.tryProvider(provider, searchTerm, retryCount + 1);
         }
       }
-
-      // Log do erro mas não propaga para evitar reinicialização
       logger.error(
         { 
           err: error,
@@ -98,36 +95,26 @@ export class VideoSearch {
   private getProgressiveTerms(term: string): string[] {
     const words = term.split(" ").filter(w => w.length > 3);
     const terms: string[] = [];
-    
-    // Add the full term
     terms.push(term);
-    
-    // Add individual words
     terms.push(...words);
-    
-    // Add progressive combinations (removing last word each time)
     let currentWords = [...words];
     while (currentWords.length > 1) {
       currentWords.pop();
       terms.push(currentWords.join(" "));
     }
-
-    // Add variations with common prefixes/suffixes
     const variations = words.map(word => {
       const variations = [];
       if (word.endsWith('ing')) {
-        variations.push(word.slice(0, -3)); // remove 'ing'
-        variations.push(word.slice(0, -3) + 'ed'); // change to past tense
+        variations.push(word.slice(0, -3));
+        variations.push(word.slice(0, -3) + 'ed');
       }
       if (word.endsWith('ed')) {
-        variations.push(word.slice(0, -2)); // remove 'ed'
-        variations.push(word.slice(0, -2) + 'ing'); // change to present tense
+        variations.push(word.slice(0, -2));
+        variations.push(word.slice(0, -2) + 'ing');
       }
       return variations;
     }).flat();
-
     terms.push(...variations);
-    
     return terms;
   }
 
@@ -138,68 +125,33 @@ export class VideoSearch {
     orientation: OrientationEnum
   ): Promise<VideoResult> {
     logger.info({ searchTerms, duration, excludeIds, orientation }, "🔍 Starting video search");
-
-    // Estratégia 1: Buscar com os termos originais
     for (const term of searchTerms) {
       logger.debug({ term }, "Trying original search term");
-      
-      // Tentar Pixabay primeiro
-      const pixabayResult = await this.tryProvider(
-        this.pixabayProvider,
+      const localResult = await this.tryProvider(
+        this.localImageProvider,
         term
       );
-      if (pixabayResult) return pixabayResult;
-
-      // Tentar Pexels
-      const pexelsResult = await this.tryProvider(
-        this.pexelsProvider,
-        term
-      );
-      if (pexelsResult) return pexelsResult;
+      if (localResult) return localResult;
     }
-
-    // Estratégia 2: Buscar com termos progressivos
     for (const term of searchTerms) {
       const progressiveTerms = this.getProgressiveTerms(term);
-      
       for (const progressiveTerm of progressiveTerms) {
         logger.debug({ progressiveTerm }, "Trying progressive search term");
-        
-        // Tentar Pixabay
-        const pixabayResult = await this.tryProvider(
-          this.pixabayProvider,
+        const localResult = await this.tryProvider(
+          this.localImageProvider,
           progressiveTerm
         );
-        if (pixabayResult) return pixabayResult;
-
-        // Tentar Pexels
-        const pexelsResult = await this.tryProvider(
-          this.pexelsProvider,
-          progressiveTerm
-        );
-        if (pexelsResult) return pexelsResult;
+        if (localResult) return localResult;
       }
     }
-
-    // Estratégia 3: Usar termos de fallback
     for (const fallbackTerm of this.fallbackTerms) {
       logger.debug({ fallbackTerm }, "Trying fallback search term");
-      
-      // Tentar Pixabay
-      const pixabayResult = await this.tryProvider(
-        this.pixabayProvider,
+      const localResult = await this.tryProvider(
+        this.localImageProvider,
         fallbackTerm
       );
-      if (pixabayResult) return pixabayResult;
-
-      // Tentar Pexels
-      const pexelsResult = await this.tryProvider(
-        this.pexelsProvider,
-        fallbackTerm
-      );
-      if (pexelsResult) return pexelsResult;
+      if (localResult) return localResult;
     }
-
     throw new Error("No videos found with any search strategy");
   }
 } 
