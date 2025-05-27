@@ -42,22 +42,14 @@ export class Server {
     });
   }
 
-  public start(): http.Server {
-    const server = this.app.listen(this.config.port, () => {
-      logger.info(
-        { port: this.config.port, mcp: "/mcp", api: "/api" },
-        "MCP and API server is running",
-      );
-      logger.info(
-        `UI server is running on http://localhost:${this.config.port}`,
-      );
+  public async start(): Promise<void> {
+    this.app.listen(this.config.port, () => {
+      logger.info(`🚀 Server running on port ${this.config.port}`);
+      // Envia sinal de ready para o PM2
+      if (process.send) {
+        process.send('ready');
+      }
     });
-
-    server.on("error", (error: Error) => {
-      logger.error(error, "Error starting server");
-    });
-
-    return server;
   }
 
   public getApp() {

@@ -16,23 +16,16 @@ export class PixabayAPI {
   }
 
   private async _findVideo(
-    searchTerm: string,
-    minDurationSeconds: number,
+    terms: string[],
+    duration: number,
     excludeIds: string[],
-    orientation: OrientationEnum,
-    timeout: number,
-  ): Promise<Video> {
-    logger.debug(
-      { searchTerm, minDurationSeconds, orientation },
-      "Searching for video in Pixabay API",
-    );
-
+    orientation: OrientationEnum
+  ): Promise<Video | null> {
     try {
       const response = await fetch(
-        `https://pixabay.com/api/videos/?key=${this.API_KEY}&q=${encodeURIComponent(searchTerm)}&pretty=true&per_page=80`,
+        `https://pixabay.com/api/videos/?key=${this.API_KEY}&q=${encodeURIComponent(terms.join(" "))}&pretty=true&per_page=20&orientation=${orientation === OrientationEnum.PORTRAIT ? "vertical" : "horizontal"}`,
         {
           method: "GET",
-          signal: AbortSignal.timeout(timeout),
         },
       );
 
@@ -66,80 +59,35 @@ export class PixabayAPI {
         };
       }[];
 
-      // Consider only the first 20 videos instead of 10 to increase chances of finding a match
-      const topVideos = videos.slice(0, 20);
+      // Filtra vídeos já usados e ordena por duração mais próxima
+      const availableVideos = videos
+        .filter(video => !excludeIds.includes(video.id.toString()))
+        .sort((a, b) => Math.abs(a.duration - duration) - Math.abs(b.duration - duration));
 
-      const { width: requiredVideoWidth, height: requiredVideoHeight } =
-        getOrientationConfig(orientation);
-
-      if (!topVideos || topVideos.length === 0) {
-        logger.debug(
-          { searchTerm, orientation },
-          "No videos found in Pixabay API",
-        );
-        throw new VideoSearchError("No videos found");
+      if (!availableVideos.length) {
+        return null;
       }
 
-      // Find all videos that fit the criteria, then select one randomly
-      const filteredVideos = topVideos
-        .map((video) => {
-          if (excludeIds.includes(video.id.toString())) {
-            return;
-          }
-
-          if (video.duration >= minDurationSeconds + durationBufferSeconds) {
-            // Pixabay provides different video sizes, we'll use the one that matches our requirements
-            const videoSize = video.videos.large || video.videos.medium || video.videos.small;
-            
-            // Allow for more flexibility in video dimensions (200px tolerance)
-            const widthMatch = Math.abs(videoSize.width - requiredVideoWidth) <= 200;
-            const heightMatch = Math.abs(videoSize.height - requiredVideoHeight) <= 200;
-            
-            if (widthMatch && heightMatch) {
-              return {
-                id: video.id.toString(),
-                url: videoSize.url,
-                width: videoSize.width,
-                height: videoSize.height,
-                duration: video.duration
-              };
-            }
-          }
-        })
-        .filter(Boolean);
-
-      if (!filteredVideos.length) {
-        logger.debug({ searchTerm }, "No videos found in Pixabay API");
-        throw new VideoSearchError("No videos found");
+      const video = availableVideos[0];
+      return {
+        id: video.id.toString(),
+        url: video.videos.medium.url,
+        duration: video.duration,
+        width: video.videos.medium.width,
+        height: video.videos.medium.height,
+        provider: "pixabay",
+      };
+    } catch (error: any) {
+      // Se for erro de rate limit, propaga para tratamento no VideoSearch
+      if (error.status === 429 || error.message?.includes('throttled')) {
+        throw error;
       }
 
-      const video = filteredVideos[
-        Math.floor(Math.random() * filteredVideos.length)
-      ];
-
-      if (!video) {
-        throw new VideoSearchError("No videos found");
-      }
-
-      logger.debug(
-        { searchTerm, video: video, minDurationSeconds, orientation },
-        "Found video from Pixabay API",
+      logger.error(
+        { err: error, terms },
+        "Error finding video in Pixabay API for term"
       );
-
-      return video;
-    } catch (error: unknown) {
-      if (error instanceof VideoSearchError) {
-        logger.debug(
-          { error: error.message, searchTerm },
-          "No videos found in Pixabay API",
-        );
-      } else if (error instanceof Error) {
-        logger.error(
-          { error: error.message, searchTerm },
-          "Error in Pixabay video search",
-        );
-      }
-      throw error;
+      return null;
     }
   }
 
@@ -167,13 +115,15 @@ export class PixabayAPI {
 
     for (const searchTerm of [...shuffledSearchTerms, ...shuffledJokerTerms]) {
       try {
-        return await this._findVideo(
-          searchTerm,
+        const video = await this._findVideo(
+          [searchTerm],
           minDurationSeconds,
           excludeIds,
           orientation,
-          timeout,
         );
+        if (video) {
+          return video;
+        }
       } catch (error: unknown) {
         if (error instanceof VideoSearchError) {
           logger.debug(

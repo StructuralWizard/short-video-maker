@@ -198,15 +198,9 @@ export class ShortCreator {
           const audioBuffer = await fs.readFile(tempWavPath);
           const audioLength = await this.ffmpeg.getAudioDuration(tempWavPath);
           
-          const tempMp3FileName = `${tempId}.mp3`;
-          const tempMp3Path = path.join(this.globalConfig.tempDirPath, tempMp3FileName);
-          tempFiles.push(tempMp3Path);
-
-          await this.ffmpeg.saveToMp3(audioBuffer.buffer, tempMp3Path);
-          
           return {
             audioLength,
-            tempMp3FileName
+            tempWavFileName: tempWavFileName
           };
         })(),
         // Busca o vídeo com a duração estimada inicial
@@ -292,7 +286,7 @@ export class ShortCreator {
         captions: captions,
         video: video.url,
         audio: {
-          url: `http://localhost:${this.globalConfig.port}/api/tmp/${audioResult.tempMp3FileName}`,
+          url: `http://localhost:${this.globalConfig.port}/api/tmp/${audioResult.tempWavFileName}`,
           duration: audioLength,
         },
         originalIndex: index

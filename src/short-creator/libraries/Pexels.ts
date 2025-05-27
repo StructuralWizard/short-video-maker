@@ -13,116 +13,46 @@ export class PexelsAPI {
   constructor(private API_KEY: string) {}
 
   private async _findVideo(
-    searchTerm: string,
-    minDurationSeconds: number,
+    terms: string[],
+    duration: number,
     excludeIds: string[],
-    orientation: OrientationEnum,
-    timeout: number,
-  ): Promise<Video> {
-    if (!this.API_KEY) {
-      throw new Error("API key not set");
-    }
-    logger.debug(
-      { searchTerm, minDurationSeconds, orientation },
-      "Searching for video in Pexels API",
-    );
-    const headers = new Headers();
-    headers.append("Authorization", this.API_KEY);
-    const response = await fetch(
-      `https://api.pexels.com/videos/search?orientation=${orientation}&size=medium&per_page=80&query=${encodeURIComponent(searchTerm)}`,
-      {
-        method: "GET",
-        headers,
-        redirect: "follow",
-        signal: AbortSignal.timeout(timeout),
-      },
-    )
-      .then((res) => res.json())
-      .catch((error: unknown) => {
-        logger.error(error, "Error fetching videos from Pexels API");
-        throw error;
+    orientation: OrientationEnum
+  ): Promise<Video | null> {
+    try {
+      const response = await this.client.videos.search({
+        query: terms.join(" "),
+        per_page: 20,
+        orientation: orientation === OrientationEnum.PORTRAIT ? "portrait" : "landscape",
       });
-    const videos = response.videos as {
-      id: string;
-      duration: number;
-      video_files: {
-        fps: number;
-        quality: string;
-        width: number;
-        height: number;
-        id: string;
-        link: string;
-      }[];
-    }[];
 
-    // Considere apenas os 10 primeiros vídeos
-    const topVideos = videos.slice(0, 10);
+      if (!response?.videos?.length) {
+        return null;
+      }
 
-    const { width: requiredVideoWidth, height: requiredVideoHeight } =
-      getOrientationConfig(orientation);
+      // Filtra vídeos já usados e ordena por duração mais próxima
+      const availableVideos = response.videos
+        .filter(video => !excludeIds.includes(video.id.toString()))
+        .sort((a, b) => Math.abs(a.duration - duration) - Math.abs(b.duration - duration));
 
-    if (!topVideos || topVideos.length === 0) {
-      logger.debug(
-        { searchTerm, orientation },
-        "No videos found in Pexels API",
+      if (!availableVideos.length) {
+        return null;
+      }
+
+      const video = availableVideos[0];
+      return {
+        id: video.id.toString(),
+        url: video.video_files[0].link,
+        duration: video.duration,
+        width: video.width,
+        height: video.height,
+      };
+    } catch (error) {
+      logger.error(
+        { err: error, terms },
+        "Error finding video in Pexels API for term"
       );
-      throw new VideoSearchError("No videos found");
+      return null;
     }
-
-    // find all the videos that fits the criteria, then select one randomly
-    const filteredVideos = topVideos
-      .map((video) => {
-        if (excludeIds.includes(video.id)) {
-          return;
-        }
-        if (!video.video_files.length) {
-          return;
-        }
-
-        // calculate the real duration of the video by converting the FPS to 25
-        const fps = video.video_files[0].fps;
-        const duration =
-          fps < 25 ? video.duration * (fps / 25) : video.duration;
-
-        if (duration >= minDurationSeconds + durationBufferSeconds) {
-          for (const file of video.video_files) {
-            if (
-              file.quality === "hd" &&
-              file.width === requiredVideoWidth &&
-              file.height === requiredVideoHeight
-            ) {
-              return {
-                id: video.id,
-                url: file.link,
-                width: file.width,
-                height: file.height,
-                duration: duration,
-              };
-            }
-          }
-        }
-      })
-      .filter(Boolean);
-    if (!filteredVideos.length) {
-      logger.debug({ searchTerm }, "No videos found in Pexels API");
-      throw new VideoSearchError("No videos found");
-    }
-
-    const video = filteredVideos[
-      Math.floor(Math.random() * filteredVideos.length)
-    ];
-
-    if (!video) {
-      throw new VideoSearchError("No videos found");
-    }
-
-    return {
-      id: video.id.toString(),
-      url: video.url,
-      duration: video.duration,
-      width: video.width,
-      height: video.height,
-    };
   }
 
   async findVideo(
@@ -140,11 +70,10 @@ export class PexelsAPI {
     for (const searchTerm of [...shuffledSearchTerms, ...shuffledJokerTerms]) {
       try {
         return await this._findVideo(
-          searchTerm,
+          [searchTerm],
           minDurationSeconds,
           excludeIds,
           orientation,
-          timeout,
         );
       } catch (error: unknown) {
         if (error instanceof VideoSearchError) {

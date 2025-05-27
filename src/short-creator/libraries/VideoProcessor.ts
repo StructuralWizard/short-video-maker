@@ -23,8 +23,8 @@ export class VideoProcessor {
             "-c:v libx264",
             "-preset medium",
             "-crf 23",
-            "-c:a aac",
-            "-b:a 128k",
+            "-c:a pcm_s16le",
+            "-ar 44100",
             "-movflags +faststart"
           ])
           .duration(scene.duration)

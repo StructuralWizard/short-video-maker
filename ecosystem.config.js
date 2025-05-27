@@ -1,11 +1,19 @@
 module.exports = {
   apps: [{
     name: "short-video-maker",
-    script: "./dist/index.js",
-    watch: false,
+    script: "dist/index.js",
     exec_mode: "fork",
+    instances: 1,
+    watch: false,
+    max_memory_restart: "20G",
+    exp_backoff_restart_delay: 100,
+    max_restarts: 10,
+    min_uptime: "30s",
+    kill_timeout: 3000,
+    wait_ready: true,
     env: {
       NODE_ENV: "production",
+      PORT: 3000,
       PATH: '/Users/nino/.pyenv/versions/3.10.17/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin',
       PYTHONPATH: '/Users/nino/.pyenv/versions/3.10.17/lib/python3.10/site-packages',
       PYTHONHOME: '/Users/nino/.pyenv/versions/3.10.17',
@@ -14,7 +22,6 @@ module.exports = {
     env_development: {
       NODE_ENV: "development"
     },
-    instances: 1,
     autorestart: true,
     error_file: "logs/err.log",
     out_file: "logs/out.log",

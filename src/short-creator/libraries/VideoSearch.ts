@@ -54,29 +54,38 @@ export class VideoSearch {
 
   private async tryProvider(
     provider: VideoProvider,
-    terms: string[],
-    duration: number,
-    excludeIds: string[],
-    orientation: OrientationEnum
+    searchTerm: string,
+    retryCount = 0
   ): Promise<VideoResult | null> {
     try {
-      const result = await provider.findVideo(terms, duration, excludeIds, orientation);
-      
-      // Verifica se o vídeo já foi usado
-      if (this.videoCache.hasVideo(result.id)) {
-        logger.debug({ videoId: result.id }, "Video already used, skipping");
-        return null;
+      const result = await provider.findVideo(searchTerm);
+      if (result) {
+        return result;
+      }
+      return null;
+    } catch (error: any) {
+      // Se for erro de rate limit, aguarda antes de tentar novamente
+      if (error.status === 429 || error.message?.includes('throttled')) {
+        if (retryCount < 3) {
+          const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff
+          logger.warn(
+            { provider: provider.constructor.name, retryCount, delay },
+            "Rate limit hit, waiting before retry"
+          );
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return this.tryProvider(provider, searchTerm, retryCount + 1);
+        }
       }
 
-      // Adiciona o vídeo ao cache
-      this.videoCache.addVideo(result.id);
-      return result;
-    } catch (error) {
-      if (error instanceof VideoSearchError) {
-        logger.debug({ error, provider: provider.constructor.name }, "No videos found in provider");
-      } else {
-        logger.error({ error, provider: provider.constructor.name }, "Provider search failed");
-      }
+      // Log do erro mas não propaga para evitar reinicialização
+      logger.error(
+        { 
+          err: error,
+          provider: provider.constructor.name,
+          searchTerm 
+        },
+        "Error finding video in provider"
+      );
       return null;
     }
   }
@@ -132,20 +141,14 @@ export class VideoSearch {
       // Tentar Pixabay primeiro
       const pixabayResult = await this.tryProvider(
         this.pixabayProvider,
-        [term],
-        duration,
-        excludeIds,
-        orientation
+        term
       );
       if (pixabayResult) return pixabayResult;
 
       // Tentar Pexels
       const pexelsResult = await this.tryProvider(
         this.pexelsProvider,
-        [term],
-        duration,
-        excludeIds,
-        orientation
+        term
       );
       if (pexelsResult) return pexelsResult;
     }
@@ -160,20 +163,14 @@ export class VideoSearch {
         // Tentar Pixabay
         const pixabayResult = await this.tryProvider(
           this.pixabayProvider,
-          [progressiveTerm],
-          duration,
-          excludeIds,
-          orientation
+          progressiveTerm
         );
         if (pixabayResult) return pixabayResult;
 
         // Tentar Pexels
         const pexelsResult = await this.tryProvider(
           this.pexelsProvider,
-          [progressiveTerm],
-          duration,
-          excludeIds,
-          orientation
+          progressiveTerm
         );
         if (pexelsResult) return pexelsResult;
       }
@@ -186,20 +183,14 @@ export class VideoSearch {
       // Tentar Pixabay
       const pixabayResult = await this.tryProvider(
         this.pixabayProvider,
-        [fallbackTerm],
-        duration,
-        excludeIds,
-        orientation
+        fallbackTerm
       );
       if (pixabayResult) return pixabayResult;
 
       // Tentar Pexels
       const pexelsResult = await this.tryProvider(
         this.pexelsProvider,
-        [fallbackTerm],
-        duration,
-        excludeIds,
-        orientation
+        fallbackTerm
       );
       if (pexelsResult) return pexelsResult;
     }
