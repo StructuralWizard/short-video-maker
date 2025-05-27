@@ -91,6 +91,30 @@ export class MusicManager {
       mood: MusicMoodEnum.inspirational,
     },
     {
+      file: "Tu Es Soberano Inspiring Instrumental.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.inspirational,
+    },
+    {
+      file: "O Nome de Jesus Instrumental 2.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.inspirational,
+    },
+    {
+      file: "EPIC Nome Jesus 2.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.inspirational,
+    },
+    {
+      file: "EPIC Nome Jesus.mp3",
+      start: 0,
+      end: 180,
+      mood: MusicMoodEnum.inspirational,
+    },
+    {
       file: "Sly Sky - Telecasted.mp3",
       start: 0,
       end: 152,
