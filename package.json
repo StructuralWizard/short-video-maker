@@ -17,7 +17,8 @@
     "publish:docker:tiny": "docker buildx build --platform linux/amd64,linux/arm64 -t gyoridavid/short-video-maker:latest-tiny -t gyoridavid/short-video-maker:${npm_package_version}-tiny -f main-tiny.Dockerfile --push ./",
     "ui:dev": "vite",
     "ui:build": "vite build",
-    "ui:preview": "vite preview"
+    "ui:preview": "vite preview",
+    "tts:service": "python scripts/tts/tts_service.py"
   },
   "bin": {
     "short-video-maker": "dist/index.js"

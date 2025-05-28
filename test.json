@@ -1,27 +1,58 @@
-```json
 {
   "scenes": [
     {
-      "text": "A vida é um chamado à transformação, uma jornada de moldagem na oficina do Criador.",
-      "searchTerms": ["mountain sunrise fog"] 
+      "text": "Como podemos remover as barreiras que nos afastam de Deus? Será que a rotina nos impede de sentir a presença do Espírito Santo?",
+      "searchTerms": [
+        "man reflecting alone",
+        "spiritual barrier",
+        "lost connection"
+      ]
     },
     {
-      "text": "Aceite o desafio da fé. Ela não elimina as dificuldades, mas te equipa para vencê-las.",
-      "searchTerms": ["path through forest"]
+      "text": "A indiferença esfria a alma, e a alegria do Senhor se esvai. Que tal buscar a intimidade com Deus, permitindo que o amor de Cristo transforme nosso mundo?",
+      "searchTerms": [
+        "cold heart",
+        "spiritual apathy",
+        "searching for light"
+      ]
+    },
+    {
+      "text": "O peso do perdão negado aprisiona o coração. Libertar quem nos magoou é libertar a nós mesmos, abrindo caminho para a graça divina.",
+      "searchTerms": [
+        "burden of forgiveness",
+        "release pain",
+        "path to healing"
+      ]
+    },
+    {
+      "text": "Abrace a transformação. Examine seu coração, ore com fervor e entregue-se à direção do Espírito. Viva histórias dignas de serem contadas.",
+      "searchTerms": [
+        "man praying fervently",
+        "spiritual journey",
+        "transformation"
+      ]
     }
   ],
   "config": {
-    "caption": "“Porque eu sei os planos que tenho para vocês”, declara o Senhor, “planos de paz e não de desastre, planos de dar a vocês esperança e um futuro.” — Jeremias 29:11\n\nDeus te chama por nome. Ele tem um plano único e maravilhoso para sua vida. Confie no processo, mesmo quando as coisas parecem difíceis. Você é amado, você é capaz.\n🙏⛰️✝️ #Legendarios #UmaJornadaDeTransformacao #HomensComProposito #VidaComPropositos #ChamadoDivino",
-    "title": "Sua Jornada Começa Agora",
+    "caption": "Provérbios 18:10 - O Senhor está longe dos ímpios, mas os orações dos justos lhe são ouvidas.\n⛰️ Que a busca por uma transformação profunda comece hoje! A negligência em confessar e abandonar pecados cria barreiras espirituais, impedindo-nos de viver plenamente para a glória de Deus. Busque a graça divina.\n✝️ Um coração frio e indiferente à voz de Deus sufoca a obra do Espírito. Busque a presença de Deus em sua vida, abra seu coração e permita que a luz do evangelho ilumine seu caminho.\n🔥 A falta de perdão amarra o espírito, mas o perdão liberta. Perdoe, abrace a cura, e liberte a graça divina para fluir em sua vida. Sua jornada se tornará mais abençoada.\n🛡️ Atraia a presença do Espírito Santo examinando seu coração e entregando-se à direção divina. Dedique-se à oração, ao estudo da Palavra e à adoração, e deixe que o Espírito Santo seja seu companheiro inseparável.\n🙏 Que a graça e a paz de Deus te acompanhem!",
+    "title": "Transformação Divina",
+    "subtitle": "Renovação Interior",
+    "hashtags": [
+      "#Legendarios",
+      "#UmaJornadaDeTransformacao",
+      "#HomensComProposito",
+      "#VidaComPropositos",
+      "#PerdãoDivino",
+      "#EspíritoSanto"
+    ],
+    "chapter": "7",
     "musicVolume": "low",
     "music": "inspirational",
     "captionBackgroundColor": "#dd0000",
     "captionPosition": "center",
     "paddingBack": 1000,
     "language": "pt",
-    "referenceAudioPath": "NinoCoelho.wav",
+    "referenceAudioPath": "Noel.mp3",
     "overlay": "jornada"
   }
 }
-
-```

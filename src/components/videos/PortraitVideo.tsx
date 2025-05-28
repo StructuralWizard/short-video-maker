@@ -127,7 +127,27 @@ export const PortraitVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
             durationInFrames={durationInFrames}
             key={`scene-${i}`}
           >
-            <OffthreadVideo src={video} muted />
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              overflow: 'hidden'
+            }}>
+              <OffthreadVideo 
+                src={video} 
+                muted 
+                style={{
+                  width: 'auto',
+                  height: '100%',
+                  objectFit: 'cover'
+                }}
+              />
+            </div>
             <Audio src={audio.url} />
             {pages.map((page, j) => {
               return (
