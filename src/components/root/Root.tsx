@@ -1,6 +1,6 @@
 import React from "react";
 import { CalculateMetadataFunction, Composition } from "remotion";
-import { shortVideoSchema } from "../utils";
+import { shortVideoSchema } from "../../shared/utils";
 import { PortraitVideo } from "../videos/PortraitVideo";
 import { LandscapeVideo } from "../videos/LandscapeVideo";
 import { TestVideo } from "../videos/Test";

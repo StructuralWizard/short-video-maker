@@ -1,8 +1,14 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "outDir": "./dist"
+    "outDir": "./dist",
+    "rootDir": "src",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "esModuleInterop": true,
+    "allowJs": true,
+    "resolveJsonModule": true
   },
   "include": ["src/**/*"],
-  "exclude": ["**/*.test.ts", "src/ui"]
+  "exclude": ["**/*.test.ts", "src/ui/**/*"]
 }

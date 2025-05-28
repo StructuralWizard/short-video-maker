@@ -15,13 +15,11 @@ const envSchema = z.object({
   RUNNING_IN_DOCKER: z.string().optional(),
   TTS_VERBOSE: z.string().optional(),
   TTS_MODEL: z.string().optional(),
-  PEXELS_API_KEY: z.string().optional(),
   PORT: z.string().optional(),
   DEV: z.string().optional(),
   CONCURRENCY: z.string().optional(),
   VIDEO_CACHE_SIZE_IN_BYTES: z.string().optional(),
   REFERENCE_AUDIO_PATH: z.string().optional(),
-  PIXABAY_API_KEY: z.string().optional(),
 });
 
 // Parse and validate environment variables
@@ -38,8 +36,6 @@ export interface Config {
   runningInDocker: boolean;
   ttsVerbose: boolean;
   ttsModel: string;
-  pexelsApiKey: string;
-  pixabayApiKey: string;
   port: number;
   devMode: boolean;
   concurrency: number;
@@ -59,8 +55,6 @@ export class Config {
   public runningInDocker: boolean;
   public ttsVerbose: boolean;
   public ttsModel: string;
-  public pexelsApiKey: string;
-  public pixabayApiKey: string;
   public port: number;
   public devMode: boolean;
   public concurrency: number;
@@ -79,8 +73,6 @@ export class Config {
     this.runningInDocker = env.RUNNING_IN_DOCKER === "true";
     this.ttsVerbose = env.TTS_VERBOSE === "true";
     this.ttsModel = env.TTS_MODEL || "default";
-    this.pexelsApiKey = env.PEXELS_API_KEY || "";
-    this.pixabayApiKey = env.PIXABAY_API_KEY || "";
     this.port = env.PORT ? parseInt(env.PORT) : defaultPort;
     this.devMode = env.DEV === "true";
     this.concurrency = env.CONCURRENCY ? parseInt(env.CONCURRENCY) : 4;
@@ -102,13 +94,5 @@ export class Config {
     fs.ensureDirSync(this.tempDirPath);
 
     logger.info({ DATA_DIR_PATH: this.dataDirPath }, "DATA_DIR_PATH");
-  }
-
-  public ensureConfig() {
-    if (!this.pexelsApiKey) {
-      throw new Error(
-        "PEXELS_API_KEY environment variable is missing. Get your free API key: https://www.pexels.com/api/key/ - see how to run the project: https://github.com/gyoridavid/short-video-maker",
-      );
-    }
   }
 }

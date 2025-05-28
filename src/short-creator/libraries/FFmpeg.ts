@@ -10,7 +10,7 @@ export class FFMpeg {
   static async init(): Promise<FFMpeg> {
     return import("@ffmpeg-installer/ffmpeg").then((ffmpegInstaller) => {
       ffmpeg.setFfmpegPath(ffmpegInstaller.path);
-      logger.info("FFmpeg path set to:", ffmpegInstaller.path);
+      logger.info({ ffmpegPath: ffmpegInstaller.path }, "FFmpeg path set");
       return new FFMpeg(new Config());
     });
   }

@@ -6,7 +6,7 @@ import {
   type OrientationEnum,
   MusicVolumeEnum,
 } from "../types/shorts";
-import { AvailableComponentsEnum, type OrientationConfig } from "./types";
+import { AvailableComponentsEnum, type OrientationConfig } from "../types/shorts";
 
 export const shortVideoSchema = z.object({
   scenes: z.array(
@@ -16,7 +16,7 @@ export const shortVideoSchema = z.object({
         url: z.string(),
         duration: z.number(),
       }),
-      video: z.string(),
+      videos: z.array(z.string()),
     }),
   ),
   config: z.object({

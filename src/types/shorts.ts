@@ -31,7 +31,7 @@ export interface Scene {
   duration: number;
   orientation: OrientationEnum;
   captions: Caption[];
-  video: string;
+  videos: string[];
   audio: {
     url: string;
     duration: number;
@@ -212,3 +212,14 @@ export interface ShortQueue {
     scenes: Scene[];
   }[];
 }
+
+export enum AvailableComponentsEnum {
+  PortraitVideo = "ShortVideo",
+  LandscapeVideo = "LandscapeVideo",
+}
+
+export type OrientationConfig = {
+  width: number;
+  height: number;
+  component: AvailableComponentsEnum;
+};

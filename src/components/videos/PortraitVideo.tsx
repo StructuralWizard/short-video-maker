@@ -1,3 +1,5 @@
+import React from 'react';
+import type { FC } from 'react';
 import {
   AbsoluteFill,
   Sequence, 
@@ -6,6 +8,7 @@ import {
   Audio,
   OffthreadVideo,
   Img,
+  VideoConfig,
 } from "remotion";
 import { z } from "zod";
 
@@ -13,10 +16,12 @@ import {
   calculateVolume,
   createCaptionPages,
   shortVideoSchema,
-} from "../utils";
+} from "../../shared/utils";
 import { fontFamily } from "./fonts";
 
-export const PortraitVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
+type Props = z.infer<typeof shortVideoSchema>;
+
+export const PortraitVideo: FC<Props> = ({
   scenes,
   music,
   config,
@@ -139,10 +144,10 @@ export const PortraitVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
               overflow: 'hidden'
             }}>
               <OffthreadVideo 
-                src={video} 
+                src={scene.videos[0]} 
                 muted 
                 style={{
-                  width: 'auto',
+                  width: '100%',
                   height: '100%',
                   objectFit: 'cover'
                 }}

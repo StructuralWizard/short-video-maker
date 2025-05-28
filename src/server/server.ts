@@ -45,12 +45,16 @@ export class Server {
   }
 
   public async start(): Promise<void> {
-    this.app.listen(this.config.port, () => {
+    const server = this.app.listen(this.config.port, () => {
       logger.info(`🚀 Server running on port ${this.config.port}`);
       // Envia sinal de ready para o PM2
       if (process.send) {
         process.send('ready');
       }
+    });
+    server.on('error', (err: Error) => {
+      logger.error({ err }, 'Error starting server:');
+      process.exit(1);
     });
   }
 

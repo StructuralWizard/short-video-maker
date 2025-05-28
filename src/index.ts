@@ -42,6 +42,7 @@ async function main() {
     // Iniciar servidor
     const server = new Server(config, shortCreator);
     await server.start();
+    logger.info("Server.start() completed, process is still alive.");
   } catch (error) {
     logger.error("Error in main:", error);
     process.exit(1);

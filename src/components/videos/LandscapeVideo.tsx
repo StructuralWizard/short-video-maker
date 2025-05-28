@@ -1,3 +1,5 @@
+import React from 'react';
+import type { FC } from 'react';
 import {
   AbsoluteFill,
   Sequence,
@@ -6,6 +8,7 @@ import {
   Audio,
   OffthreadVideo,
   Img,
+  VideoConfig,
 } from "remotion";
 import { z } from "zod";
 import { loadFont } from "@remotion/google-fonts/BarlowCondensed";
@@ -14,11 +17,13 @@ import {
   calculateVolume,
   createCaptionPages,
   shortVideoSchema,
-} from "../utils";
+} from "../../shared/utils";
 
 const { fontFamily } = loadFont(); // "Barlow Condensed"
 
-export const LandscapeVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
+type Props = z.infer<typeof shortVideoSchema>;
+
+export const LandscapeVideo: FC<Props> = ({
   scenes,
   music,
   config,
@@ -109,7 +114,27 @@ export const LandscapeVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
             durationInFrames={durationInFrames}
             key={`scene-${i}`}
           >
-            <OffthreadVideo src={video} muted />
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              overflow: 'hidden'
+            }}>
+              <OffthreadVideo 
+                src={scene.videos[0]} 
+                muted 
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover'
+                }}
+              />
+            </div>
             <Audio src={audio.url} />
             {pages.map((page, j) => {
               return (

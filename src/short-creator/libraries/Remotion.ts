@@ -5,10 +5,9 @@ import path from "path";
 import { ensureBrowser } from "@remotion/renderer";
 
 import { Config } from "../../config";
-import { shortVideoSchema } from "../../components/utils";
+import { shortVideoSchema, getOrientationConfig } from "../../shared/utils";
 import { logger } from "../../logger";
 import { OrientationEnum } from "../../types/shorts";
-import { getOrientationConfig } from "../../components/utils";
 
 export class Remotion {
   constructor(
@@ -19,14 +18,18 @@ export class Remotion {
   static async init(config: Config): Promise<Remotion> {
     await ensureBrowser();
 
+    const entryPoint = path.join(
+      process.cwd(),
+      config.devMode ? "src" : "dist",
+      "components",
+      "root",
+      "index.ts"
+    );
+
+    logger.debug({ entryPoint }, "Bundling Remotion entry point");
+
     const bundled = await bundle({
-      entryPoint: path.join(
-        config.packageDirPath,
-        config.devMode ? "src" : "dist",
-        "components",
-        "root",
-        `index.${config.devMode ? "ts" : "js"}`,
-      ),
+      entryPoint,
     });
 
     return new Remotion(bundled, config);
