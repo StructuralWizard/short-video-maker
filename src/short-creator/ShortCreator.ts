@@ -133,15 +133,33 @@ export class ShortCreator {
     let totalDuration = 0;
     const excludeVideoIds: string[] = [];
     const tempFiles: string[] = [];
+    const scenes: Scene[] = [];
 
     const orientation: OrientationEnum =
       config.orientation || OrientationEnum.portrait;
 
-    // Process all scenes in parallel
-    const scenePromises = inputScenes.map(async (scene, index) => {
+    // Process scenes sequentially to maintain video exclusion
+    for (let index = 0; index < inputScenes.length; index++) {
+      const scene = inputScenes[index];
       // Split text into two parts if possible
       const textParts = this.splitTextIntoTwoParts(scene.text);
-      const scenes: Scene[] = [];
+
+      // Se a cena foi dividida, fazemos apenas uma busca de vídeo
+      let video: Video;
+      if (textParts.length > 1) {
+        const videoResult = await this.videoSearch.findVideo(
+          scene.searchTerms,
+          10, // Initial duration estimate
+          excludeVideoIds,
+          orientation
+        );
+        video = {
+          ...videoResult,
+          width: orientation === OrientationEnum.portrait ? 1080 : 1920,
+          height: orientation === OrientationEnum.portrait ? 1920 : 1080
+        };
+        excludeVideoIds.push(video.id);
+      }
 
       for (const part of textParts) {
         const tempId = cuid();
@@ -158,7 +176,7 @@ export class ShortCreator {
         const referenceAudioPath = config.referenceAudioPath || this.globalConfig.referenceAudioPath;
         
         // Generate audio and search for video in parallel
-        const [audioResult, video] = await Promise.all([
+        const [audioResult, sceneVideo] = await Promise.all([
           (async () => {
             const sceneText = cleanSceneText(part);
             const phrases = splitTextByPunctuation(sceneText);
@@ -221,13 +239,13 @@ export class ShortCreator {
               tempWavFileName: tempWavFileName
             };
           })(),
-          // Busca o vídeo com a duração estimada inicial
-          this.videoSearch.findVideo(
+          // Se a cena não foi dividida, fazemos a busca de vídeo aqui
+          textParts.length === 1 ? this.videoSearch.findVideo(
             scene.searchTerms,
             10, // Initial duration estimate
             excludeVideoIds,
             orientation
-          )
+          ) : Promise.resolve(video!)
         ]);
 
         let { audioLength } = audioResult;
@@ -292,7 +310,9 @@ export class ShortCreator {
         }
 
         totalDuration += audioLength;
-        excludeVideoIds.push(video.id);
+        if (textParts.length === 1) {
+          excludeVideoIds.push(sceneVideo.id);
+        }
 
         scenes.push({
           id: tempId,
@@ -301,21 +321,14 @@ export class ShortCreator {
           duration: audioLength,
           orientation,
           captions: captions,
-          videos: [this.ensureAbsoluteUrl(video.url)],
+          videos: [this.ensureAbsoluteUrl(sceneVideo.url)],
           audio: {
             url: this.ensureAbsoluteUrl(`/api/tmp/${audioResult.tempWavFileName}`),
             duration: audioLength,
           }
         });
       }
-
-      return scenes;
-    });
-
-    // Espera todas as cenas serem processadas
-    const sceneResults = await Promise.all(scenePromises);
-    // Flatten the array of scenes
-    const scenes = sceneResults.flat();
+    }
 
     // Adiciona 2 segundos extras no início e fim além do padding configurado
     const extraPadding = 2; // 2 segundos

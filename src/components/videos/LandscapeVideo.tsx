@@ -87,7 +87,7 @@ export const LandscapeVideo: FC<Props> = ({
       )}
 
       {scenes.map((scene, i) => {
-        const { captions, audio, video } = scene;
+        const { captions, audio, videos } = scene;
         const pages = createCaptionPages({
           captions,
           lineMaxLength: 30,

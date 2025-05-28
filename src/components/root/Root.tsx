@@ -32,7 +32,7 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={{
           music: {
             url:
-              "http://localhost:3123/api/music/" +
+              "http://localhost:3124/api/music/" +
               encodeURIComponent(
                 "Aurora on the Boulevard - National Sweetheart.mp3",
               ),
@@ -46,10 +46,11 @@ export const RemotionRoot: React.FC = () => {
                 { text: " Hello", startMs: 390, endMs: 990 },
                 { text: " World.", startMs: 990, endMs: 2000 },
               ],
-              video:
+              videos: [
                 "https://videos.pexels.com/video-files/4625747/4625747-hd_1080_1920_24fps.mp4",
+              ],
               audio: {
-                url: "http://localhost:3123/api/tmp/cma1lgean0001rlsi52b8h3n3.mp3",
+                url: "http://localhost:3124/api/tmp/cma1lgean0001rlsi52b8h3n3.mp3",
                 duration: 3.15,
               },
             },
@@ -74,7 +75,7 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={{
           music: {
             url:
-              "http://localhost:3123/api/music/" +
+              "http://localhost:3124/api/music/" +
               encodeURIComponent(
                 "Aurora on the Boulevard - National Sweetheart.mp3",
               ),
@@ -261,10 +262,11 @@ export const RemotionRoot: React.FC = () => {
                   endMs: 11000,
                 },
               ],
-              video:
+              videos: [
                 "https://videos.pexels.com/video-files/1168989/1168989-hd_1920_1080_30fps.mp4",
+              ],
               audio: {
-                url: "http://localhost:3123/api/tmp/cma9ctvpo0001aqsia12i82db.mp3",
+                url: "http://localhost:3124/api/tmp/cma9ctvpo0001aqsia12i82db.mp3",
                 duration: 12.8,
               },
             },

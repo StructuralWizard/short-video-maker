@@ -91,7 +91,7 @@ export const PortraitVideo: FC<Props> = ({
 
       {config?.overlay && (
         <Img
-          src={`http://localhost:3123/api/overlays/${config.overlay}.png`}
+          src={`http://localhost:3124/api/overlays/${config.overlay}.png`}
           style={{
             position: "absolute",
             top: 0,
@@ -105,7 +105,7 @@ export const PortraitVideo: FC<Props> = ({
       )}
 
       {scenes.map((scene, i) => {
-        const { captions, audio, video } = scene;
+        const { captions, audio, videos } = scene;
         const pages = createCaptionPages({
           captions,
           lineMaxLength: 20,
