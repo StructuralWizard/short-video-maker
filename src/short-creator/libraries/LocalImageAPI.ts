@@ -2,6 +2,8 @@ import { OrientationEnum, Video } from "../../types/shorts";
 import { VideoSearchError, VideoProvider } from "./VideoProvider";
 
 export class LocalImageAPI implements VideoProvider {
+  constructor(private port: number = 3123) {}
+
   async findVideo(
     searchTerms: string[],
     minDurationSeconds: number,
@@ -24,9 +26,15 @@ export class LocalImageAPI implements VideoProvider {
         throw new VideoSearchError("No videos found in LocalImageAPI");
       }
       const video = availableVideos[Math.floor(Math.random() * availableVideos.length)];
+      
+      // Ensure the URL is absolute and uses the video server URL
+      const videoUrl = video.file_path.startsWith('http') 
+        ? video.file_path 
+        : `http://localhost:8000${video.file_path}`;
+
       return {
         id: video.id.toString(),
-        url: video.file_path,
+        url: videoUrl,
         duration: video.duration,
         width: video.width,
         height: video.height,

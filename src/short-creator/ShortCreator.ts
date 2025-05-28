@@ -41,10 +41,20 @@ export class ShortCreator {
     private maxWorkers: number = 4
   ) {
     this.videoSearch = new VideoSearch(
-      localImageApi
+      new LocalImageAPI(this.globalConfig.port)
     );
     this.threadPool = new ThreadPool(maxWorkers);
     this.outputDir = this.globalConfig.videosDirPath;
+  }
+
+  /**
+   * Garante que a URL seja absoluta, adicionando o prefixo do servidor se necessário
+   */
+  private ensureAbsoluteUrl(url: string): string {
+    if (url.startsWith('http')) {
+      return url;
+    }
+    return `http://localhost:${this.globalConfig.port}${url}`;
   }
 
   public status(id: string): VideoStatus {
@@ -287,9 +297,9 @@ export class ShortCreator {
         duration: audioLength,
         orientation,
         captions: captions,
-        video: video.url,
+        video: this.ensureAbsoluteUrl(video.url),
         audio: {
-          url: `http://localhost:${this.globalConfig.port}/api/tmp/${audioResult.tempWavFileName}`,
+          url: this.ensureAbsoluteUrl(`/api/tmp/${audioResult.tempWavFileName}`),
           duration: audioLength,
         },
         originalIndex: index
@@ -376,7 +386,7 @@ export class ShortCreator {
       // If music is shorter than video, loop it
       return {
         file: music.file,
-        url: `http://localhost:${this.globalConfig.port}/api/music/${encodeURIComponent(music.file)}`,
+        url: this.ensureAbsoluteUrl(`/api/music/${encodeURIComponent(music.file)}`),
         start: music.start,
         end: music.start + duration,
         mood: music.mood,
@@ -390,7 +400,7 @@ export class ShortCreator {
     
     return {
       file: music.file,
-      url: `http://localhost:${this.globalConfig.port}/api/music/${encodeURIComponent(music.file)}`,
+      url: this.ensureAbsoluteUrl(`/api/music/${encodeURIComponent(music.file)}`),
       start: startTime,
       end: startTime + duration,
       mood: music.mood,

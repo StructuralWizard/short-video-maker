@@ -30,6 +30,14 @@ export default defineConfig({
         target: 'http://localhost:3123',
         changeOrigin: true,
       },
+      '/pxv': {
+        target: 'http://localhost:3123',
+        changeOrigin: true,
+      },
+      '/proxy': {
+        target: 'http://localhost:3123',
+        changeOrigin: true,
+      }
     },
   },
 }); 
