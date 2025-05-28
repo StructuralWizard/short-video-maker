@@ -10,6 +10,7 @@ import { APIRouter } from "./routers/rest";
 import { MCPRouter } from "./routers/mcp";
 import { logger } from "../logger";
 import { Config } from "../config";
+import referenceAudioRouter from "./routes/referenceAudio";
 
 export class Server {
   private app: express.Application;
@@ -28,6 +29,7 @@ export class Server {
     const mcpRouter = new MCPRouter(shortCreator);
     this.app.use("/api", apiRouter.router);
     this.app.use("/mcp", mcpRouter.router);
+    this.app.use("/api/reference-audio", referenceAudioRouter);
 
     // Serve static files from the UI build
     this.app.use(express.static(path.join(__dirname, "../../dist/ui")));

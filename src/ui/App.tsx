@@ -4,6 +4,7 @@ import VideoList from './pages/VideoList';
 import VideoCreator from './pages/VideoCreator';
 import VideoDetails from './pages/VideoDetails';
 import Layout from './components/Layout';
+import TTSGenerator from './TTSGenerator';
 
 const App: React.FC = () => {
   return (
@@ -13,6 +14,7 @@ const App: React.FC = () => {
           <Route path="/" element={<VideoList />} />
           <Route path="/create" element={<VideoCreator />} />
           <Route path="/video/:videoId" element={<VideoDetails />} />
+          <Route path="/tts" element={<TTSGenerator />} />
         </Routes>
       </Layout>
     </Router>

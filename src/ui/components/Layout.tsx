@@ -58,6 +58,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             >
               Create Video
             </Button>
+            <Button 
+              color="inherit"
+              onClick={() => navigate('/tts')}
+            >
+              Gerar Áudio TTS
+            </Button>
           </Toolbar>
         </AppBar>
         <Container component="main" sx={{ flexGrow: 1, py: 4 }}>

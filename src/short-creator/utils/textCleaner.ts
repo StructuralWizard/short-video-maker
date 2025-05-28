@@ -68,8 +68,9 @@ export function cleanSceneText(text: string): string {
     // Remove caracteres especiais mantendo acentuação e pontuação
     cleaned = cleaned.replace(/[^\p{L}\p{N}\s.,!?:;-]/gu, '');
     
-    // Remove ponto final
-    cleaned = cleaned.replace(/\.$/, '');
+    // Remove ponto final e outros pontos extras
+    cleaned = cleaned.replace(/\.+$/, ''); // Remove múltiplos pontos no final
+    cleaned = cleaned.replace(/\.(?=\s*[.!?])/g, ''); // Remove pontos antes de outros sinais de pontuação
     
     logger.debug("Cleaned scene text", { original: text, cleaned });
     

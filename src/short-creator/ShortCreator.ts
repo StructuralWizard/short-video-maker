@@ -168,7 +168,12 @@ export class ShortCreator {
           }
 
           for (let i = 0; i < phrases.length; i++) {
-            let phrase = phrases[i].replace(/["']/g, '').replace(/\.$/, '');
+            let phrase = phrases[i]
+              .replace(/["']/g, '') // Remove aspas
+              .replace(/\.+$/, '') // Remove múltiplos pontos no final
+              .replace(/\.(?=\s*[.!?])/g, '') // Remove pontos antes de outros sinais de pontuação
+              .trim(); // Remove espaços extras
+            
             logger.info(`[TTS] Cena ${index}, frase ${i}: ${phrase}`, { sceneIndex: index, phraseIndex: i, phrase });
             const phraseTempId = cuid();
             const phraseWavPath = path.join(this.globalConfig.tempDirPath, `${phraseTempId}.wav`);
