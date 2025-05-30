@@ -8,6 +8,7 @@ import z from "zod";
 import { AvailableComponentsEnum } from "../types";
 
 const FPS = 25;
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3123;
 
 export const calculateMetadata: CalculateMetadataFunction<
   z.infer<typeof shortVideoSchema>
@@ -32,7 +33,7 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={{
           music: {
             url:
-              "http://localhost:3124/api/music/" +
+              `http://localhost:${PORT}/api/music/` +
               encodeURIComponent(
                 "Aurora on the Boulevard - National Sweetheart.mp3",
               ),
@@ -50,7 +51,7 @@ export const RemotionRoot: React.FC = () => {
                 "https://videos.pexels.com/video-files/4625747/4625747-hd_1080_1920_24fps.mp4",
               ],
               audio: {
-                url: "http://localhost:3124/api/tmp/cma1lgean0001rlsi52b8h3n3.mp3",
+                url: `http://localhost:${PORT}/api/tmp/cma1lgean0001rlsi52b8h3n3.mp3`,
                 duration: 3.15,
               },
             },
@@ -61,6 +62,7 @@ export const RemotionRoot: React.FC = () => {
             captionBackgroundColor: "blue",
             captionPosition: "bottom",
             overlay: "legendario",
+            port: PORT,
           },
         }}
         calculateMetadata={calculateMetadata}
@@ -75,7 +77,7 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={{
           music: {
             url:
-              "http://localhost:3124/api/music/" +
+              `http://localhost:${PORT}/api/music/` +
               encodeURIComponent(
                 "Aurora on the Boulevard - National Sweetheart.mp3",
               ),
@@ -266,7 +268,7 @@ export const RemotionRoot: React.FC = () => {
                 "https://videos.pexels.com/video-files/1168989/1168989-hd_1920_1080_30fps.mp4",
               ],
               audio: {
-                url: "http://localhost:3124/api/tmp/cma9ctvpo0001aqsia12i82db.mp3",
+                url: `http://localhost:${PORT}/api/tmp/cma9ctvpo0001aqsia12i82db.mp3`,
                 duration: 12.8,
               },
             },
@@ -277,6 +279,7 @@ export const RemotionRoot: React.FC = () => {
             captionBackgroundColor: "#ff0000",
             captionPosition: "center",
             overlay: "legendario",
+            port: PORT,
           },
         }}
         calculateMetadata={calculateMetadata}

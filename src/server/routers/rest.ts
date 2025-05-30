@@ -62,9 +62,15 @@ export class APIRouter {
 
           logger.info({ input }, "Creating short video");
 
+          // Add port to config
+          const configWithPort = {
+            ...input.config,
+            port: this.config.port
+          };
+
           const videoId = this.shortCreator.addToQueue(
             input.scenes,
-            input.config,
+            configWithPort,
           );
 
           res.status(201).json({

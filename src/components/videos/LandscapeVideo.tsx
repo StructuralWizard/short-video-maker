@@ -17,6 +17,7 @@ import {
   calculateVolume,
   createCaptionPages,
   shortVideoSchema,
+  getOverlayUrl,
 } from "../../shared/utils";
 
 const { fontFamily } = loadFont(); // "Barlow Condensed"
@@ -73,7 +74,7 @@ export const LandscapeVideo: FC<Props> = ({
 
       {config?.overlay && (
         <Img
-          src={`http://localhost:3123/api/overlays/${config.overlay}.png`}
+          src={getOverlayUrl(config.overlay, config.port || 3123)}
           style={{
             position: "absolute",
             top: 0,

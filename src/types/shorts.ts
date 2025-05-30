@@ -134,6 +134,7 @@ export const renderConfig = z.object({
   language: z.enum(["pt", "en"]).default("pt").describe("Language for text-to-speech"),
   referenceAudioPath: z.string().optional().describe("Path to reference audio file for TTS"),
   overlay: z.string().optional().describe("Name of the overlay image file (without extension) from static/overlays directory"),
+  port: z.number().optional().describe("Port number for the server"),
 });
 export type RenderConfig = z.infer<typeof renderConfig>;
 

@@ -27,6 +27,7 @@ export const shortVideoSchema = z.object({
     durationMs: z.number(),
     musicVolume: z.nativeEnum(MusicVolumeEnum).optional(),
     overlay: z.string().optional(),
+    port: z.number().optional(),
   }),
   music: z.object({
     file: z.string(),
@@ -168,4 +169,8 @@ export function calculateVolume(
     default:
       return [0.7, false];
   }
+}
+
+export function getOverlayUrl(overlay: string, port: number): string {
+  return `http://localhost:${port}/api/overlays/${overlay}.png`;
 }
