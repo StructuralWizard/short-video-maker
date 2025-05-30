@@ -138,30 +138,44 @@ export class ShortCreator {
     const orientation: OrientationEnum =
       config.orientation || OrientationEnum.portrait;
 
-    // Process scenes sequentially to maintain video exclusion
-    for (let index = 0; index < inputScenes.length; index++) {
-      const scene = inputScenes[index];
+    // Pré-busca de vídeos para todas as cenas
+    const videoPromises = inputScenes.map(async (scene) => {
       // Split text into two parts if possible
       const textParts = this.splitTextIntoTwoParts(scene.text);
+      
+      // Filtra termos muito curtos (menos de 4 letras)
+      const filteredTerms = scene.searchTerms
+        .filter(term => term.length >= 4)
+        .join(" ");
 
-      // Se a cena foi dividida, fazemos apenas uma busca de vídeo
-      let video: Video;
-      if (textParts.length > 1) {
-        const videoResult = await this.videoSearch.findVideo(
-          scene.searchTerms,
-          10, // Initial duration estimate
-          excludeVideoIds,
-          orientation
-        );
-        video = {
-          ...videoResult,
-          width: orientation === OrientationEnum.portrait ? 1080 : 1920,
-          height: orientation === OrientationEnum.portrait ? 1920 : 1080
-        };
-        excludeVideoIds.push(video.id);
-      }
+      // Se não houver termos válidos após o filtro, usa o termo original
+      const searchTerms = filteredTerms.length > 0 ? filteredTerms : scene.searchTerms.join(" ");
+      
+      // Faz uma única busca para a cena e pega múltiplos resultados
+      const searchResults = await this.videoSearch.findVideos(
+        searchTerms,
+        10, // Initial duration estimate
+        excludeVideoIds,
+        orientation,
+        textParts.length // Número de vídeos necessários
+      );
 
-      for (const part of textParts) {
+      // Adiciona os IDs dos vídeos selecionados ao excludeVideoIds
+      searchResults.forEach(video => excludeVideoIds.push(video.id));
+
+      return { scene, videos: searchResults, textParts };
+    });
+
+    // Aguarda todas as buscas de vídeo
+    const videoResults = await Promise.all(videoPromises);
+
+    // Processa todas as cenas em paralelo
+    const scenePromises = videoResults.map(async ({ scene, videos, textParts }) => {
+      const sceneResults: Scene[] = [];
+
+      for (let i = 0; i < textParts.length; i++) {
+        const part = textParts[i];
+        const video = videos[i];
         const tempId = cuid();
         const tempWavFileName = `${tempId}.wav`;
         const tempWavPath = path.join(this.globalConfig.tempDirPath, tempWavFileName);
@@ -175,118 +189,106 @@ export class ShortCreator {
         }
         const referenceAudioPath = config.referenceAudioPath || this.globalConfig.referenceAudioPath;
         
-        // Generate audio and search for video in parallel
-        const [audioResult, sceneVideo] = await Promise.all([
-          (async () => {
-            const sceneText = cleanSceneText(part);
-            const phrases = splitTextByPunctuation(sceneText);
+        // Gera apenas o áudio, já que o vídeo já foi buscado
+        const audioResult = await (async () => {
+          const sceneText = cleanSceneText(part);
+          const phrases = splitTextByPunctuation(sceneText);
+          
+          logger.info("🎙️ Preparando para gerar áudio com TTS", {
+            sceneText,
+            phrases,
+            tempWavPath,
+            emotion,
+            language: config.language,
+            referenceAudioPath,
+          });
+
+          const silencePath = path.join(this.globalConfig.dataDirPath, "silence-1s.wav");
+
+          if (!fs.existsSync(silencePath)) {
+            logger.info("[TTS] Gerando arquivo de silêncio de 1s");
+            execSync(`ffmpeg -f lavfi -i anullsrc=r=16000:cl=mono -t 1 -q:a 9 -acodec pcm_s16le "${silencePath}" -y`);
+          }
+
+          // Paraleliza a geração de áudio para cada frase
+          const phrasePromises = phrases.map(async (phrase, i) => {
+            let cleanPhrase = phrase
+              .replace(/["']/g, '')
+              .replace(/\.+$/, '')
+              .replace(/\.(?=\s*[.!?])/g, '')
+              .trim();
             
-            logger.info("🎙️ Preparando para gerar áudio com TTS", {
-              sceneText,
-              phrases,
-              tempWavPath,
+            logger.info(`[TTS] Cena ${scene.searchTerms}, frase ${i}: ${cleanPhrase}`, { sceneIndex: scene.searchTerms, phraseIndex: i, phrase: cleanPhrase });
+            const phraseTempId = cuid();
+            const phraseWavPath = path.join(this.globalConfig.tempDirPath, `${phraseTempId}.wav`);
+            tempFiles.push(phraseWavPath);
+
+            await this.localTTS.generateSpeech(
+              cleanPhrase,
+              phraseWavPath,
               emotion,
-              language: config.language,
-              referenceAudioPath,
-            });
+              config.language,
+              referenceAudioPath
+            );
 
-            // Garanta que phraseAudioFiles é inicializado aqui, dentro do loop da cena
-            const phraseAudioFiles: string[] = [];
-            const silencePath = path.join(this.globalConfig.dataDirPath, "silence-1s.wav");
-
-            // Garante que o arquivo de silêncio existe
-            if (!fs.existsSync(silencePath)) {
-              logger.info("[TTS] Gerando arquivo de silêncio de 1s");
-              execSync(`ffmpeg -f lavfi -i anullsrc=r=16000:cl=mono -t 1 -q:a 9 -acodec pcm_s16le "${silencePath}" -y`);
-            }
-
-            for (let i = 0; i < phrases.length; i++) {
-              let phrase = phrases[i]
-                .replace(/["']/g, '') // Remove aspas
-                .replace(/\.+$/, '') // Remove múltiplos pontos no final
-                .replace(/\.(?=\s*[.!?])/g, '') // Remove pontos antes de outros sinais de pontuação
-                .trim(); // Remove espaços extras
-              
-              logger.info(`[TTS] Cena ${index}, frase ${i}: ${phrase}`, { sceneIndex: index, phraseIndex: i, phrase });
-              const phraseTempId = cuid();
-              const phraseWavPath = path.join(this.globalConfig.tempDirPath, `${phraseTempId}.wav`);
-              tempFiles.push(phraseWavPath);
-
-              await this.localTTS.generateSpeech(
-                phrase,
-                phraseWavPath,
-                emotion,
-                config.language,
-                referenceAudioPath
-              );
-
-              phraseAudioFiles.push(phraseWavPath);
-              // Adiciona 1s de silêncio entre frases, exceto após a última
-              if (i < phrases.length - 1) {
-                phraseAudioFiles.push(silencePath);
-              }
-            }
-
-            // Unir os áudios das frases
-            await this.ffmpeg.concatAudioFiles(phraseAudioFiles, tempWavPath);
-            
-            logger.info({ tempWavPath }, "✅ Áudio gerado com sucesso, lendo arquivo");
-            const audioBuffer = await fs.readFile(tempWavPath);
-            const audioLength = await this.ffmpeg.getAudioDuration(tempWavPath);
-            
             return {
-              audioLength,
-              tempWavFileName: tempWavFileName
+              path: phraseWavPath,
+              isLast: i === phrases.length - 1
             };
-          })(),
-          // Se a cena não foi dividida, fazemos a busca de vídeo aqui
-          textParts.length === 1 ? this.videoSearch.findVideo(
-            scene.searchTerms,
-            10, // Initial duration estimate
-            excludeVideoIds,
-            orientation
-          ) : Promise.resolve(video!)
-        ]);
+          });
+
+          // Aguarda todas as frases serem processadas
+          const phraseResults = await Promise.all(phrasePromises);
+          
+          // Prepara a lista de arquivos de áudio incluindo os silêncios
+          const phraseAudioFiles: string[] = [];
+          for (const result of phraseResults) {
+            phraseAudioFiles.push(result.path);
+            if (!result.isLast) {
+              phraseAudioFiles.push(silencePath);
+            }
+          }
+
+          await this.ffmpeg.concatAudioFiles(phraseAudioFiles, tempWavPath);
+          
+          logger.info({ tempWavPath }, "✅ Áudio gerado com sucesso, lendo arquivo");
+          const audioBuffer = await fs.readFile(tempWavPath);
+          const audioLength = await this.ffmpeg.getAudioDuration(tempWavPath);
+          
+          return {
+            audioLength,
+            tempWavFileName: tempWavFileName
+          };
+        })();
 
         let { audioLength } = audioResult;
-        if (index + 1 === inputScenes.length && config.paddingBack) {
+        if (inputScenes.indexOf(scene) + 1 === inputScenes.length && config.paddingBack) {
           audioLength += config.paddingBack / 1000;
         }
 
         const sceneText = cleanSceneText(part);
         const phrases = splitTextByPunctuation(sceneText);
         
-        // Calcule o tempo de silêncio total entre frases
-        const silenceBetweenPhrases = 1; // segundos
+        const silenceBetweenPhrases = 1;
         const numSilences = phrases.length - 1;
         const totalSilence = numSilences * silenceBetweenPhrases;
-        
-        // Calcule o tempo de áudio falado (sem silêncios)
         const spokenAudioLength = audioLength - totalSilence;
 
-        // Legendas palavra por palavra
         const words = part.split(" ");
         const wordCount = words.length;
-        
-        // Calcula o tempo base para cada palavra (em milissegundos)
         const baseWordDuration = (spokenAudioLength * 1000) / wordCount;
         
-        // Ajusta o tempo base para palavras mais longas ou mais curtas
         let currentTime = 0;
         const captions: Caption[] = words.map((word, i) => {
-          // Ajusta o tempo base baseado no tamanho da palavra
           const wordLength = word.length;
-          // Ajusta o multiplicador para dar mais tempo para palavras mais longas
           const durationMultiplier = Math.max(0.7, Math.min(2.0, wordLength / 4));
           const wordDuration = baseWordDuration * durationMultiplier;
           
-          // Calcula o tempo de início e fim
           const startMs = currentTime;
           currentTime += wordDuration;
           
-          // Adiciona uma pequena pausa após pontuação
           if (/[.,!?]$/.test(word)) {
-            currentTime += 200; // 200ms de pausa após pontuação
+            currentTime += 200;
           }
           
           return {
@@ -297,7 +299,6 @@ export class ShortCreator {
           };
         });
 
-        // Ajusta o tempo final para garantir que as legendas terminem junto com o áudio
         const totalCaptionDuration = captions[captions.length - 1].endMs;
         const timeAdjustment = (audioLength * 1000) - totalCaptionDuration;
         
@@ -310,25 +311,30 @@ export class ShortCreator {
         }
 
         totalDuration += audioLength;
-        if (textParts.length === 1) {
-          excludeVideoIds.push(sceneVideo.id);
-        }
 
-        scenes.push({
+        sceneResults.push({
           id: tempId,
           text: part,
           searchTerms: scene.searchTerms,
           duration: audioLength,
           orientation,
           captions: captions,
-          videos: [this.ensureAbsoluteUrl(sceneVideo.url)],
+          videos: [this.ensureAbsoluteUrl(video.url)],
           audio: {
             url: this.ensureAbsoluteUrl(`/api/tmp/${audioResult.tempWavFileName}`),
             duration: audioLength,
           }
         });
       }
-    }
+
+      return sceneResults;
+    });
+
+    // Aguarda o processamento de todas as cenas
+    const sceneResults = await Promise.all(scenePromises);
+    // Flatten the array of scenes
+    const allScenes = sceneResults.flat();
+    scenes.push(...allScenes);
 
     // Adiciona 2 segundos extras no início e fim além do padding configurado
     const extraPadding = 2; // 2 segundos
@@ -349,7 +355,7 @@ export class ShortCreator {
         scenes,
         config: {
           durationMs: totalDuration * 1000,
-          paddingBack: (config.paddingBack || 0) + (extraPadding * 1000), // Adiciona 2 segundos ao padding
+          paddingBack: (config.paddingBack || 0) + (extraPadding * 1000),
           ...{
             captionBackgroundColor: config.captionBackgroundColor || "#dd0000",
             captionTextColor: config.captionTextColor || "#ffffff",
@@ -375,24 +381,21 @@ export class ShortCreator {
     // Remove espaços extras e pontuação no final
     text = text.trim().replace(/[.!?]+$/, '');
     
-    // Procura por pontuação de fim de frase
-    const match = text.match(/[.!?:](?=\s+)/);
+    // Divide o texto em partes usando pontuação de fim de frase
+    const parts = text.split(/(?<=[.!?:])\s+/);
     
-    if (match) {
-      const splitIndex = match.index! + 1;
-      const firstPart = text.substring(0, splitIndex).trim();
-      const secondPart = text.substring(splitIndex).trim();
-      
-      // Verifica se a segunda parte tem pelo menos 10 caracteres
-      // e se não é apenas uma palavra curta
-      if (secondPart.length >= 10 && secondPart.split(/\s+/).length > 1) {
-        return [firstPart, secondPart];
-      }
+    // Filtra as partes que têm pelo menos 7 palavras
+    const validParts = parts.filter(part => {
+      const wordCount = part.split(/\s+/).length;
+      return wordCount >= 7;
+    });
+
+    // Se não houver partes válidas, retorna o texto original
+    if (validParts.length === 0) {
+      return [text];
     }
-    
-    // Se não encontrou um bom ponto para dividir ou a segunda parte é muito curta,
-    // retorna o texto original como uma única parte
-    return [text];
+
+    return validParts;
   }
 
   public getVideoPath(videoId: string): string {

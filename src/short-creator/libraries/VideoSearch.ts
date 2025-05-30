@@ -1,6 +1,7 @@
 import { OrientationEnum } from "../../types/shorts";
 import { VideoProvider, VideoResult, VideoSearchError } from "./VideoProvider";
 import { logger } from "../../logger";
+import { LocalImageAPI } from "./LocalImageAPI";
 
 // Singleton para compartilhar o cache entre instâncias
 class VideoCache {
@@ -46,7 +47,7 @@ export class VideoSearch {
   private videoCache: VideoCache;
 
   constructor(
-    private localImageProvider: VideoProvider
+    private localImageApi: LocalImageAPI
   ) {
     this.videoCache = VideoCache.getInstance();
   }
@@ -118,40 +119,72 @@ export class VideoSearch {
     return terms;
   }
 
-  async findVideo(
-    searchTerms: string[],
+  public async findVideo(
+    searchTerms: string,
     duration: number,
-    excludeIds: string[],
-    orientation: OrientationEnum
+    excludeVideoIds: string[] = [],
+    orientation: OrientationEnum = OrientationEnum.portrait,
   ): Promise<VideoResult> {
-    logger.info({ searchTerms, duration, excludeIds, orientation }, "🔍 Starting video search");
-    for (const term of searchTerms) {
-      logger.debug({ term }, "Trying original search term");
-      const localResult = await this.tryProvider(
-        this.localImageProvider,
-        term
+    const videos = await this.findVideos(searchTerms, duration, excludeVideoIds, orientation, 1);
+    return videos[0];
+  }
+
+  public async findVideos(
+    searchTerms: string,
+    duration: number,
+    excludeVideoIds: string[] = [],
+    orientation: OrientationEnum = OrientationEnum.portrait,
+    count: number = 1
+  ): Promise<VideoResult[]> {
+    logger.info({ searchTerms, duration, excludeVideoIds, orientation, count }, "🔍 Starting video search for multiple videos");
+
+    // Tenta primeiro com o termo original
+    try {
+      const results = await this.localImageApi.findVideos(
+        [searchTerms],
+        duration,
+        excludeVideoIds,
+        orientation,
+        count
       );
-      if (localResult) return localResult;
+      return results;
+    } catch (error) {
+      logger.warn({ error, searchTerms }, "Failed to find videos with original term, trying progressive terms");
     }
-    for (const term of searchTerms) {
-      const progressiveTerms = this.getProgressiveTerms(term);
-      for (const progressiveTerm of progressiveTerms) {
-        logger.debug({ progressiveTerm }, "Trying progressive search term");
-        const localResult = await this.tryProvider(
-          this.localImageProvider,
-          progressiveTerm
+
+    // Se falhar, tenta com termos progressivos
+    const progressiveTerms = this.getProgressiveTerms(searchTerms);
+    for (const term of progressiveTerms) {
+      try {
+        const results = await this.localImageApi.findVideos(
+          [term],
+          duration,
+          excludeVideoIds,
+          orientation,
+          count
         );
-        if (localResult) return localResult;
+        return results;
+      } catch (error) {
+        logger.debug({ error, term }, "Failed to find videos with progressive term");
       }
     }
+
+    // Se ainda falhar, tenta com termos de fallback
     for (const fallbackTerm of this.fallbackTerms) {
-      logger.debug({ fallbackTerm }, "Trying fallback search term");
-      const localResult = await this.tryProvider(
-        this.localImageProvider,
-        fallbackTerm
-      );
-      if (localResult) return localResult;
+      try {
+        const results = await this.localImageApi.findVideos(
+          [fallbackTerm],
+          duration,
+          excludeVideoIds,
+          orientation,
+          count
+        );
+        return results;
+      } catch (error) {
+        logger.debug({ error, fallbackTerm }, "Failed to find videos with fallback term");
+      }
     }
+
     throw new Error("No videos found with any search strategy");
   }
 } 

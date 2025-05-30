@@ -34,7 +34,7 @@ async function main() {
   // POST to API
   let videoId;
   try {
-    const res = await axios.post('http://localhost:3123/api/short-video', json, {
+    const res = await axios.post('http://localhost:3124/api/short-video', json, {
       headers: { 'Content-Type': 'application/json' }
     });
     videoId = res.data.videoId;
@@ -55,7 +55,7 @@ async function main() {
   let status = '';
   while (status !== 'ready') {
     try {
-      const res = await axios.get(`http://localhost:3123/api/short-video/${videoId}/status`);
+      const res = await axios.get(`http://localhost:3124/api/short-video/${videoId}/status`);
       status = res.data.status;
       console.log(`Status: ${status}`);
       if (status !== 'ready') await new Promise(r => setTimeout(r, 10000));
@@ -71,7 +71,7 @@ async function main() {
     path.basename(inputPath, path.extname(inputPath)) + '.mp4'
   );
   try {
-    const res = await axios.get(`http://localhost:3123/api/short-video/${videoId}`, { responseType: 'stream' });
+    const res = await axios.get(`http://localhost:3124/api/short-video/${videoId}`, { responseType: 'stream' });
     const writer = fs.createWriteStream(outputPath);
     res.data.pipe(writer);
     await new Promise((resolve, reject) => {
