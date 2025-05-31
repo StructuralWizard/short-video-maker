@@ -22,22 +22,31 @@ export default function TTSGenerator() {
     setError("");
     setAudioUrl("");
     try {
-      const res = await fetch("/api/generate-audio", {
+      const formData = new FormData();
+      formData.append("text", text);
+      formData.append("language", language);
+      formData.append("reference_audio_filename", selectedReference);
+
+      const response = await fetch("http://localhost:5003/api/tts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text,
-          referenceAudio: selectedReference,
-          emotion,
-          language,
-        }),
+        body: formData,
       });
-      const data = await res.json();
-      if (data.success && data.audioUrl) {
-        setAudioUrl(data.audioUrl);
-      } else {
-        setError(data.error || "Erro ao gerar áudio");
+
+      if (!response.ok) {
+        throw new Error("Erro ao gerar áudio");
       }
+
+      const data = await response.json();
+      
+      // Faz o download do arquivo de áudio
+      const audioResponse = await fetch(`http://localhost:5003${data.download_link}`);
+      if (!audioResponse.ok) {
+        throw new Error("Erro ao baixar áudio");
+      }
+
+      const blob = await audioResponse.blob();
+      const url = URL.createObjectURL(blob);
+      setAudioUrl(url);
     } catch (e) {
       setError("Erro ao gerar áudio");
     }

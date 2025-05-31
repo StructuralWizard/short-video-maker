@@ -1,9 +1,9 @@
 import path from "path";
 import { logger } from "../utils/logger";
 import { Config } from "../config";
-import axios from "axios";
-import FormData from "form-data";
+import axios, { AxiosError } from "axios";
 import fs from "fs/promises";
+import fetch from "node-fetch";
 
 export interface TTSConfig {
   speakerId?: string;
@@ -12,59 +12,148 @@ export interface TTSConfig {
 }
 
 export class SileroTTS {
-  private globalConfig: Config;
+  private readonly serviceUrl: string;
+  private outputDir: string;
 
-  constructor(globalConfig: Config) {
-    this.globalConfig = globalConfig;
+  constructor(private config: Config, outputDir: string = "output/audio") {
+    this.serviceUrl = "http://localhost:5003";
+    this.outputDir = outputDir;
   }
 
-  private async ensureFileWritten(filePath: string, maxRetries = 5, delayMs = 1000): Promise<void> {
-    for (let i = 0; i < maxRetries; i++) {
-      try {
-        const stats = await fs.stat(filePath);
-        if (stats.size > 0) {
-          // Tenta abrir o arquivo para leitura para garantir que está liberado
-          const fd = await fs.open(filePath, 'r');
-          await fd.close();
-          return;
-        }
-      } catch (error) {
-        logger.debug("Waiting for file to be written", { error, attempt: i + 1 });
+  static async init(config: Config): Promise<SileroTTS> {
+    return new SileroTTS(config);
+  }
+
+  private async ensureFileWritten(filePath: string): Promise<void> {
+    try {
+      await fs.access(filePath);
+      const stats = await fs.stat(filePath);
+      if (stats.size === 0) {
+        throw new Error("File is empty");
       }
-      await new Promise(resolve => setTimeout(resolve, delayMs));
+    } catch (error) {
+      throw new Error(`Failed to verify file: ${error}`);
     }
-    throw new Error(`File ${filePath} was not properly written after ${maxRetries} attempts`);
   }
 
-  public async generateSpeech(text: string, config: TTSConfig): Promise<Buffer> {
-    const speakerId = config.speakerId || "en_0";
-    const language = config.language || "en";
-    const referenceAudioPath = config.referenceAudioPath || this.globalConfig.referenceAudioPath;
-    const refPath = referenceAudioPath || "NinoSample.wav";
-
-    logger.info("📂 Usando arquivo de referência", {
-      refPath,
-      absolutePath: path.resolve(refPath)
+  async generateSpeech(
+    text: string,
+    outputPath: string,
+    emotion: string = "neutral",
+    language: string = "pt",
+    referenceAudioPath?: string
+  ): Promise<void> {
+    logger.info("🚀 Iniciando geração de áudio com Silero TTS", {
+      text,
+      outputPath,
+      emotion,
+      language,
+      referenceAudioPath,
     });
 
-    const formData = new FormData();
-    formData.append("text", text);
-    formData.append("speaker_id", speakerId);
-    formData.append("language", language);
-    formData.append("reference_audio", path.basename(refPath));
+    try {
+      const refPath = referenceAudioPath || this.config.referenceAudioPath;
+      const refFileName = path.basename(refPath);
+      const refFileNameWithoutExt = path.parse(refFileName).name;
+      
+      logger.info("📂 Usando arquivo de referência", {
+        refPath,
+        absolutePath: path.resolve(refPath),
+        refFileName,
+        refFileNameWithoutExt
+      });
 
-    const response = await axios.post("http://localhost:5001/tts", formData, {
-      responseType: "arraybuffer",
-      headers: {
-        ...formData.getHeaders(),
-      },
-    });
+      // Cria o diretório de saída se não existir
+      await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
-    const buffer = Buffer.from(response.data);
-    
-    // Garante que o buffer foi completamente escrito
-    await this.ensureFileWritten(refPath);
-    
-    return buffer;
+      // Prepara a requisição
+      const requestData = {
+        text,
+        language,
+        reference_audio_filename: refFileNameWithoutExt
+      };
+
+      // Log the request details
+      logger.debug("Sending request to TTS server", {
+        url: `${this.serviceUrl}/api/tts`,
+        requestData,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        }
+      });
+
+      // Faz a requisição para o serviço TTS usando fetch
+      const response = await fetch(`${this.serviceUrl}/api/tts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`TTS server returned status ${response.status}: ${errorText}`);
+      }
+
+      const responseData = await response.json();
+
+      // Log the response
+      logger.debug("Received response from TTS server", {
+        status: response.status,
+        statusText: response.statusText,
+        data: responseData,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
+      if (!responseData || !responseData.download_link) {
+        throw new Error("Invalid response from TTS server: missing download link");
+      }
+
+      // Faz o download do arquivo de áudio usando a URL completa
+      const downloadUrl = `${this.serviceUrl}${responseData.download_link}`;
+      logger.info("📥 Downloading audio file from URL", { 
+        downloadUrl,
+        originalLink: responseData.download_link,
+        serviceUrl: this.serviceUrl
+      });
+
+      const downloadResponse = await axios.get(downloadUrl, {
+        responseType: "arraybuffer",
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+      });
+
+      // Salva o arquivo de áudio
+      await fs.writeFile(outputPath, downloadResponse.data);
+      
+      // Verifica se o arquivo foi escrito corretamente
+      await this.ensureFileWritten(outputPath);
+      
+      logger.info("🎵 Speech generated successfully", { outputPath });
+    } catch (error: unknown) {
+      const axiosError = error as AxiosError;
+      logger.error("❌ Failed to generate speech", {
+        error,
+        text,
+        outputPath,
+        emotion,
+        language,
+        referenceAudioPath,
+        errorMessage: axiosError.message,
+        errorResponse: axiosError.response?.data,
+        errorStatus: axiosError.response?.status,
+        errorHeaders: axiosError.response?.headers,
+        errorConfig: {
+          url: axiosError.config?.url,
+          method: axiosError.config?.method,
+          headers: axiosError.config?.headers,
+          data: axiosError.config?.data
+        }
+      });
+      throw error;
+    }
   }
 } 
