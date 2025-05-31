@@ -106,17 +106,30 @@ export class APIRouter {
     this.router.get(
       "/short-video/:videoId/status",
       async (req: ExpressRequest, res: ExpressResponse) => {
-        const { videoId } = req.params;
-        if (!videoId) {
-          res.status(400).json({
-            error: "videoId is required",
+        try {
+          const { videoId } = req.params;
+          if (!videoId) {
+            logger.error("Status check failed: videoId is required");
+            res.status(400).json({
+              error: "videoId is required",
+            });
+            return;
+          }
+          
+          logger.info({ videoId }, "Checking video status");
+          const status = this.shortCreator.status(videoId);
+          logger.info({ videoId, status }, "Video status retrieved");
+          
+          res.status(200).json({
+            status,
           });
-          return;
+        } catch (error) {
+          logger.error({ error, videoId: req.params.videoId }, "Error checking video status");
+          res.status(500).json({
+            error: "Failed to check video status",
+            details: error instanceof Error ? error.message : "Unknown error"
+          });
         }
-        const status = this.shortCreator.status(videoId);
-        res.status(200).json({
-          status,
-        });
       },
     );
 

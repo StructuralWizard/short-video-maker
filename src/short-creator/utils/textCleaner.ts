@@ -68,9 +68,16 @@ export function cleanSceneText(text: string): string {
     // Remove caracteres especiais mantendo acentuação e pontuação
     cleaned = cleaned.replace(/[^\p{L}\p{N}\s.,!?:;-]/gu, '');
     
-    // Remove ponto final e outros pontos extras
-    cleaned = cleaned.replace(/\.+$/, ''); // Remove múltiplos pontos no final
-    cleaned = cleaned.replace(/\.(?=\s*[.!?])/g, ''); // Remove pontos antes de outros sinais de pontuação
+    // Garante que cada linha termina com pontuação
+    const lines = cleaned.split('\n').map(line => {
+      line = line.trim();
+      if (line && !/[.,!?;]$/.test(line)) {
+        return line + '.';
+      }
+      return line;
+    });
+    
+    cleaned = lines.join('\n');
     
     logger.debug("Cleaned scene text", { original: text, cleaned });
     
@@ -82,11 +89,19 @@ export function cleanSceneText(text: string): string {
 }
 
 /**
- * Divide o texto em frases usando apenas pontuação de final de linha (.!?)
+ * Divide o texto em frases usando pontuação de final de linha (.!?;)
+ * Garante que cada frase termina com pontuação sem espaços extras
  */
 export function splitTextByPunctuation(text: string): string[] {
   return text
-    .split(/(?<=[.!?])\s+/)  // Divide apenas após ponto, exclamação ou interrogação seguidos de espaço
+    .split(/(?<=[.!?;])\s*/)  // Divide após ponto, exclamação, interrogação ou ponto e vírgula, sem espaço
     .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+    .filter((s) => s.length > 0)
+    .map((s) => {
+      // Garante que cada frase termina com pontuação
+      if (!/[.,!?;]$/.test(s)) {
+        return s + '.';
+      }
+      return s;
+    });
 } 

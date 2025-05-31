@@ -58,23 +58,36 @@ export class ShortCreator {
   }
 
   public status(id: string): VideoStatus {
-    const videoPath = this.getVideoPath(id);
-    const queueItem = this.queue.find((item) => item.id === id);
-    
-    if (queueItem) {
-      if (queueItem.status === "completed") {
+    try {
+      const videoPath = this.getVideoPath(id);
+      const queueItem = this.queue.find((item) => item.id === id);
+      
+      logger.debug({ videoId: id, queueItem, videoPath }, "Checking video status");
+      
+      if (queueItem) {
+        if (queueItem.status === "completed") {
+          logger.info({ videoId: id }, "Video is ready");
+          return "ready";
+        }
+        if (queueItem.status === "failed") {
+          logger.error({ videoId: id }, "Video generation failed");
+          return "failed";
+        }
+        logger.info({ videoId: id }, "Video is still processing");
+        return "processing";
+      }
+      
+      if (fs.existsSync(videoPath)) {
+        logger.info({ videoId: id }, "Video file exists and is ready");
         return "ready";
       }
-      if (queueItem.status === "failed") {
-        return "failed";
-      }
-      return "processing";
+      
+      logger.error({ videoId: id }, "Video not found in queue or filesystem");
+      return "failed";
+    } catch (error) {
+      logger.error({ error, videoId: id }, "Error checking video status");
+      return "failed";
     }
-    
-    if (fs.existsSync(videoPath)) {
-      return "ready";
-    }
-    return "failed";
   }
 
   public addToQueue(
@@ -217,6 +230,11 @@ export class ShortCreator {
               .replace(/\.+$/, '')
               .replace(/\.(?=\s*[.!?])/g, '')
               .trim();
+            
+            // Garante que a frase termina com pontuação
+            if (!/[.,!?;]$/.test(cleanPhrase)) {
+              cleanPhrase = cleanPhrase + ',';
+            }
             
             logger.info(`[TTS] Cena ${scene.searchTerms}, frase ${i}: ${cleanPhrase}`, { sceneIndex: scene.searchTerms, phraseIndex: i, phrase: cleanPhrase });
             const phraseTempId = cuid();
