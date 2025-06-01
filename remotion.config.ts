@@ -9,3 +9,6 @@ Config.setVideoImageFormat("jpeg");
 Config.setOverwriteOutput(true);
 Config.setPublicDir("static");
 Config.setEntryPoint("src/components/root/index.ts");
+
+// Enable parallel processing
+Config.setConcurrency(8);

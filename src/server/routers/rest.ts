@@ -278,7 +278,7 @@ export class APIRouter {
             });
             return;
           }
-          const video = await this.shortCreator.getVideo(videoId);
+          const video = await this.shortCreator.getVideoBuffer(videoId);
           res.setHeader("Content-Type", "video/mp4");
           res.setHeader(
             "Content-Disposition",

@@ -146,6 +146,9 @@ export interface Video {
   width: number;
   height: number;
   duration: number;
+  status?: "pending" | "processing" | "completed" | "failed";
+  sceneInput?: SceneInput[];
+  config?: RenderConfig;
 }
 
 export type Caption = {

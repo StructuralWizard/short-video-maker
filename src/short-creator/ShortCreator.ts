@@ -19,14 +19,15 @@ import { LocalImageAPI } from "./libraries/LocalImageAPI";
 
 export class ShortCreator {
   private queue: {
+    id: string;
     sceneInput: SceneInput[];
     config: RenderConfig;
-    id: string;
     status: "pending" | "processing" | "completed" | "failed";
   }[] = [];
   private videoSearch: VideoSearch;
   private threadPool: ThreadPool;
   private outputDir: string;
+  private processingVideos = new Map<string, Video>();
 
   constructor(
     private globalConfig: Config,
@@ -136,6 +137,9 @@ export class ShortCreator {
     inputScenes: SceneInput[],
     config: RenderConfig,
   ): Promise<string> {
+    const startTime = Date.now();
+    logger.info({ videoId }, "Starting video creation process");
+
     logger.debug(
       {
         inputScenes,
@@ -152,7 +156,13 @@ export class ShortCreator {
       config.orientation || OrientationEnum.portrait;
 
     // Pré-busca de vídeos para todas as cenas
-    const videoPromises = inputScenes.map(async (scene) => {
+    const videoSearchStart = Date.now();
+    logger.info({ videoId }, "Starting video search phase");
+    
+    const videoPromises = inputScenes.map(async (scene, sceneIndex) => {
+      const sceneStartTime = Date.now();
+      logger.debug({ videoId, sceneIndex }, "Processing scene video search");
+      
       // Split text into two parts if possible
       const textParts = this.splitTextIntoTwoParts(scene.text);
       
@@ -176,183 +186,210 @@ export class ShortCreator {
       // Adiciona os IDs dos vídeos selecionados ao excludeVideoIds
       searchResults.forEach(video => excludeVideoIds.push(video.id));
 
+      const sceneEndTime = Date.now();
+      logger.debug({ 
+        videoId, 
+        sceneIndex, 
+        duration: sceneEndTime - sceneStartTime 
+      }, "Scene video search completed");
+
       return { scene, videos: searchResults, textParts };
     });
 
     // Aguarda todas as buscas de vídeo
     const videoResults = await Promise.all(videoPromises);
+    const videoSearchEnd = Date.now();
+    logger.info({ 
+      videoId, 
+      duration: videoSearchEnd - videoSearchStart,
+      scenesCount: inputScenes.length 
+    }, "Video search phase completed");
 
     // Processa todas as cenas em paralelo
-    const scenePromises = videoResults.map(async ({ scene, videos, textParts }) => {
-      const sceneResults: Scene[] = [];
+    const sceneProcessingStart = Date.now();
+    logger.info({ videoId }, "Starting scene processing phase");
 
-      for (let i = 0; i < textParts.length; i++) {
-        const part = textParts[i];
-        const video = videos[i];
-        const tempId = cuid();
-        const tempWavFileName = `${tempId}.wav`;
-        const tempWavPath = path.join(this.globalConfig.tempDirPath, tempWavFileName);
-        tempFiles.push(tempWavPath);
-
-        let emotion = "neutral";
-        if (part.trim().endsWith("?")) {
-          emotion = "question";
-        } else if (part.trim().endsWith("!")) {
-          emotion = "exclamation";
-        }
-        const referenceAudioPath = config.referenceAudioPath || this.globalConfig.referenceAudioPath;
+    let sceneProcessingEnd: number;
+    try {
+      const scenePromises = videoResults.map(async ({ scene, videos, textParts }, sceneIndex) => {
+        const sceneStartTime = Date.now();
+        logger.debug({ videoId, sceneIndex }, "Processing scene");
         
-        // Gera apenas o áudio, já que o vídeo já foi buscado
-        const audioResult = await (async () => {
-          const sceneText = cleanSceneText(part);
-          const phrases = splitTextByPunctuation(sceneText);
-          
-          logger.info("🎙️ Preparando para gerar áudio com TTS", {
-            sceneText,
-            phrases,
-            tempWavPath,
-            emotion,
-            language: config.language,
-            referenceAudioPath,
-          });
+        const sceneResults: Scene[] = [];
 
-          const silencePath = path.join(this.globalConfig.dataDirPath, "silence-1s.wav");
+        try {
+          for (let i = 0; i < textParts.length; i++) {
+            const partStartTime = Date.now();
+            const part = textParts[i];
+            const video = videos[i];
+            const tempId = cuid();
+            const tempWavFileName = `${tempId}.wav`;
+            const tempWavPath = path.join(this.globalConfig.tempDirPath, tempWavFileName);
+            tempFiles.push(tempWavPath);
 
-          if (!fs.existsSync(silencePath)) {
-            logger.info("[TTS] Gerando arquivo de silêncio de 1s");
-            execSync(`ffmpeg -f lavfi -i anullsrc=r=16000:cl=mono -t 1 -q:a 9 -acodec pcm_s16le "${silencePath}" -y`);
-          }
-
-          // Paraleliza a geração de áudio para cada frase
-          const phrasePromises = phrases.map(async (phrase, i) => {
-            let cleanPhrase = phrase
-              .replace(/["']/g, '')
-              .replace(/\.+$/, '')
-              .replace(/\.(?=\s*[.!?])/g, '')
-              .trim();
-            
-            // Garante que a frase termina com pontuação
-            if (!/[.,!?;]$/.test(cleanPhrase)) {
-              cleanPhrase = cleanPhrase + ',';
+            let emotion = "neutral";
+            if (part.trim().endsWith("?")) {
+              emotion = "question";
+            } else if (part.trim().endsWith("!")) {
+              emotion = "exclamation";
             }
-            
-            logger.info(`[TTS] Cena ${scene.searchTerms}, frase ${i}: ${cleanPhrase}`, { sceneIndex: scene.searchTerms, phraseIndex: i, phrase: cleanPhrase });
-            const phraseTempId = cuid();
-            const phraseWavPath = path.join(this.globalConfig.tempDirPath, `${phraseTempId}.wav`);
-            tempFiles.push(phraseWavPath);
 
-            await this.localTTS.generateSpeech(
-              cleanPhrase,
-              phraseWavPath,
+            // Substitui ponto final por vírgula
+            let textForTTS = part.trim();
+            if (textForTTS.endsWith(".")) {
+              textForTTS = textForTTS.slice(0, -1) + ", ";
+            }
+
+            const referenceAudioPath = config.referenceAudioPath || this.globalConfig.referenceAudioPath;
+            
+            logger.debug({ 
+              videoId, 
+              sceneIndex, 
+              partIndex: i,
+              text: textForTTS,
               emotion,
-              config.language,
               referenceAudioPath
-            );
+            }, "Generating speech for scene part");
 
-            return {
-              path: phraseWavPath,
-              isLast: i === phrases.length - 1
-            };
-          });
+            try {
+              // Gera apenas o áudio, já que o vídeo já foi buscado
+              await this.localTTS.generateSpeech(
+                textForTTS,
+                tempWavPath,
+                emotion,
+                config.language || "pt",
+                referenceAudioPath
+              );
 
-          // Aguarda todas as frases serem processadas
-          const phraseResults = await Promise.all(phrasePromises);
-          
-          // Prepara a lista de arquivos de áudio incluindo os silêncios
-          const phraseAudioFiles: string[] = [];
-          for (const result of phraseResults) {
-            phraseAudioFiles.push(result.path);
-            if (!result.isLast) {
-              phraseAudioFiles.push(silencePath);
+              const partEndTime = Date.now();
+              logger.debug({ 
+                videoId, 
+                sceneIndex, 
+                partIndex: i,
+                duration: partEndTime - partStartTime 
+              }, "Scene part processing completed");
+
+              // Processa o resultado do áudio
+              const audioLength = await this.ffmpeg.getAudioDuration(tempWavPath);
+              let finalAudioLength = audioLength;
+              
+              if (inputScenes.indexOf(scene) + 1 === inputScenes.length && config.paddingBack) {
+                finalAudioLength += config.paddingBack / 1000;
+              }
+
+              const sceneText = cleanSceneText(part);
+              const phrases = splitTextByPunctuation(sceneText);
+              
+              const silenceBetweenPhrases = 1;
+              const numSilences = phrases.length - 1;
+              const totalSilence = numSilences * silenceBetweenPhrases;
+              const spokenAudioLength = finalAudioLength - totalSilence;
+
+              const words = part.split(" ");
+              const wordCount = words.length;
+              const baseWordDuration = (spokenAudioLength * 1000) / wordCount;
+              
+              let currentTime = 0;
+              const captions: Caption[] = words.map((word, i) => {
+                const wordLength = word.length;
+                const durationMultiplier = Math.max(0.7, Math.min(2.0, wordLength / 4));
+                const wordDuration = baseWordDuration * durationMultiplier;
+                
+                const startMs = currentTime;
+                currentTime += wordDuration;
+                
+                if (/[.,!?;]$/.test(word)) {
+                  currentTime += 200;
+                }
+                
+                return {
+                  text: word + (i < words.length - 1 ? " " : ""),
+                  startMs,
+                  endMs: currentTime,
+                  emotion: emotion as "question" | "exclamation" | "neutral"
+                };
+              });
+
+              const totalCaptionDuration = captions[captions.length - 1].endMs;
+              const timeAdjustment = (finalAudioLength * 1000) - totalCaptionDuration;
+              
+              if (timeAdjustment !== 0) {
+                const adjustmentPerWord = timeAdjustment / wordCount;
+                captions.forEach((caption, i) => {
+                  caption.startMs += adjustmentPerWord * i;
+                  caption.endMs += adjustmentPerWord * (i + 1);
+                });
+              }
+
+              totalDuration += finalAudioLength;
+
+              sceneResults.push({
+                id: tempId,
+                text: part,
+                searchTerms: scene.searchTerms,
+                duration: finalAudioLength,
+                orientation,
+                captions: captions,
+                videos: [this.ensureAbsoluteUrl(video.url)],
+                audio: {
+                  url: this.ensureAbsoluteUrl(`/api/tmp/${tempWavFileName}`),
+                  duration: finalAudioLength,
+                }
+              });
+            } catch (error) {
+              logger.error({ 
+                error, 
+                videoId, 
+                sceneIndex, 
+                partIndex: i,
+                text: part,
+                emotion,
+                referenceAudioPath
+              }, "Error processing scene part");
+              throw error;
             }
           }
 
-          await this.ffmpeg.concatAudioFiles(phraseAudioFiles, tempWavPath);
-          
-          logger.info({ tempWavPath }, "✅ Áudio gerado com sucesso, lendo arquivo");
-          const audioBuffer = await fs.readFile(tempWavPath);
-          const audioLength = await this.ffmpeg.getAudioDuration(tempWavPath);
-          
-          return {
-            audioLength,
-            tempWavFileName: tempWavFileName
-          };
-        })();
+          const sceneEndTime = Date.now();
+          logger.debug({ 
+            videoId, 
+            sceneIndex, 
+            duration: sceneEndTime - sceneStartTime 
+          }, "Scene processing completed");
 
-        let { audioLength } = audioResult;
-        if (inputScenes.indexOf(scene) + 1 === inputScenes.length && config.paddingBack) {
-          audioLength += config.paddingBack / 1000;
+          return sceneResults;
+        } catch (error) {
+          logger.error({ 
+            error, 
+            videoId, 
+            sceneIndex,
+            sceneText: scene.text,
+            searchTerms: scene.searchTerms
+          }, "Error processing scene");
+          throw error;
         }
+      });
 
-        const sceneText = cleanSceneText(part);
-        const phrases = splitTextByPunctuation(sceneText);
-        
-        const silenceBetweenPhrases = 1;
-        const numSilences = phrases.length - 1;
-        const totalSilence = numSilences * silenceBetweenPhrases;
-        const spokenAudioLength = audioLength - totalSilence;
+      const sceneResults = await Promise.all(scenePromises);
+      sceneProcessingEnd = Date.now();
+      logger.info({ 
+        videoId, 
+        duration: sceneProcessingEnd - sceneProcessingStart,
+        scenesCount: inputScenes.length 
+      }, "Scene processing phase completed");
 
-        const words = part.split(" ");
-        const wordCount = words.length;
-        const baseWordDuration = (spokenAudioLength * 1000) / wordCount;
-        
-        let currentTime = 0;
-        const captions: Caption[] = words.map((word, i) => {
-          const wordLength = word.length;
-          const durationMultiplier = Math.max(0.7, Math.min(2.0, wordLength / 4));
-          const wordDuration = baseWordDuration * durationMultiplier;
-          
-          const startMs = currentTime;
-          currentTime += wordDuration;
-          
-          if (/[.,!?]$/.test(word)) {
-            currentTime += 200;
-          }
-          
-          return {
-            text: word + (i < words.length - 1 ? " " : ""),
-            startMs,
-            endMs: currentTime,
-            emotion: emotion as "question" | "exclamation" | "neutral"
-          };
-        });
-
-        const totalCaptionDuration = captions[captions.length - 1].endMs;
-        const timeAdjustment = (audioLength * 1000) - totalCaptionDuration;
-        
-        if (timeAdjustment !== 0) {
-          const adjustmentPerWord = timeAdjustment / wordCount;
-          captions.forEach((caption, i) => {
-            caption.startMs += adjustmentPerWord * i;
-            caption.endMs += adjustmentPerWord * (i + 1);
-          });
-        }
-
-        totalDuration += audioLength;
-
-        sceneResults.push({
-          id: tempId,
-          text: part,
-          searchTerms: scene.searchTerms,
-          duration: audioLength,
-          orientation,
-          captions: captions,
-          videos: [this.ensureAbsoluteUrl(video.url)],
-          audio: {
-            url: this.ensureAbsoluteUrl(`/api/tmp/${audioResult.tempWavFileName}`),
-            duration: audioLength,
-          }
-        });
-      }
-
-      return sceneResults;
-    });
-
-    // Aguarda o processamento de todas as cenas
-    const sceneResults = await Promise.all(scenePromises);
-    // Flatten the array of scenes
-    const allScenes = sceneResults.flat();
-    scenes.push(...allScenes);
+      // Flatten the array of scenes
+      const allScenes = sceneResults.flat();
+      scenes.push(...allScenes);
+    } catch (error) {
+      logger.error({ 
+        error, 
+        videoId,
+        scenesCount: inputScenes.length,
+        duration: Date.now() - sceneProcessingStart
+      }, "Error in scene processing phase");
+      throw error;
+    }
 
     // Adiciona 2 segundos extras no início e fim além do padding configurado
     const extraPadding = 2; // 2 segundos
@@ -365,32 +402,82 @@ export class ShortCreator {
     const selectedMusic = this.findMusic(totalDuration, config.music);
     logger.debug({ selectedMusic }, "Selected music for the video");
 
-    await this.remotion.render(
-      {
-        music: {
-          ...selectedMusic,
-        },
-        scenes,
-        config: {
-          durationMs: totalDuration * 1000,
-          paddingBack: (config.paddingBack || 0) + (extraPadding * 1000),
-          ...{
-            captionBackgroundColor: config.captionBackgroundColor || "#dd0000",
-            captionTextColor: config.captionTextColor || "#ffffff",
-            captionPosition: config.captionPosition,
+    const renderStart = Date.now();
+    logger.info({ videoId }, "Starting video rendering phase");
+
+    try {
+      await this.remotion.render(
+        {
+          music: {
+            ...selectedMusic,
           },
-          musicVolume: config.musicVolume,
-          overlay: config.overlay,
+          scenes,
+          config: {
+            durationMs: totalDuration * 1000,
+            paddingBack: (config.paddingBack || 0) + (extraPadding * 1000),
+            ...{
+              captionBackgroundColor: config.captionBackgroundColor || "#dd0000",
+              captionTextColor: config.captionTextColor || "#ffffff",
+              captionPosition: config.captionPosition,
+            },
+            musicVolume: config.musicVolume,
+            overlay: config.overlay,
+          },
         },
-      },
-      videoId,
-      orientation
-    );
+        videoId,
+        orientation
+      );
+    } catch (error: any) {
+      logger.error({ 
+        error, 
+        videoId,
+        scenes: scenes.map(s => ({ id: s.id, text: s.text })),
+        duration: totalDuration
+      }, "Error during video rendering");
+      
+      // Limpa arquivos temporários em caso de erro
+      for (const file of tempFiles) {
+        try {
+          fs.removeSync(file);
+        } catch (cleanupError) {
+          logger.error({ error: cleanupError, file }, "Error cleaning up temp file");
+        }
+      }
+      
+      throw new Error(`Failed to render video: ${error.message || 'Unknown error'}`);
+    }
+
+    const renderEnd = Date.now();
+    logger.info({ 
+      videoId, 
+      duration: renderEnd - renderStart 
+    }, "Video rendering phase completed");
 
     // Clean up temp files
+    const cleanupStart = Date.now();
+    logger.info({ videoId }, "Starting cleanup phase");
+    
     for (const file of tempFiles) {
       fs.removeSync(file);
     }
+
+    const cleanupEnd = Date.now();
+    logger.info({ 
+      videoId, 
+      duration: cleanupEnd - cleanupStart 
+    }, "Cleanup phase completed");
+
+    const totalEndTime = Date.now();
+    logger.info({ 
+      videoId, 
+      totalDuration: totalEndTime - startTime,
+      phases: {
+        videoSearch: videoSearchEnd - videoSearchStart,
+        sceneProcessing: sceneProcessingEnd - sceneProcessingStart,
+        rendering: renderEnd - renderStart,
+        cleanup: cleanupEnd - cleanupStart
+      }
+    }, "Video creation process completed");
 
     return videoId;
   }
@@ -488,7 +575,7 @@ export class ShortCreator {
       .map(file => file.replace('.mp4', ''));
   }
 
-  public async getVideo(videoId: string): Promise<Buffer> {
+  public async getVideoBuffer(videoId: string): Promise<Buffer> {
     const videoPath = this.getVideoPath(videoId);
     const queueItem = this.queue.find((item) => item.id === videoId);
     
@@ -533,5 +620,71 @@ export class ShortCreator {
 
     // Lê o arquivo
     return fs.readFileSync(videoPath);
+  }
+
+  private async getVideoInfo(id: string): Promise<Video> {
+    logger.debug({ videoId: id }, "Checking video status");
+    
+    // Verificar se o vídeo está na fila
+    const queuedVideo = this.queue.find((v) => v.id === id);
+    if (queuedVideo) {
+      logger.debug({ videoId: id }, "Video found in queue");
+      return {
+        id,
+        url: this.getVideoPath(id),
+        width: 1080,
+        height: 1920,
+        duration: 0
+      };
+    }
+
+    // Verificar se o vídeo existe no sistema de arquivos
+    const videoPath = path.join(this.globalConfig.videosDirPath, `${id}.mp4`);
+    if (fs.existsSync(videoPath)) {
+      logger.debug({ videoId: id, path: videoPath }, "Video found in filesystem");
+      return {
+        id,
+        url: videoPath,
+        width: 1080,
+        height: 1920,
+        duration: 0 // Será preenchido quando necessário
+      };
+    }
+
+    // Verificar se o vídeo está em processamento
+    const processingVideo = this.processingVideos.get(id);
+    if (processingVideo) {
+      logger.debug({ videoId: id }, "Video is still processing");
+      return processingVideo;
+    }
+
+    logger.error({ videoId: id }, "Video not found in queue or filesystem");
+    throw new Error("Video not found");
+  }
+
+  private async cleanupVideo(id: string): Promise<void> {
+    logger.debug({ videoId: id }, "Starting cleanup for video");
+    
+    try {
+      // Remover da fila
+      this.queue = this.queue.filter((v) => v.id !== id);
+      logger.debug({ videoId: id }, "Removed from queue");
+
+      // Remover do processamento
+      this.processingVideos.delete(id);
+      logger.debug({ videoId: id }, "Removed from processing");
+
+      // Limpar arquivos temporários
+      const tempDir = path.join(this.globalConfig.tempDirPath, id);
+      if (fs.existsSync(tempDir)) {
+        await fs.remove(tempDir);
+        logger.debug({ videoId: id, path: tempDir }, "Cleaned up temp directory");
+      }
+
+      logger.debug({ videoId: id }, "Cleanup completed successfully");
+    } catch (error) {
+      logger.error({ videoId: id, error }, "Error during cleanup");
+      throw error;
+    }
   }
 }

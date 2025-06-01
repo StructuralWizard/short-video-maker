@@ -11,6 +11,7 @@ import {
   VideoConfig,
 } from "remotion";
 import { z } from "zod";
+import { logger } from "../../logger";
 
 import {
   calculateVolume,
@@ -151,6 +152,9 @@ export const PortraitVideo: FC<Props> = ({
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover'
+                }}
+                onError={(error) => {
+                  logger.error(`Error loading video ${scene.videos[0]}:`, error);
                 }}
               />
             </div>

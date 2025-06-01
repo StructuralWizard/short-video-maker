@@ -3,6 +3,9 @@ import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import path from "path";
 import { ensureBrowser } from "@remotion/renderer";
+import fs from "fs-extra";
+import https from "https";
+import { URL } from "url";
 
 import { Config } from "../../config";
 import { shortVideoSchema, getOrientationConfig } from "../../shared/utils";
@@ -14,6 +17,40 @@ export class Remotion {
     private bundled: string,
     private config: Config,
   ) {}
+
+  private async downloadVideo(url: string, outputPath: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const file = fs.createWriteStream(outputPath);
+      https.get(url, (response) => {
+        response.pipe(file);
+        file.on('finish', () => {
+          file.close();
+          resolve(outputPath);
+        });
+      }).on('error', (err) => {
+        fs.unlink(outputPath, () => {});
+        reject(err);
+      });
+    });
+  }
+
+  private async preDownloadVideos(scenes: any[]): Promise<string[]> {
+    const downloadedVideos: string[] = [];
+    for (const scene of scenes) {
+      for (const videoUrl of scene.videos) {
+        const url = new URL(videoUrl);
+        const filename = path.basename(url.pathname);
+        const outputPath = path.join(this.config.tempDirPath, filename);
+        
+        if (!fs.existsSync(outputPath)) {
+          logger.debug(`Downloading video: ${videoUrl}`);
+          await this.downloadVideo(videoUrl, outputPath);
+        }
+        downloadedVideos.push(outputPath);
+      }
+    }
+    return downloadedVideos;
+  }
 
   static async init(config: Config): Promise<Remotion> {
     await ensureBrowser();
@@ -52,37 +89,36 @@ export class Remotion {
 
     const outputLocation = path.join(this.config.videosDirPath, `${id}.mp4`);
 
-    const maxAttempts = 3;
-    let attempt = 0;
-    while (attempt < maxAttempts) {
-      try {
-        await renderMedia({
-          codec: "h264",
-          composition,
-          serveUrl: this.bundled,
+    try {
+      await renderMedia({
+        codec: "h264",
+        composition,
+        serveUrl: this.bundled,
+        outputLocation,
+        inputProps: data,
+        onProgress: ({ progress }) => {
+          logger.debug(`Rendering ${id} ${Math.floor(progress * 100)}% complete`);
+        },
+        concurrency: 8,
+        offthreadVideoCacheSizeInBytes: this.config.videoCacheSizeInBytes,
+        chromiumOptions: {
+          disableWebSecurity: true,
+          ignoreCertificateErrors: true
+        },
+        timeoutInMilliseconds: 300000 // 5 minutos para o processo todo
+      });
+      
+      logger.debug(
+        {
           outputLocation,
-          inputProps: data,
-          onProgress: ({ progress }) => {
-            logger.debug(`Rendering ${id} ${Math.floor(progress * 100)}% complete`);
-          },
-          concurrency: this.config.concurrency,
-          offthreadVideoCacheSizeInBytes: this.config.videoCacheSizeInBytes,
-        });
-        logger.debug(
-          {
-            outputLocation,
-            component,
-            videoID: id,
-          },
-          "Video rendered with Remotion",
-        );
-        break; // sucesso
-      } catch (err) {
-        attempt++;
-        logger.error(`Remotion render failed, attempt ${attempt} of ${maxAttempts}`, err);
-        if (attempt >= maxAttempts) throw err;
-        await new Promise(res => setTimeout(res, 5000)); // espera 5s antes de tentar de novo
-      }
+          component,
+          videoID: id,
+        },
+        "Video rendered with Remotion",
+      );
+    } catch (err) {
+      logger.error("Remotion render failed", err);
+      throw err;
     }
   }
 
@@ -102,8 +138,7 @@ export class Remotion {
           `Rendering test video: ${Math.floor(progress * 100)}% complete`,
         );
       },
-      // preventing memory issues with docker
-      concurrency: this.config.concurrency,
+      concurrency: 1, // Forçar processamento sequencial
       offthreadVideoCacheSizeInBytes: this.config.videoCacheSizeInBytes,
     });
   }

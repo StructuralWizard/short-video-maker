@@ -20,18 +20,42 @@ export class VideoProcessor {
           .setFfmpegPath(process.env.FFMPEG_PATH || "ffmpeg")
           .setFfprobePath(process.env.FFPROBE_PATH || "ffprobe")
           .outputOptions([
-            "-c:v libx264",
-            "-preset medium",
-            "-crf 23",
-            "-c:a pcm_s16le",
-            "-ar 44100",
-            "-movflags +faststart"
+            "-c:v h264_videotoolbox",
+            "-b:v 0",
+            "-c:a aac",
+            "-b:a 192k",
+            "-movflags +faststart",
+            "-threads 0"
           ])
           .duration(scene.duration)
           .size(`${video.width}x${video.height}`)
           .output(outputPath)
           .on("end", () => resolve())
-          .on("error", (err) => reject(err))
+          .on("error", (err) => {
+            if (err.message.includes("videotoolbox")) {
+              logger.warn("Hardware encoding failed, falling back to CPU");
+              ffmpeg(video.url)
+                .setFfmpegPath(process.env.FFMPEG_PATH || "ffmpeg")
+                .setFfprobePath(process.env.FFPROBE_PATH || "ffprobe")
+                .outputOptions([
+                  "-c:v libx264",
+                  "-preset veryfast",
+                  "-crf 23",
+                  "-c:a aac",
+                  "-b:a 192k",
+                  "-movflags +faststart",
+                  "-threads 0"
+                ])
+                .duration(scene.duration)
+                .size(`${video.width}x${video.height}`)
+                .output(outputPath)
+                .on("end", () => resolve())
+                .on("error", (err) => reject(err))
+                .run();
+            } else {
+              reject(err);
+            }
+          })
           .run();
       });
 

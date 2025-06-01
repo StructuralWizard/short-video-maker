@@ -75,8 +75,10 @@ export class Config {
     this.ttsModel = env.TTS_MODEL || "default";
     this.port = env.PORT ? parseInt(env.PORT) : defaultPort;
     this.devMode = env.DEV === "true";
-    this.concurrency = env.CONCURRENCY ? parseInt(env.CONCURRENCY) : 4;
-    this.videoCacheSizeInBytes = env.VIDEO_CACHE_SIZE_IN_BYTES ? parseInt(env.VIDEO_CACHE_SIZE_IN_BYTES) : 1024 * 1024 * 1024;
+    this.concurrency = 1; // Forçar processamento sequencial
+    this.videoCacheSizeInBytes = env.VIDEO_CACHE_SIZE_IN_BYTES 
+      ? parseInt(env.VIDEO_CACHE_SIZE_IN_BYTES) 
+      : 34_359_738_368; // 32GB em bytes (32 * 1024 * 1024 * 1024)
     this.referenceAudioPath = env.REFERENCE_AUDIO_PATH || path.join(process.cwd(), "NinoSample.wav");
 
     // Initialize paths
