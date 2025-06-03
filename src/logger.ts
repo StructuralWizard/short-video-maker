@@ -1,7 +1,7 @@
 import pino from "pino";
 
 // Create the global logger
-export const logger = pino({
+const logger = pino({
   level: 'info',
   base: undefined,
   timestamp: () => `,"time":"${new Date().toISOString()}"`,
@@ -12,4 +12,11 @@ export const logger = pino({
   }
 });
 
+// Export both named and default exports
+export { logger };
 export default logger;
+
+// Add type declaration
+declare global {
+  const logger: ReturnType<typeof pino>;
+}

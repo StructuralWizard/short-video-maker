@@ -42,11 +42,42 @@ async function main() {
     // Iniciar servidor
     const server = new Server(config, shortCreator);
     await server.start();
-    logger.info("Server.start() completed, process is still alive.");
+    logger.info("Server started successfully");
+
+    // Configurar handlers para sinais do processo
+    process.on('SIGINT', () => {
+      logger.info('Received SIGINT. Cleaning up...');
+      process.exit(0);
+    });
+
+    process.on('SIGTERM', () => {
+      logger.info('Received SIGTERM. Cleaning up...');
+      process.exit(0);
+    });
+
+    process.on('uncaughtException', (error) => {
+      logger.error('Uncaught Exception:', error);
+      process.exit(1);
+    });
+
+    process.on('unhandledRejection', (reason, promise) => {
+      logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    });
+
+    // Manter o processo vivo
+    setInterval(() => {
+      logger.debug('Process is still alive...');
+    }, 60000); // Log a cada minuto
+
+    logger.info('Server is ready to handle requests');
   } catch (error) {
     logger.error("Error in main:", error);
     process.exit(1);
   }
 }
 
-main();
+// Iniciar o servidor
+main().catch((error) => {
+  logger.error("Fatal error:", error);
+  process.exit(1);
+});

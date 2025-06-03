@@ -5,7 +5,7 @@ import type {
   Response as ExpressResponse,
 } from "express";
 import path from "path";
-import { exec } from "child_process";
+import { exec, execSync } from "child_process";
 import { ShortCreator } from "../short-creator/ShortCreator";
 import { APIRouter } from "./routers/rest";
 import { MCPRouter } from "./routers/mcp";
@@ -46,39 +46,33 @@ export class Server {
   }
 
   private async killProcessOnPort(port: number): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const cmd = process.platform === 'win32' 
-        ? `netstat -ano | findstr :${port}`
-        : `lsof -i :${port} -t`;
-      
-      exec(cmd, (error, stdout, stderr) => {
-        if (error) {
-          logger.debug(`No process found on port ${port}`);
-          resolve();
-          return;
-        }
-
-        const pid = stdout.trim();
-        if (!pid) {
-          resolve();
-          return;
-        }
-
-        const killCmd = process.platform === 'win32'
-          ? `taskkill /F /PID ${pid}`
-          : `kill -9 ${pid}`;
-
-        exec(killCmd, (killError) => {
-          if (killError) {
-            logger.error(`Failed to kill process ${pid}:`, killError);
-            reject(killError);
-            return;
+    try {
+      if (process.platform === 'win32') {
+        // Windows
+        execSync(`netstat -ano | findstr :${port}`, { stdio: 'pipe' });
+        const output = execSync(`netstat -ano | findstr :${port}`).toString();
+        const lines = output.split('\n');
+        for (const line of lines) {
+          const parts = line.trim().split(/\s+/);
+          if (parts.length > 4) {
+            const pid = parts[parts.length - 1];
+            if (pid) {
+              execSync(`taskkill /F /PID ${pid}`);
+            }
           }
-          logger.info(`Killed process ${pid} on port ${port}`);
-          resolve();
-        });
-      });
-    });
+        }
+      } else {
+        // Unix-like systems (Linux, macOS)
+        const output = execSync(`lsof -i :${port} -t`).toString();
+        const pids = output.split('\n').filter(Boolean);
+        for (const pid of pids) {
+          execSync(`kill -9 ${pid}`);
+        }
+      }
+      logger.info(`Killed process using port ${port}`);
+    } catch (error) {
+      logger.warn(`No process found using port ${port}`);
+    }
   }
 
   public async start(): Promise<void> {
@@ -88,19 +82,39 @@ export class Server {
       // Tenta matar qualquer processo usando a porta antes de iniciar
       await this.killProcessOnPort(port);
       
-      await new Promise<void>((resolve, reject) => {
-        this.app.listen(port, () => {
-          logger.info(`🚀 Server running on port ${port}`);
-          // Envia sinal de ready para o PM2
-          if (process.send) {
-            process.send('ready');
+      // Tenta iniciar o servidor
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const server = this.app.listen(port, () => {
+              logger.info(`🚀 Server running on port ${port}`);
+              // Envia sinal de ready para o PM2
+              if (process.send) {
+                process.send('ready');
+              }
+              resolve();
+            }).on('error', (err: NodeJS.ErrnoException) => {
+              if (err.code === 'EADDRINUSE') {
+                logger.warn(`Port ${port} is in use, retrying...`);
+                reject(err);
+              } else {
+                logger.error("Error starting server:", err);
+                reject(err);
+              }
+            });
+          });
+          // Se chegou aqui, o servidor iniciou com sucesso
+          break;
+        } catch (err) {
+          retries--;
+          if (retries === 0) {
+            throw err;
           }
-          resolve();
-        }).on('error', (err: NodeJS.ErrnoException) => {
-          logger.error("Error starting server:", err);
-          reject(err);
-        });
-      });
+          // Espera um pouco antes de tentar novamente
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
     } catch (err) {
       logger.error("Error starting server:", err);
       throw err;

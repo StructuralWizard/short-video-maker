@@ -12,11 +12,15 @@ export default defineConfig({
       input: {
         root: path.resolve(__dirname, 'src/components/root/index.ts'),
       },
+      external: ['pino'],
     },
   },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
+  },
+  optimizeDeps: {
+    include: ['pino'],
   },
 }); 

@@ -5,20 +5,30 @@ import {
   type CaptionLine,
   type OrientationEnum,
   MusicVolumeEnum,
+  VoiceEnum,
 } from "../types/shorts";
 import { AvailableComponentsEnum, type OrientationConfig } from "../types/shorts";
 
 export const shortVideoSchema = z.object({
   scenes: z.array(
     z.object({
+      videos: z.array(z.string()),
       captions: z.custom<Caption[]>(),
       audio: z.object({
         url: z.string(),
         duration: z.number(),
       }),
-      videos: z.array(z.string()),
     }),
   ),
+  audio: z.object({
+    url: z.string(),
+    startTime: z.number(),
+    endTime: z.number(),
+  }).optional(),
+  duration: z.number().optional(),
+  fps: z.number().optional(),
+  width: z.number().optional(),
+  height: z.number().optional(),
   config: z.object({
     paddingBack: z.number().optional(),
     captionPosition: z.enum(["top", "center", "bottom"]).optional(),
@@ -28,12 +38,18 @@ export const shortVideoSchema = z.object({
     musicVolume: z.nativeEnum(MusicVolumeEnum).optional(),
     overlay: z.string().optional(),
     port: z.number().optional(),
+    language: z.string().optional(),
+    voice: z.nativeEnum(VoiceEnum).optional(),
   }),
   music: z.object({
     file: z.string(),
     url: z.string(),
     start: z.number(),
     end: z.number(),
+    mood: z.string().optional(),
+    fadeOut: z.boolean().optional(),
+    fadeOutDuration: z.number().optional(),
+    loop: z.boolean().optional(),
   }),
 });
 

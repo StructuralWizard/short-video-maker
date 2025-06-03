@@ -215,24 +215,24 @@ export class ShortCreator {
         const sceneStartTime = Date.now();
         logger.debug({ videoId, sceneIndex }, "Processing scene");
         
-        const sceneResults: Scene[] = [];
+      const sceneResults: Scene[] = [];
 
         try {
-          for (let i = 0; i < textParts.length; i++) {
+      for (let i = 0; i < textParts.length; i++) {
             const partStartTime = Date.now();
-            const part = textParts[i];
-            const video = videos[i];
-            const tempId = cuid();
-            const tempWavFileName = `${tempId}.wav`;
-            const tempWavPath = path.join(this.globalConfig.tempDirPath, tempWavFileName);
-            tempFiles.push(tempWavPath);
+        const part = textParts[i];
+        const video = videos[i];
+        const tempId = cuid();
+        const tempWavFileName = `${tempId}.wav`;
+        const tempWavPath = path.join(this.globalConfig.tempDirPath, tempWavFileName);
+        tempFiles.push(tempWavPath);
 
-            let emotion = "neutral";
-            if (part.trim().endsWith("?")) {
-              emotion = "question";
-            } else if (part.trim().endsWith("!")) {
-              emotion = "exclamation";
-            }
+        let emotion = "neutral";
+        if (part.trim().endsWith("?")) {
+          emotion = "question";
+        } else if (part.trim().endsWith("!")) {
+          emotion = "exclamation";
+        }
 
             // Substitui ponto final por vírgula
             let textForTTS = part.trim();
@@ -240,36 +240,24 @@ export class ShortCreator {
               textForTTS = textForTTS.slice(0, -1) + ", ";
             }
 
-            const referenceAudioPath = config.referenceAudioPath || this.globalConfig.referenceAudioPath;
-            
             logger.debug({ 
               videoId, 
               sceneIndex, 
               partIndex: i,
               text: textForTTS,
               emotion,
-              referenceAudioPath
-            }, "Generating speech for scene part");
+            }, "Generating TTS audio");
 
             try {
-              // Gera apenas o áudio, já que o vídeo já foi buscado
+              // Gera o áudio usando TTS
               await this.localTTS.generateSpeech(
                 textForTTS,
                 tempWavPath,
                 emotion,
-                config.language || "pt",
-                referenceAudioPath
+                config.language || "pt"
               );
 
-              const partEndTime = Date.now();
-              logger.debug({ 
-                videoId, 
-                sceneIndex, 
-                partIndex: i,
-                duration: partEndTime - partStartTime 
-              }, "Scene part processing completed");
-
-              // Processa o resultado do áudio
+              // Obtém a duração do áudio
               const audioLength = await this.ffmpeg.getAudioDuration(tempWavPath);
               let finalAudioLength = audioLength;
               
@@ -323,6 +311,7 @@ export class ShortCreator {
 
               totalDuration += finalAudioLength;
 
+              // Adiciona a cena ao array de resultados
               sceneResults.push({
                 id: tempId,
                 text: part,
@@ -336,6 +325,14 @@ export class ShortCreator {
                   duration: finalAudioLength,
                 }
               });
+
+              const partEndTime = Date.now();
+              logger.debug({ 
+                videoId, 
+                sceneIndex, 
+                partIndex: i,
+                duration: partEndTime - partStartTime 
+              }, "Scene part processing completed");
             } catch (error) {
               logger.error({ 
                 error, 
@@ -344,7 +341,6 @@ export class ShortCreator {
                 partIndex: i,
                 text: part,
                 emotion,
-                referenceAudioPath
               }, "Error processing scene part");
               throw error;
             }
@@ -357,7 +353,7 @@ export class ShortCreator {
             duration: sceneEndTime - sceneStartTime 
           }, "Scene processing completed");
 
-          return sceneResults;
+      return sceneResults;
         } catch (error) {
           logger.error({ 
             error, 
@@ -370,7 +366,7 @@ export class ShortCreator {
         }
       });
 
-      const sceneResults = await Promise.all(scenePromises);
+    const sceneResults = await Promise.all(scenePromises);
       sceneProcessingEnd = Date.now();
       logger.info({ 
         videoId, 
@@ -378,9 +374,9 @@ export class ShortCreator {
         scenesCount: inputScenes.length 
       }, "Scene processing phase completed");
 
-      // Flatten the array of scenes
-      const allScenes = sceneResults.flat();
-      scenes.push(...allScenes);
+    // Flatten the array of scenes
+    const allScenes = sceneResults.flat();
+    scenes.push(...allScenes);
     } catch (error) {
       logger.error({ 
         error, 
@@ -406,27 +402,27 @@ export class ShortCreator {
     logger.info({ videoId }, "Starting video rendering phase");
 
     try {
-      await this.remotion.render(
-        {
-          music: {
-            ...selectedMusic,
-          },
-          scenes,
-          config: {
-            durationMs: totalDuration * 1000,
-            paddingBack: (config.paddingBack || 0) + (extraPadding * 1000),
-            ...{
-              captionBackgroundColor: config.captionBackgroundColor || "#dd0000",
-              captionTextColor: config.captionTextColor || "#ffffff",
-              captionPosition: config.captionPosition,
-            },
-            musicVolume: config.musicVolume,
-            overlay: config.overlay,
-          },
+    await this.remotion.render(
+      {
+        music: {
+          ...selectedMusic,
         },
-        videoId,
-        orientation
-      );
+        scenes,
+        config: {
+          durationMs: totalDuration * 1000,
+          paddingBack: (config.paddingBack || 0) + (extraPadding * 1000),
+          ...{
+            captionBackgroundColor: config.captionBackgroundColor || "#dd0000",
+            captionTextColor: config.captionTextColor || "#ffffff",
+            captionPosition: config.captionPosition,
+          },
+          musicVolume: config.musicVolume,
+          overlay: config.overlay,
+        },
+      },
+      videoId,
+      orientation
+    );
     } catch (error: any) {
       logger.error({ 
         error, 
