@@ -30,6 +30,7 @@ export const shortVideoSchema = z.object({
   width: z.number().optional(),
   height: z.number().optional(),
   config: z.object({
+    hook: z.string().optional(),
     paddingBack: z.number().optional(),
     captionPosition: z.enum(["top", "center", "bottom"]).optional(),
     captionBackgroundColor: z.string().optional(),

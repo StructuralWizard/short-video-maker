@@ -135,6 +135,7 @@ export const renderConfig = z.object({
   referenceAudioPath: z.string().optional().describe("Path to reference audio file for TTS"),
   overlay: z.string().optional().describe("Name of the overlay image file (without extension) from static/overlays directory"),
   port: z.number().optional().describe("Port number for the server"),
+  hook: z.string().optional().describe("Text to be displayed in the first frame of the video"),
 });
 export type RenderConfig = z.infer<typeof renderConfig>;
 

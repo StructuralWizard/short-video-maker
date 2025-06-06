@@ -254,7 +254,8 @@ export class ShortCreator {
                 textForTTS,
                 tempWavPath,
                 emotion,
-                config.language || "pt"
+                config.language || "pt",
+                config.referenceAudioPath
               );
 
               // Obtém a duração do áudio
@@ -418,11 +419,34 @@ export class ShortCreator {
           },
           musicVolume: config.musicVolume,
           overlay: config.overlay,
+          hook: config.hook,
         },
       },
       videoId,
       orientation
     );
+    // Salvar arquivos fonte Remotion após renderização
+    const outputDir = this.globalConfig.videosDirPath;
+    const baseName = path.join(outputDir, videoId);
+    const jsonPath = baseName + '.json';
+    const tsxPath = baseName + '.tsx';
+    const jsxPath = baseName + '.jsx';
+    const remotionSource = {
+      scenes,
+      config,
+      music: selectedMusic
+    };
+    // Salva JSON
+    await fs.writeJson(jsonPath, remotionSource, { spaces: 2 });
+    logger.info({ path: jsonPath }, 'Arquivo JSON Remotion salvo');
+    // Gera TSX
+    const tsxContent = `import { AbsoluteFill } from 'remotion';\n\nexport const MyRemotionVideo = ({ scenes, config, music }) => (\n  <AbsoluteFill style={{ background: 'black' }}>\n    {/* Renderize suas cenas aqui */}\n    {/* scenes, config e music disponíveis como props */}\n  </AbsoluteFill>\n);\n\nexport const input = ${JSON.stringify(remotionSource, null, 2)};\n`;
+    await fs.writeFile(tsxPath, tsxContent);
+    logger.info({ path: tsxPath }, 'Arquivo TSX Remotion salvo');
+    // Gera JSX
+    const jsxContent = `import { AbsoluteFill } from 'remotion';\n\nexport const MyRemotionVideo = ({ scenes, config, music }) => (\n  <AbsoluteFill style={{ background: 'black' }}>\n    {/* Renderize suas cenas aqui */}\n    {/* scenes, config e music disponíveis como props */}\n  </AbsoluteFill>\n);\n\nexport const input = ${JSON.stringify(remotionSource, null, 2)};\n`;
+    await fs.writeFile(jsxPath, jsxContent);
+    logger.info({ path: jsxPath }, 'Arquivo JSX Remotion salvo');
     } catch (error: any) {
       logger.error({ 
         error, 

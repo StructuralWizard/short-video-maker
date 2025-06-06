@@ -385,6 +385,16 @@ const VideoCreator: React.FC = () => {
                 helperText="Name of the overlay image file (without extension) from static/overlays directory"
               />
             </Grid>
+
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Hook Text"
+                value={config.hook || ""}
+                onChange={(e) => handleConfigChange("hook", e.target.value)}
+                helperText="Text to be displayed in the first frame of the video"
+              />
+            </Grid>
           </Grid>
         </Paper>
 

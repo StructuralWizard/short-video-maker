@@ -62,6 +62,7 @@ export const RemotionRoot: React.FC = () => {
             captionBackgroundColor: "blue",
             captionPosition: "bottom",
             overlay: "legendario",
+            hook: "Hello World",
             port: PORT,
           },
         }}
@@ -279,6 +280,7 @@ export const RemotionRoot: React.FC = () => {
             captionBackgroundColor: "#ff0000",
             captionPosition: "center",
             overlay: "legendario",
+            hook: "Hello World",
             port: PORT,
           },
         }}

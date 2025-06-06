@@ -11,6 +11,8 @@ import {
   VideoConfig,
 } from "remotion";
 import { z } from "zod";
+import "../../../fonts/HeadingNowTrial-27Extrabold.ttf";
+import "../../../fonts/fonts.css";
 
 import {
   calculateVolume,
@@ -20,7 +22,19 @@ import {
 } from "../../shared/utils";
 import { fontFamily } from "./fonts";
 
-type Props = z.infer<typeof shortVideoSchema>;
+type Props = z.infer<typeof shortVideoSchema> & {
+  config: {
+    durationMs: number;
+    paddingBack?: number;
+    captionPosition?: "top" | "center" | "bottom";
+    captionBackgroundColor?: string;
+    captionTextColor?: string;
+    musicVolume?: string;
+    overlay?: string;
+    port?: number;
+    hook?: string;
+  };
+};
 
 export const PortraitVideo: FC<Props> = ({
   scenes,
@@ -30,8 +44,21 @@ export const PortraitVideo: FC<Props> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
+  // Logs detalhados para depuração
+  console.log('[PortraitVideo] Component rendered with config:', {
+    frame,
+    hook: config?.hook,
+    captionTextColor: config?.captionTextColor,
+    overlay: config?.overlay,
+    musicVolume: config?.musicVolume,
+    scenesCount: scenes.length
+  });
+
   const captionBackgroundColor = config.captionBackgroundColor ?? "#dd0000";
   const captionTextColor = config.captionTextColor ?? "#ffffff";
+
+  // Forçar cor do texto para verde para garantir visibilidade
+  const hookTextColor = "#00ff00";
 
   const activeStyle = {
     backgroundColor: captionBackgroundColor,
@@ -79,6 +106,59 @@ export const PortraitVideo: FC<Props> = ({
     return musicVolume;
   };
 
+  // Helper to split hook into blocks with font size tiers and keep short words together
+  function splitHookIntoBlocks(hook: string) {
+    if (!hook) return [];
+    const words = hook.split(/\s+/);
+    const blocks: { text: string; fontSize: string }[] = [];
+    let current = '';
+    let i = 0;
+    while (i < words.length) {
+      let word = words[i];
+      const len = [...word].length;
+      // Se a palavra for curta (<=3), tente juntar com a próxima
+      if (len <= 3) {
+        // Se não for a última palavra, junte com a próxima
+        if (i + 1 < words.length) {
+          word = word + ' ' + words[i + 1];
+          i++;
+        } else if (current) {
+          // Se for a última e já tem algo no current, junte ao current
+          current += ' ' + word;
+          i++;
+          continue;
+        }
+      }
+      const wordLen = [...word].length;
+      let fontSize = '13em';
+      if (wordLen > 9) fontSize = '8em';
+      else if (wordLen > 7) fontSize = '11em';
+      if (wordLen > 7) {
+        if (current) {
+          blocks.push({ text: current.trim(), fontSize: getFontSize([...current.trim()].length) });
+          current = '';
+        }
+        blocks.push({ text: word, fontSize });
+      } else {
+        if ((current + ' ' + word).trim().length > 7) {
+          if (current) blocks.push({ text: current.trim(), fontSize: getFontSize([...current.trim()].length) });
+          current = word;
+        } else {
+          current += (current ? ' ' : '') + word;
+        }
+      }
+      i++;
+    }
+    if (current) blocks.push({ text: current.trim(), fontSize: getFontSize([...current.trim()].length) });
+    return blocks;
+  }
+
+  function getFontSize(len: number) {
+    if (len > 10) return '11em';
+    if (len > 7) return '9em';
+    return '13em';
+  }
+
   return (
     <AbsoluteFill style={{ backgroundColor: "white" }}>
       <Audio
@@ -90,6 +170,58 @@ export const PortraitVideo: FC<Props> = ({
         muted={musicMuted}
       />
 
+      {config?.hook && frame === 0 && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 999,
+            backgroundColor: "rgba(0,0,0,0.4)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              width: "100%",
+            }}
+          >
+            {splitHookIntoBlocks(config.hook).map((block, idx) => (
+              <span
+                key={idx}
+                style={{
+                  fontSize: block.fontSize,
+                  fontFamily: "'BenzGrotesk', sans-serif",
+                  fontStyle: "italic",
+                  lineHeight: "0.8",
+                  fontWeight: "900",
+                  color: "#ffffff",
+                  WebkitTextStroke: "4px #000000",
+                  WebkitTextFillColor: "#ffffff",
+                  textShadow: "5px 5px 20px #000000",
+                  textAlign: "center",
+                  width: "100%",
+                  textTransform: "uppercase",
+                  letterSpacing: "-0.05em",
+                  opacity: 0.8,
+                  marginBottom: "0.1em",
+                  display: "block",
+                }}
+              >
+                {block.text}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {config?.overlay && (
         <Img
           src={getOverlayUrl(config.overlay, config.port || 3123)}
@@ -100,7 +232,8 @@ export const PortraitVideo: FC<Props> = ({
             width: "100%",
             height: "100%",
             objectFit: "cover",
-            zIndex: 1,
+            zIndex: 1000,
+            pointerEvents: "none",
           }}
         />
       )}

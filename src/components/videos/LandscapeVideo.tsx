@@ -22,7 +22,19 @@ import {
 
 const { fontFamily } = loadFont(); // "Barlow Condensed"
 
-type Props = z.infer<typeof shortVideoSchema>;
+type Props = z.infer<typeof shortVideoSchema> & {
+  config: {
+    durationMs: number;
+    paddingBack?: number;
+    captionPosition?: "top" | "center" | "bottom";
+    captionBackgroundColor?: string;
+    captionTextColor?: string;
+    musicVolume?: string;
+    overlay?: string;
+    port?: number;
+    hook?: string;
+  };
+};
 
 export const LandscapeVideo: FC<Props> = ({
   scenes,
@@ -31,6 +43,9 @@ export const LandscapeVideo: FC<Props> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+
+  // Log para depuração do hook
+  console.log('[LandscapeVideo] frame:', frame, 'config.hook:', config?.hook);
 
   const captionBackgroundColor = config.captionBackgroundColor ?? "blue";
   const captionTextColor = config.captionTextColor ?? "#ffffff";
@@ -85,6 +100,42 @@ export const LandscapeVideo: FC<Props> = ({
             zIndex: 1,
           }}
         />
+      )}
+
+      {config?.hook && frame === 0 && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            padding: "10px",
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 2,
+          }}
+        >
+          <p
+            style={{
+              fontSize: "10em",
+              fontStyle: "italic",
+              fontFamily,
+              fontWeight: "black",
+              color: captionTextColor,
+              WebkitTextStroke: "2px black",
+              WebkitTextFillColor: captionTextColor,
+              textShadow: "0px 0px 10px black",
+              textAlign: "center",
+              width: "100%",
+              textTransform: "uppercase",
+              padding: "0 20px",
+            }}
+          >
+            {config.hook}
+          </p>
+        </div>
       )}
 
       {scenes.map((scene, i) => {
