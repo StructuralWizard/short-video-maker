@@ -109,31 +109,62 @@ export const PortraitVideo: FC<Props> = ({
   // Helper to split hook into blocks with font size tiers and keep short words together
   function splitHookIntoBlocks(hook: string) {
     if (!hook) return [];
+    
+    // First, split the text into words and identify highlighted sections
     const words = hook.split(/\s+/);
-    const blocks: { text: string; fontSize: string }[] = [];
+    const blocks: { text: string; fontSize: string; isHighlighted?: boolean }[] = [];
     let current = '';
     let i = 0;
+    
     while (i < words.length) {
       let word = words[i];
       const len = [...word].length;
-      // Se a palavra for curta (<=3), tente juntar com a próxima
-      if (len <= 3) {
-        // Se não for a última palavra, junte com a próxima
-        if (i + 1 < words.length) {
-          word = word + ' ' + words[i + 1];
+      
+      // Check if word is highlighted (surrounded by asterisks)
+      const isHighlighted = word.startsWith('*') && word.endsWith('*');
+      if (isHighlighted) {
+        word = word.slice(1, -1); // Remove asterisks
+      }
+      
+      // If word is short (<=3 chars), try to combine with next word
+      if (len <= 3 && i + 1 < words.length) {
+        const nextWord = words[i + 1];
+        const nextIsHighlighted = nextWord.startsWith('*') && nextWord.endsWith('*');
+        const nextWordClean = nextIsHighlighted ? nextWord.slice(1, -1) : nextWord;
+        
+        // Combine with next word if either is highlighted or both are short
+        if (isHighlighted || nextIsHighlighted || [...nextWordClean].length <= 3) {
+          word = word + ' ' + nextWordClean;
+          if (isHighlighted || nextIsHighlighted) {
+            if (current) {
+              blocks.push({ text: current.trim(), fontSize: getFontSize([...current.trim()].length) });
+              current = '';
+            }
+            blocks.push({ 
+              text: word, 
+              fontSize: getFontSize([...word].length),
+              isHighlighted: true 
+            });
+            i += 2;
+            continue;
+          }
           i++;
-        } else if (current) {
-          // Se for a última e já tem algo no current, junte ao current
-          current += ' ' + word;
-          i++;
-          continue;
         }
       }
+      
       const wordLen = [...word].length;
       let fontSize = '13em';
-      if (wordLen > 9) fontSize = '8em';
+      if (wordLen > 12) fontSize = '5em';
+      else if (wordLen > 9) fontSize = '8em';
       else if (wordLen > 7) fontSize = '11em';
-      if (wordLen > 7) {
+      
+      if (isHighlighted) {
+        if (current) {
+          blocks.push({ text: current.trim(), fontSize: getFontSize([...current.trim()].length) });
+          current = '';
+        }
+        blocks.push({ text: word, fontSize, isHighlighted: true });
+      } else if (wordLen > 7) {
         if (current) {
           blocks.push({ text: current.trim(), fontSize: getFontSize([...current.trim()].length) });
           current = '';
@@ -149,6 +180,7 @@ export const PortraitVideo: FC<Props> = ({
       }
       i++;
     }
+    
     if (current) blocks.push({ text: current.trim(), fontSize: getFontSize([...current.trim()].length) });
     return blocks;
   }
@@ -198,13 +230,13 @@ export const PortraitVideo: FC<Props> = ({
                 key={idx}
                 style={{
                   fontSize: block.fontSize,
-                  fontFamily: "'BenzGrotesk', sans-serif",
+                  fontFamily: block.isHighlighted ? "'BenzGrotesk', sans-serif" : "'BenzGrotesk', sans-serif",
                   fontStyle: "italic",
                   lineHeight: "0.8",
                   fontWeight: "900",
-                  color: "#ffffff",
-                  WebkitTextStroke: "4px #000000",
-                  WebkitTextFillColor: "#ffffff",
+                  color: block.isHighlighted ? "#ffff00" : "#ffffff",
+                  WebkitTextStroke: block.isHighlighted ? "4px #000000" : "4px #000000",
+                  WebkitTextFillColor: block.isHighlighted ? "#ffff00" : "#ffffff",
                   textShadow: "5px 5px 20px #000000",
                   textAlign: "center",
                   width: "100%",
