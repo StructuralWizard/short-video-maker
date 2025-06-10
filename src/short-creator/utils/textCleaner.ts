@@ -107,4 +107,32 @@ export function splitTextByPunctuation(text: string): string[] {
       }
       return s;
     });
+}
+
+/**
+ * Divide uma frase longa em partes menores, respeitando o máximo de palavras por parte.
+ */
+function splitLongSentence(sentence: string, maxWords = 20): string[] {
+  const words = sentence.split(/\s+/);
+  if (words.length <= maxWords) return [sentence];
+  const parts = [];
+  for (let i = 0; i < words.length; i += maxWords) {
+    parts.push(words.slice(i, i + maxWords).join(' '));
+  }
+  return parts;
+}
+
+/**
+ * Divide o texto para TTS: primeiro por pontuação, depois quebra frases longas.
+ */
+export function splitTextForTTS(text: string, maxWords = 20): string[] {
+  // Primeiro, divide por pontuação
+  const sentences = splitTextByPunctuation(text);
+  // Depois, divide frases longas
+  const result: string[] = [];
+  for (const sentence of sentences) {
+    const parts = splitLongSentence(sentence, maxWords);
+    result.push(...parts);
+  }
+  return result;
 } 
