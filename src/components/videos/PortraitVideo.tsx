@@ -110,7 +110,6 @@ export const PortraitVideo: FC<Props> = ({
   function splitHookIntoBlocks(hook: string) {
     if (!hook) return [];
     
-    // First, split the text into words and identify highlighted sections
     const words = hook.split(/\s+/);
     const blocks: { text: string; fontSize: string; isHighlighted?: boolean }[] = [];
     let current = '';
@@ -118,31 +117,31 @@ export const PortraitVideo: FC<Props> = ({
     
     while (i < words.length) {
       let word = words[i];
-      const len = [...word].length;
-      
-      // Check if word is highlighted (surrounded by asterisks)
-      const isHighlighted = word.startsWith('*') && word.endsWith('*');
+      // Novo: regex para detectar *palavra* com pontuação após o asterisco
+      const match = word.match(/^\*(.+?)\*(\W*)$/);
+      const isHighlighted = !!match;
+      let cleanWord = word;
       if (isHighlighted) {
-        word = word.slice(1, -1); // Remove asterisks
+        cleanWord = match[1] + (match[2] || '');
       }
+      const len = [...cleanWord].length;
       
       // If word is short (<=3 chars), try to combine with next word
       if (len <= 3 && i + 1 < words.length) {
         const nextWord = words[i + 1];
-        const nextIsHighlighted = nextWord.startsWith('*') && nextWord.endsWith('*');
-        const nextWordClean = nextIsHighlighted ? nextWord.slice(1, -1) : nextWord;
-        
-        // Combine with next word if either is highlighted or both are short
+        const nextMatch = nextWord.match(/^\*(.+?)\*(\W*)$/);
+        const nextIsHighlighted = !!nextMatch;
+        const nextWordClean = nextIsHighlighted ? nextMatch[1] + (nextMatch[2] || '') : nextWord;
         if (isHighlighted || nextIsHighlighted || [...nextWordClean].length <= 3) {
-          word = word + ' ' + nextWordClean;
+          cleanWord = cleanWord + ' ' + nextWordClean;
           if (isHighlighted || nextIsHighlighted) {
             if (current) {
               blocks.push({ text: current.trim(), fontSize: getFontSize([...current.trim()].length) });
               current = '';
             }
             blocks.push({ 
-              text: word, 
-              fontSize: getFontSize([...word].length),
+              text: cleanWord, 
+              fontSize: getFontSize([...cleanWord].length),
               isHighlighted: true 
             });
             i += 2;
@@ -152,7 +151,7 @@ export const PortraitVideo: FC<Props> = ({
         }
       }
       
-      const wordLen = [...word].length;
+      const wordLen = [...cleanWord].length;
       let fontSize = '13em';
       if (wordLen > 12) fontSize = '5em';
       else if (wordLen > 9) fontSize = '8em';
@@ -163,19 +162,19 @@ export const PortraitVideo: FC<Props> = ({
           blocks.push({ text: current.trim(), fontSize: getFontSize([...current.trim()].length) });
           current = '';
         }
-        blocks.push({ text: word, fontSize, isHighlighted: true });
+        blocks.push({ text: cleanWord, fontSize, isHighlighted: true });
       } else if (wordLen > 7) {
         if (current) {
           blocks.push({ text: current.trim(), fontSize: getFontSize([...current.trim()].length) });
           current = '';
         }
-        blocks.push({ text: word, fontSize });
+        blocks.push({ text: cleanWord, fontSize });
       } else {
-        if ((current + ' ' + word).trim().length > 7) {
+        if ((current + ' ' + cleanWord).trim().length > 7) {
           if (current) blocks.push({ text: current.trim(), fontSize: getFontSize([...current.trim()].length) });
-          current = word;
+          current = cleanWord;
         } else {
-          current += (current ? ' ' : '') + word;
+          current += (current ? ' ' : '') + cleanWord;
         }
       }
       i++;
@@ -335,6 +334,7 @@ export const PortraitVideo: FC<Props> = ({
                       left: 0,
                       width: "100%",
                       ...captionStyle,
+                      zIndex: 1001,
                     }}
                   >
                     {page.lines.map((line, k) => {

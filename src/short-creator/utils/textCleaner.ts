@@ -65,6 +65,9 @@ export function cleanSceneText(text: string): string {
     // Remove espaços no início e fim
     cleaned = cleaned.trim();
     
+    // Substitui reticências por vírgula
+    cleaned = cleaned.replace(/\.{3,}/g, ',');
+    
     // Remove caracteres especiais mantendo acentuação e pontuação
     cleaned = cleaned.replace(/[^\p{L}\p{N}\s.,!?:;-]/gu, '');
     

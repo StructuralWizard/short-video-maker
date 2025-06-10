@@ -503,23 +503,19 @@ export class ShortCreator {
   }
 
   private splitTextIntoTwoParts(text: string): string[] {
-    // Remove espaços extras e pontuação no final
-    text = text.trim().replace(/[.!?]+$/, '');
-    
+    // Remove espaços extras e ponto final no final, mas mantém ? e !
+    text = text.trim().replace(/\.$/, '');
     // Divide o texto em partes usando pontuação de fim de frase
     const parts = text.split(/(?<=[.!?:])\s+/);
-    
     // Filtra as partes que têm pelo menos 7 palavras
     const validParts = parts.filter(part => {
       const wordCount = part.split(/\s+/).length;
       return wordCount >= 7;
     });
-
     // Se não houver partes válidas, retorna o texto original
     if (validParts.length === 0) {
       return [text];
     }
-
     return validParts;
   }
 
