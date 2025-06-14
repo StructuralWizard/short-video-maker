@@ -8,7 +8,8 @@ import z from "zod";
 import { AvailableComponentsEnum } from "../types";
 
 const FPS = 25;
-const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3123;
+// Use the main API server port, not the UI dev server port
+const PORT = 3123;
 
 export const calculateMetadata: CalculateMetadataFunction<
   z.infer<typeof shortVideoSchema>

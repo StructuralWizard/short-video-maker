@@ -19,6 +19,7 @@ import {
   createCaptionPages,
   shortVideoSchema,
   getOverlayUrl,
+  getVideoUrl,
 } from "../../shared/utils";
 import { fontFamily } from "./fonts";
 
@@ -309,7 +310,7 @@ export const PortraitVideo: FC<Props> = ({
               overflow: 'hidden'
             }}>
               <OffthreadVideo 
-                src={scene.videos[0]} 
+                src={getVideoUrl(scene.videos[0], config.port || 3123)} 
                 muted 
                 style={{
                   width: '100%',

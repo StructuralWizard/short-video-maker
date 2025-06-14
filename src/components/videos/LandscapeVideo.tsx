@@ -18,6 +18,7 @@ import {
   createCaptionPages,
   shortVideoSchema,
   getOverlayUrl,
+  getVideoUrl,
 } from "../../shared/utils";
 
 const { fontFamily } = loadFont(); // "Barlow Condensed"
@@ -194,7 +195,7 @@ export const LandscapeVideo: FC<Props> = ({
               overflow: 'hidden'
             }}>
               <OffthreadVideo 
-                src={scene.videos[0]} 
+                src={getVideoUrl(scene.videos[0], config.port || 3123)} 
                 muted 
                 style={{
                   width: '100%',

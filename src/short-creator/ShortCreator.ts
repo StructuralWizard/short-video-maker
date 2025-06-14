@@ -51,7 +51,10 @@ export class ShortCreator {
   /**
    * Garante que a URL seja absoluta, adicionando o prefixo do servidor se necessário
    */
-  private ensureAbsoluteUrl(url: string): string {
+  private ensureAbsoluteUrl(url: string | undefined | null): string {
+    if (!url) {
+      throw new Error("URL cannot be undefined or null");
+    }
     if (url.startsWith('http')) {
       return url;
     }
@@ -183,6 +186,23 @@ export class ShortCreator {
         textParts.length // Número de vídeos necessários
       );
 
+      // Se não temos vídeos suficientes, reutiliza os disponíveis
+      const finalVideos: any[] = [];
+      
+      if (searchResults.length === 0) {
+        throw new Error(`No videos found for scene ${sceneIndex} with search terms: ${searchTerms}`);
+      }
+      
+      for (let i = 0; i < textParts.length; i++) {
+        if (searchResults[i]) {
+          finalVideos.push(searchResults[i]);
+        } else {
+          // Reutiliza um vídeo aleatório dos disponíveis
+          const randomIndex = Math.floor(Math.random() * searchResults.length);
+          finalVideos.push(searchResults[randomIndex]);
+        }
+      }
+
       // Adiciona os IDs dos vídeos selecionados ao excludeVideoIds
       searchResults.forEach(video => excludeVideoIds.push(video.id));
 
@@ -190,10 +210,12 @@ export class ShortCreator {
       logger.debug({ 
         videoId, 
         sceneIndex, 
-        duration: sceneEndTime - sceneStartTime 
+        duration: sceneEndTime - sceneStartTime,
+        videosFound: searchResults.length,
+        videosNeeded: textParts.length
       }, "Scene video search completed");
 
-      return { scene, videos: searchResults, textParts };
+      return { scene, videos: finalVideos, textParts };
     });
 
     // Aguarda todas as buscas de vídeo
@@ -222,6 +244,19 @@ export class ShortCreator {
             const partStartTime = Date.now();
         const part = textParts[i];
         const video = videos[i];
+        
+        // Check if video exists
+        if (!video || !video.url) {
+          logger.error({ 
+            videoId, 
+            sceneIndex, 
+            partIndex: i,
+            availableVideos: videos.length,
+            requiredVideos: textParts.length
+          }, "No video available for this part");
+          throw new Error(`No video available for part ${i} of scene ${sceneIndex}`);
+        }
+        
         const tempId = cuid();
         const tempWavFileName = `${tempId}.wav`;
         const tempWavPath = path.join(this.globalConfig.tempDirPath, tempWavFileName);
@@ -420,6 +455,7 @@ export class ShortCreator {
           musicVolume: config.musicVolume,
           overlay: config.overlay,
           hook: config.hook,
+          port: this.globalConfig.port,
         },
       },
       videoId,

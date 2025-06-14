@@ -51,14 +51,9 @@ export class LocalImageAPI implements VideoProvider {
           usedIndices.add(randomIndex);
           const video = availableVideos[randomIndex];
           
-          // Ensure the URL is absolute and uses the video server URL
-          const videoUrl = video.file_path.startsWith('http') 
-            ? video.file_path 
-            : `http://localhost:8000${video.file_path}`;
-
           selectedVideos.push({
             id: video.id.toString(),
-            url: videoUrl,
+            url: `http://localhost:8000${video.file_path}`,
             duration: video.duration,
             width: video.width,
             height: video.height,

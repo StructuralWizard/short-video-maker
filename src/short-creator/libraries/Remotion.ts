@@ -26,9 +26,26 @@ export class Remotion {
     return new Promise((resolve, reject) => {
       const file = fs.createWriteStream(outputPath);
       
-      // Força o uso de HTTP para o servidor de stock
-      const httpUrl = url.replace('https://', 'http://');
-      http.get(httpUrl, (response) => {
+      // Parse the URL properly to handle query parameters
+      const parsedUrl = new URL(url);
+      
+      const options = {
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port || '80',
+        path: parsedUrl.pathname + parsedUrl.search,
+        method: 'GET',
+        headers: {
+          'Accept': 'video/*'
+        }
+      };
+
+      http.get(options, (response) => {
+        if (response.statusCode !== 200) {
+          fs.unlink(outputPath, () => {});
+          reject(new Error(`Failed to download video: HTTP ${response.statusCode}`));
+          return;
+        }
+
         response.pipe(file);
         file.on('finish', () => {
           file.close();
@@ -97,37 +114,16 @@ export class Remotion {
     const outputLocation = path.join(this.config.videosDirPath, `${id}.mp4`);
 
     try {
-      // Pré-download dos vídeos antes de iniciar a renderização
-      logger.debug({ videoID: id }, "Starting video pre-download");
-      const downloadedVideos = await this.preDownloadVideos(data.scenes);
-      logger.debug({ 
-        videoID: id, 
-        downloadedCount: downloadedVideos.length 
-      }, "Video pre-download completed");
-
-      // Atualiza as URLs dos vídeos para apontar para os arquivos locais
-      const updatedScenes = data.scenes.map(scene => ({
-        ...scene,
-        videos: scene.videos.map(videoUrl => {
-          const url = new URL(videoUrl);
-          const filename = path.basename(url.pathname);
-          return `file://${path.join(this.config.tempDirPath, filename)}`;
-        })
-      }));
-
       await renderMedia({
         codec: "h264",
         composition,
         serveUrl: this.bundled,
         outputLocation,
-        inputProps: {
-          ...data,
-          scenes: updatedScenes
-        },
+        inputProps: data,
         onProgress: ({ progress }) => {
           logger.debug(`Rendering ${id} ${Math.floor(progress * 100)}% complete`);
         },
-        concurrency: 10, // Ajustado para o número de cores disponíveis
+        concurrency: 10,
         offthreadVideoCacheSizeInBytes: 1024 * 1024 * 1024 * 8, // 8GB de cache
         chromiumOptions: {
           disableWebSecurity: true,
@@ -138,23 +134,14 @@ export class Remotion {
       
       logger.debug(
         {
-          outputLocation,
           component,
           videoID: id,
         },
         "Video rendered with Remotion",
       );
 
-      // Limpa os vídeos baixados após a renderização
-      for (const video of downloadedVideos) {
-        try {
-          fs.removeSync(video);
-        } catch (error) {
-          logger.error({ error, video }, "Error cleaning up downloaded video");
-        }
-      }
     } catch (err) {
-      logger.error("Remotion render failed", err);
+      logger.error("Remotion render failed");
       throw err;
     }
   }

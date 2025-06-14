@@ -191,3 +191,8 @@ export function calculateVolume(
 export function getOverlayUrl(overlay: string, port: number): string {
   return `http://localhost:${port}/api/overlays/${overlay}.png`;
 }
+
+export function getVideoUrl(url: string, port: number = 3123): string {
+  // Return the direct URL from the image bank
+  return url;
+}

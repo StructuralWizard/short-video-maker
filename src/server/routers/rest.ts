@@ -264,68 +264,50 @@ export class APIRouter {
     );
 
     this.router.get(
-      "/pxv",
-      async (req: ExpressRequest, res: ExpressResponse) => {
-        try {
-          const { path: videoPath } = req.query;
-          if (!videoPath) {
-            res.status(400).json({
-              error: "path is required",
-            });
-            return;
-          }
-
-          const fullPath = path.join(this.config.dataDirPath, "video-files", videoPath as string);
-          if (!fs.existsSync(fullPath)) {
-            res.status(404).json({
-              error: "Video file not found",
-            });
-            return;
-          }
-
-          res.setHeader("Content-Type", "video/mp4");
-          const videoStream = fs.createReadStream(fullPath);
-          videoStream.on("error", (error) => {
-            logger.error(error, "Error reading video file");
-            res.status(500).json({
-              error: "Error reading video file",
-              path: videoPath,
-            });
-          });
-          videoStream.pipe(res);
-        } catch (error: unknown) {
-          logger.error(error, "Error handling video proxy request");
-          res.status(500).json({
-            error: "Internal server error",
-          });
-        }
-      },
-    );
-
-    this.router.get(
       "/proxy",
       async (req: ExpressRequest, res: ExpressResponse) => {
         try {
-          const { src, time, transparent, toneMapped } = req.query;
-          if (!src) {
+          const { src } = req.query;
+          if (!src || typeof src !== 'string') {
             res.status(400).json({
-              error: "src is required",
+              error: "src parameter is required",
             });
             return;
           }
 
-          const videoUrl = decodeURIComponent(src as string);
-          const response = await fetch(videoUrl);
+          logger.info({ src }, "Proxying video request");
+
+          const response = await fetch(src);
           if (!response.ok) {
-            throw new Error(`Failed to fetch video: ${response.statusText}`);
+            logger.error({ src, status: response.status }, "Failed to fetch video from source");
+            res.status(response.status).json({
+              error: "Failed to fetch video from source",
+            });
+            return;
           }
 
-          res.setHeader("Content-Type", "video/mp4");
-          response.body?.pipe(res);
+          // Set appropriate headers for video streaming
+          res.setHeader("Content-Type", response.headers.get("content-type") || "video/mp4");
+          if (response.headers.get("content-length")) {
+            res.setHeader("Content-Length", response.headers.get("content-length")!);
+          }
+          
+          // Enable range requests for video streaming
+          if (req.headers.range) {
+            res.setHeader("Accept-Ranges", "bytes");
+          }
+
+          // Pipe the response
+          if (response.body) {
+            response.body.pipe(res);
+          } else {
+            res.status(500).json({ error: "No response body" });
+          }
         } catch (error: unknown) {
-          logger.error(error, "Error handling proxy request");
+          logger.error({ error, src: req.query.src }, "Error proxying video");
           res.status(500).json({
-            error: "Internal server error",
+            error: "Failed to proxy video",
+            message: error instanceof Error ? error.message : "Unknown error",
           });
         }
       },
