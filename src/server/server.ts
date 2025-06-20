@@ -32,17 +32,8 @@ export class Server {
     this.app.use("/mcp", mcpRouter.router);
     this.app.use("/api/reference-audio", referenceAudioRouter);
 
-    // Serve static files from the UI build
-    this.app.use(express.static(path.join(__dirname, "../../dist/ui")));
-    this.app.use(
-      "/static",
-      express.static(path.join(__dirname, "../../static")),
-    );
-
-    // Serve the React app for all other routes (must be last)
-    this.app.get("*", (req: ExpressRequest, res: ExpressResponse) => {
-      res.sendFile(path.join(__dirname, "../../dist/ui/index.html"));
-    });
+    // Serve a pasta de arquivos temporários
+    this.app.use('/temp', express.static(this.config.tempDirPath));
   }
 
   private async killProcessOnPort(port: number): Promise<void> {
@@ -87,8 +78,8 @@ export class Server {
       while (retries > 0) {
         try {
           await new Promise<void>((resolve, reject) => {
-            const server = this.app.listen(port, () => {
-              logger.info(`🚀 Server running on port ${port}`);
+            const server = this.app.listen(port, "0.0.0.0", () => {
+              logger.info(`🚀 Server running on http://0.0.0.0:${port}`);
               // Envia sinal de ready para o PM2
               if (process.send) {
                 process.send('ready');

@@ -1,8 +1,9 @@
 import { Scene, Video } from "../../types/shorts";
-import { logger } from "../../utils/logger";
+import { logger } from "../../logger";
 import ffmpeg from "fluent-ffmpeg";
 import path from "path";
 import fs from "fs/promises";
+import { exec } from "child_process";
 
 export class VideoProcessor {
   private outputDir: string;

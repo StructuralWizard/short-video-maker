@@ -45,6 +45,9 @@ export const sceneInput = z.object({
     .describe(
       "Search term for video, 1 word, and at least 2-3 search terms should be provided for each scene. Make sure to match the overall context with the word - regardless what the video search result would be.",
     ),
+  videos: z.array(z.string()).optional().describe("Pre-defined video URLs to be used for the scene, bypassing search."),
+  audio: z.object({ url: z.string(), duration: z.number() }).optional().describe("Pre-defined audio to be used for the scene, bypassing TTS."),
+  captions: z.array(z.any()).optional().describe("Pre-defined captions for the scene."),
 });
 export type SceneInput = z.infer<typeof sceneInput>;
 
@@ -174,8 +177,6 @@ export const createShortInput = z.object({
 });
 export type CreateShortInput = z.infer<typeof createShortInput>;
 
-export type VideoStatus = "processing" | "ready" | "failed";
-
 export type Music = {
   file: string;
   start: number;
@@ -228,3 +229,33 @@ export type OrientationConfig = {
   height: number;
   component: AvailableComponentsEnum;
 };
+
+export type VideoConfig = {
+  durationMs: number;
+  paddingBack: number;
+  captionBackgroundColor: string;
+  captionTextColor: string;
+  captionPosition: string;
+  musicVolume: number;
+  overlay?: string;
+  hook?: string;
+  port?: number;
+}
+
+export type MusicData = {
+  file: string;
+  duration: number;
+};
+
+export type ShortVideoData = {
+  scenes: any[]; // Definir um tipo mais específico se possível
+  music: {
+    file: string;
+    url: string;
+    start: number;
+    end: number;
+    mood?: string;
+    loop?: boolean;
+  };
+  config: VideoConfig;
+}

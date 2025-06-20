@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DownloadIcon from '@mui/icons-material/Download';
+import EditIcon from '@mui/icons-material/Edit';
 import { VideoStatus } from '../../types/shorts';
 
 const VideoDetails: React.FC = () => {
@@ -24,25 +25,22 @@ const VideoDetails: React.FC = () => {
   const isMounted = useRef(true);
 
   const checkVideoStatus = async () => {
+    if (!isMounted.current) return;
     try {
       const response = await axios.get(`/api/short-video/${videoId}/status`);
-      const videoStatus = response.data.status;
+      const newStatus = response.data.status;
 
       if (isMounted.current) {
-        setStatus(videoStatus || 'unknown');
-        console.log("videoStatus", videoStatus);
-        
-        if (videoStatus !== 'processing') {
-          console.log("video is not processing");
-          console.log("interval", intervalRef.current);
-          
-          if (intervalRef.current) {
-            console.log("clearing interval");
+        setStatus((currentStatus) => {
+          if (currentStatus === newStatus) {
+            return currentStatus;
+          }
+          if (newStatus !== 'processing' && intervalRef.current) {
             clearInterval(intervalRef.current);
             intervalRef.current = null;
           }
-        }
-        
+          return newStatus || 'unknown';
+        });
         setLoading(false);
       }
     } catch (error) {
@@ -50,8 +48,6 @@ const VideoDetails: React.FC = () => {
         setError('Failed to fetch video status');
         setStatus('failed');
         setLoading(false);
-        console.error('Error fetching video status:', error);
-        
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
@@ -61,6 +57,7 @@ const VideoDetails: React.FC = () => {
   };
 
   useEffect(() => {
+    isMounted.current = true;
     checkVideoStatus();
     
     intervalRef.current = setInterval(() => {
@@ -78,6 +75,10 @@ const VideoDetails: React.FC = () => {
 
   const handleBack = () => {
     navigate('/');
+  };
+
+  const handleEdit = () => {
+    navigate(`/video/${videoId}/edit`);
   };
 
   const renderContent = () => {
@@ -134,7 +135,7 @@ const VideoDetails: React.FC = () => {
             />
           </Box>
           
-          <Box textAlign="center">
+          <Box textAlign="center" display="flex" justifyContent="center" gap={2}>
             <Button 
               component="a"
               href={`/api/short-video/${videoId}`}
@@ -145,6 +146,14 @@ const VideoDetails: React.FC = () => {
               sx={{ textDecoration: 'none' }}
             >
               Download Video
+            </Button>
+            <Button 
+              variant="outlined" 
+              color="primary" 
+              startIcon={<EditIcon />}
+              onClick={handleEdit}
+            >
+              Edit Video
             </Button>
           </Box>
         </Box>

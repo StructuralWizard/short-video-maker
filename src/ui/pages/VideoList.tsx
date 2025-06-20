@@ -13,11 +13,16 @@ import {
   ListItemText,
   ListItemSecondaryAction,
   IconButton,
-  Divider
+  Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import DeleteIcon from '@mui/icons-material/Delete';
+import ClearIcon from '@mui/icons-material/Clear';
 
 interface VideoItem {
   id: string;
@@ -29,6 +34,8 @@ const VideoList: React.FC = () => {
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   const fetchVideos = async () => {
     try {
@@ -66,6 +73,21 @@ const VideoList: React.FC = () => {
     }
   };
 
+  const handleClearAllVideos = async () => {
+    setClearing(true);
+    try {
+      // Fazer uma requisição para limpar todos os vídeos
+      await axios.post('/api/clear-all-videos');
+      setVideos([]);
+      setClearDialogOpen(false);
+    } catch (err) {
+      setError('Failed to clear all videos');
+      console.error('Error clearing videos:', err);
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const capitalizeFirstLetter = (str: string) => {
     if (!str || typeof str !== 'string') return 'Unknown';
     return str.charAt(0).toUpperCase() + str.slice(1);
@@ -85,14 +107,26 @@ const VideoList: React.FC = () => {
         <Typography variant="h4" component="h1">
           Your Videos
         </Typography>
-        <Button 
-          variant="contained" 
-          color="primary" 
-          startIcon={<AddIcon />}
-          onClick={handleCreateNew}
-        >
-          Create New Video
-        </Button>
+        <Box display="flex" gap={2}>
+          {videos.length > 0 && (
+            <Button 
+              variant="outlined" 
+              color="error" 
+              startIcon={<ClearIcon />}
+              onClick={() => setClearDialogOpen(true)}
+            >
+              Clear All
+            </Button>
+          )}
+          <Button 
+            variant="contained" 
+            color="primary" 
+            startIcon={<AddIcon />}
+            onClick={handleCreateNew}
+          >
+            Create New Video
+          </Button>
+        </Box>
       </Box>
       
       {error && (
@@ -177,6 +211,30 @@ const VideoList: React.FC = () => {
           </List>
         </Paper>
       )}
+
+      {/* Dialog de confirmação para limpar todos os vídeos */}
+      <Dialog open={clearDialogOpen} onClose={() => setClearDialogOpen(false)}>
+        <DialogTitle>Clear All Videos</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete all {videos.length} videos? This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setClearDialogOpen(false)} disabled={clearing}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleClearAllVideos} 
+            color="error" 
+            variant="contained"
+            disabled={clearing}
+            startIcon={clearing ? <CircularProgress size={16} /> : <ClearIcon />}
+          >
+            {clearing ? 'Clearing...' : 'Clear All'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

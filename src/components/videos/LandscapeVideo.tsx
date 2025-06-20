@@ -90,7 +90,7 @@ export const LandscapeVideo: FC<Props> = ({
 
       {config?.overlay && (
         <Img
-          src={getOverlayUrl(config.overlay, config.port || 3123)}
+          src={getOverlayUrl(config.overlay)}
           style={{
             position: "absolute",
             top: 0,
@@ -195,7 +195,7 @@ export const LandscapeVideo: FC<Props> = ({
               overflow: 'hidden'
             }}>
               <OffthreadVideo 
-                src={getVideoUrl(scene.videos[0], config.port || 3123)} 
+                src={scene.videos[0]} 
                 muted 
                 style={{
                   width: '100%',

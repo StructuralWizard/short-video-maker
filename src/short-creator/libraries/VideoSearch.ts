@@ -41,4 +41,13 @@ export class VideoSearch {
       count
     );
   }
+
+  public async getVideoByUrl(url: string): Promise<VideoResult> {
+    logger.info({ url }, "🔍 Getting video by URL");
+    const videoId = url.split('/').pop();
+    if (!videoId) {
+      throw new VideoSearchError(`Could not extract video ID from URL: ${url}`);
+    }
+    return await this.localImageApi.getVideoById(videoId);
+  }
 } 

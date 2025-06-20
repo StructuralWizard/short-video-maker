@@ -1,21 +1,25 @@
 import { Config } from "../../config";
-import { logger } from "../../utils/logger";
+import { logger } from "../../logger";
 import path from "path";
 import fs from "fs/promises";
 import axios, { AxiosError } from "axios";
 import fetch from "node-fetch";
+import { FFMpeg } from "./FFmpeg";
 
 export class LocalTTS {
   private readonly serviceUrl: string;
   private outputDir: string;
+  private ffmpeg: FFMpeg;
 
-  constructor(private config: Config, outputDir: string = "output/audio") {
+  constructor(private config: Config, ffmpeg: FFMpeg, outputDir: string = "output/audio") {
     this.serviceUrl = "http://localhost:5003";
     this.outputDir = outputDir;
+    this.ffmpeg = ffmpeg;
   }
 
   static async init(config: Config): Promise<LocalTTS> {
-    return new LocalTTS(config);
+    const ffmpeg = await FFMpeg.init();
+    return new LocalTTS(config, ffmpeg);
   }
 
   async generateSpeech(
@@ -24,7 +28,7 @@ export class LocalTTS {
     emotion: string = "neutral",
     language: string = "pt",
     referenceAudioPath?: string
-  ): Promise<void> {
+  ): Promise<{ audioPath: string, subtitles: any[], duration: number }> {
     logger.info("🚀 Iniciando geração de áudio com TTS", {
       text,
       outputPath,
@@ -56,7 +60,7 @@ export class LocalTTS {
       };
 
       // Log the request details
-      logger.debug("Sending request to TTS server", {
+      logger.info("Sending request to TTS server", {
         url: `${this.serviceUrl}/api/tts`,
         requestData,
         headers: {
@@ -82,15 +86,9 @@ export class LocalTTS {
 
       const responseData = await response.json();
 
-      // Log the response
-      logger.debug("Received response from TTS server", {
-        status: response.status,
-        statusText: response.statusText,
-        data: responseData,
-        headers: Object.fromEntries(response.headers.entries())
-      });
-
       if (!responseData || !responseData.download_link) {
+        // Log a resposta completa em caso de falha para diagnóstico
+        logger.error("Invalid response from TTS server, full response logged for debugging.", { responseData });
         throw new Error("Invalid response from TTS server: missing download link");
       }
 
@@ -111,7 +109,25 @@ export class LocalTTS {
       // Salva o arquivo de áudio
       await fs.writeFile(outputPath, downloadResponse.data);
       
-      logger.info("🎵 Speech generated successfully", { outputPath });
+      const duration = await this.ffmpeg.getAudioDuration(outputPath);
+
+      logger.info("🎵 Speech generated successfully", { outputPath, duration });
+
+      const words = text.split(/\s+/);
+      const wordCount = words.length;
+      const durationPerWord = wordCount > 0 ? (duration * 1000) / wordCount : 0;
+
+      const subtitles = words.map((word, index) => {
+        const start = index * durationPerWord;
+        const end = start + durationPerWord;
+        return { text: word, start, end };
+      });
+
+      return {
+        audioPath: outputPath,
+        subtitles: subtitles,
+        duration: duration,
+      };
     } catch (error: unknown) {
       const axiosError = error as AxiosError;
       logger.error("❌ Failed to generate speech", {

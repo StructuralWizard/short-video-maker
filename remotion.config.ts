@@ -12,3 +12,6 @@ Config.setEntryPoint("src/components/root/index.ts");
 
 // Enable parallel processing
 Config.setConcurrency(8);
+
+Config.setPort(3122);
+Config.setBind("0.0.0.0");

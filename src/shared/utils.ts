@@ -188,11 +188,17 @@ export function calculateVolume(
   }
 }
 
-export function getOverlayUrl(overlay: string, port: number): string {
+export function getOverlayUrl(overlay: string): string {
+  const port = process.env.PORT || 3123;
   return `http://localhost:${port}/api/overlays/${overlay}.png`;
 }
 
-export function getVideoUrl(url: string, port: number = 3123): string {
-  // Return the direct URL from the image bank
-  return url;
+export function getVideoUrl(url: string): string {
+  if (!url) return '';
+  // URLs locais (do nosso próprio servidor de desenvolvimento ou de arquivos) não precisam de proxy.
+  if (url.startsWith('/') || url.startsWith('file://')) {
+    return url;
+  }
+  // Para URLs externas, use o proxy.
+  return `/api/proxy?src=${encodeURIComponent(url)}`;
 }

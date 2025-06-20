@@ -11,7 +11,7 @@ import http from "http";
 import { Config } from "../../config";
 import { shortVideoSchema, getOrientationConfig } from "../../shared/utils";
 import { logger } from "../../logger";
-import { OrientationEnum } from "../../types/shorts";
+import { OrientationEnum, ShortVideoData } from "../../types/shorts";
 
 // Configura o Node.js para usar mais memória
 process.env.NODE_OPTIONS = '--max-old-space-size=16384'; // 16GB para Node.js
@@ -94,6 +94,47 @@ export class Remotion {
     });
 
     return new Remotion(bundled, config);
+  }
+
+  public async renderMedia(
+    id: string,
+    data: ShortVideoData,
+    onProgress: (progress: number) => void,
+    orientation: OrientationEnum = OrientationEnum.portrait
+  ) {
+    const { component } = getOrientationConfig(orientation);
+
+    const composition = await selectComposition({
+      serveUrl: this.bundled,
+      id: component,
+      inputProps: data,
+    });
+
+    const outputLocation = path.join(this.config.videosDirPath, `${id}.mp4`);
+
+    try {
+      await renderMedia({
+        codec: "h264",
+        composition,
+        serveUrl: this.bundled,
+        outputLocation,
+        inputProps: data,
+        onProgress: ({ progress }) => {
+          onProgress(progress);
+        },
+        concurrency: 10,
+        offthreadVideoCacheSizeInBytes: 1024 * 1024 * 1024 * 8, // 8GB de cache
+        chromiumOptions: {
+          disableWebSecurity: true,
+          ignoreCertificateErrors: true
+        },
+        timeoutInMilliseconds: 300000 // 5 minutos para o processo todo
+      });
+      logger.debug({ component, videoID: id }, "Video rendered with Remotion");
+    } catch (err) {
+      logger.error("Remotion render failed");
+      throw err;
+    }
   }
 
   async render(

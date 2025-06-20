@@ -1,17 +1,19 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import path from "path";
 import fs from "fs-extra";
+import "dotenv/config";
 
 import { Remotion } from "./short-creator/libraries/Remotion";
 import { FFMpeg } from "./short-creator/libraries/FFmpeg";
 import { Config } from "./config";
 import { ShortCreator } from "./short-creator/ShortCreator";
-import { logger } from "./utils/logger";
+import { logger } from "./logger";
 import { Server } from "./server/server";
 import { MusicManager } from "./short-creator/music";
 import { LocalTTS } from "./short-creator/libraries/LocalTTS";
 import { VideoProcessor } from "./short-creator/libraries/VideoProcessor";
 import { LocalImageAPI } from "./short-creator/libraries/LocalImageAPI";
+import { VideoStatusManager } from "./short-creator/VideoStatusManager";
 
 async function main() {
   try {
@@ -25,6 +27,7 @@ async function main() {
     const musicManager = new MusicManager(config);
     const localTTS = await LocalTTS.init(config);
     const videoProcessor = new VideoProcessor(config.videosDirPath);
+    const statusManager = new VideoStatusManager(config);
 
     const shortCreator = new ShortCreator(
       config,
@@ -33,8 +36,9 @@ async function main() {
       localImageApi,
       musicManager,
       localTTS,
-      undefined,
-      undefined,
+      statusManager,
+      undefined, // pixabay
+      undefined, // pexels
       videoProcessor,
       config.concurrency
     );

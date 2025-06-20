@@ -1,8 +1,10 @@
-import { OrientationEnum, MusicMoodEnum, VoiceEnum, Video, ShortResult, AudioResult, SceneInput, RenderConfig, Scene, VideoStatus, MusicTag, MusicForVideo, Caption, ShortQueue } from "../types/shorts";
+import { OrientationEnum, MusicMoodEnum, VoiceEnum, Video, ShortResult, AudioResult, SceneInput, RenderConfig, Scene, MusicTag, MusicForVideo, Caption, ShortQueue } from "../types/shorts";
 import fs from "fs-extra";
+import { promises as fsPromises } from "fs";
 import cuid from "cuid";
 import path from "path";
-import { execSync } from "child_process";
+import { execSync, spawn } from "child_process";
+import ffmpeg from "fluent-ffmpeg";
 
 import { Remotion } from "./libraries/Remotion";
 import { FFMpeg } from "./libraries/FFmpeg";
@@ -16,6 +18,7 @@ import { ThreadPool } from './libraries/ThreadPool';
 import { VideoProcessor } from './libraries/VideoProcessor';
 import { cleanSceneText, splitTextByPunctuation } from "./utils/textCleaner";
 import { LocalImageAPI } from "./libraries/LocalImageAPI";
+import { VideoStatus, VideoStatusManager } from "./VideoStatusManager";
 
 export class ShortCreator {
   private queue: {
@@ -28,6 +31,7 @@ export class ShortCreator {
   private threadPool: ThreadPool;
   private outputDir: string;
   private processingVideos = new Map<string, Video>();
+  private videoData: Map<string, any> = new Map();
 
   constructor(
     private globalConfig: Config,
@@ -36,6 +40,7 @@ export class ShortCreator {
     private localImageApi: LocalImageAPI,
     private musicManager: MusicManager,
     private localTTS: LocalTTS,
+    private statusManager: VideoStatusManager,
     _pixabayApiKey: string | undefined,
     _pexelsApiKey: string | undefined,
     private videoProcessor: VideoProcessor,
@@ -61,37 +66,17 @@ export class ShortCreator {
     return `http://localhost:${this.globalConfig.port}${url}`;
   }
 
-  public status(id: string): VideoStatus {
-    try {
-      const videoPath = this.getVideoPath(id);
-      const queueItem = this.queue.find((item) => item.id === id);
-      
-      logger.debug({ videoId: id, queueItem, videoPath }, "Checking video status");
-      
-      if (queueItem) {
-        if (queueItem.status === "completed") {
-          logger.info({ videoId: id }, "Video is ready");
-          return "ready";
-        }
-        if (queueItem.status === "failed") {
-          logger.error({ videoId: id }, "Video generation failed");
-          return "failed";
-        }
-        logger.info({ videoId: id }, "Video is still processing");
-        return "processing";
-      }
-      
-      if (fs.existsSync(videoPath)) {
-        logger.info({ videoId: id }, "Video file exists and is ready");
-        return "ready";
-      }
-      
-      logger.error({ videoId: id }, "Video not found in queue or filesystem");
-      return "failed";
-    } catch (error) {
-      logger.error({ error, videoId: id }, "Error checking video status");
-      return "failed";
+  public async status(id: string): Promise<VideoStatus> {
+    const status = await this.statusManager.getStatus(id);
+    if (status && status !== 'pending') { // Don't return pending if file exists
+      return status;
     }
+    // Fallback for videos created before this change
+    if (fs.existsSync(this.getVideoPath(id))) {
+      await this.statusManager.setStatus(id, "ready");
+      return "ready";
+    }
+    return "failed"; // Or a more appropriate default status
   }
 
   public addToQueue(
@@ -105,6 +90,7 @@ export class ShortCreator {
       id,
       status: "pending"
     });
+    this.statusManager.setStatus(id, "processing"); // Set initial status
 
     this.processQueue();
     return id;
@@ -117,6 +103,7 @@ export class ShortCreator {
     const queueItem = this.queue[0];
     if (queueItem.status === "pending") {
       queueItem.status = "processing";
+      this.statusManager.setStatus(queueItem.id, "processing");
       logger.debug(
         { sceneInput: queueItem.sceneInput, config: queueItem.config, id: queueItem.id },
         "Processing video item in the queue",
@@ -124,9 +111,11 @@ export class ShortCreator {
       try {
         await this.createShort(queueItem.id, queueItem.sceneInput, queueItem.config);
         queueItem.status = "completed";
+        this.statusManager.setStatus(queueItem.id, "ready");
         logger.debug({ id: queueItem.id }, "Video created successfully");
       } catch (error: unknown) {
         queueItem.status = "failed";
+        this.statusManager.setStatus(queueItem.id, "failed");
         logger.error(error, "Error creating video");
       } finally {
         this.queue.shift();
@@ -158,60 +147,50 @@ export class ShortCreator {
     const orientation: OrientationEnum =
       config.orientation || OrientationEnum.portrait;
 
-    // Pré-busca de vídeos para todas as cenas
-    const videoSearchStart = Date.now();
-    logger.info({ videoId }, "Starting video search phase");
-    
     const videoPromises = inputScenes.map(async (scene, sceneIndex) => {
       const sceneStartTime = Date.now();
       logger.debug({ videoId, sceneIndex }, "Processing scene video search");
-      
-      // Split text into two parts if possible
-      const textParts = this.splitTextIntoTwoParts(scene.text);
-      
-      // Filtra termos muito curtos (menos de 4 letras)
-      const filteredTerms = scene.searchTerms
-        .filter(term => term.length >= 4)
-        .join(" ");
 
-      // Se não houver termos válidos após o filtro, usa o termo original
-      const searchTerms = filteredTerms.length > 0 ? filteredTerms : scene.searchTerms.join(" ");
-      
-      // Faz uma única busca para a cena e pega múltiplos resultados
-      const searchResults = await this.videoSearch.findVideos(
-        searchTerms,
-        10, // Initial duration estimate
-        excludeVideoIds,
-        orientation,
-        textParts.length // Número de vídeos necessários
-      );
+      const textParts = this.splitTextIntoScenes(scene.text);
+      let finalVideos: any[] = [];
 
-      // Se não temos vídeos suficientes, reutiliza os disponíveis
-      const finalVideos: any[] = [];
-      
-      if (searchResults.length === 0) {
-        throw new Error(`No videos found for scene ${sceneIndex} with search terms: ${searchTerms}`);
-      }
-      
-      for (let i = 0; i < textParts.length; i++) {
-        if (searchResults[i]) {
-          finalVideos.push(searchResults[i]);
-        } else {
-          // Reutiliza um vídeo aleatório dos disponíveis
-          const randomIndex = Math.floor(Math.random() * searchResults.length);
-          finalVideos.push(searchResults[randomIndex]);
+      // Se os vídeos já foram fornecidos (re-renderização), use-os
+      if (scene.videos && scene.videos.length > 0) {
+        logger.debug({ videoId, sceneIndex }, "Using pre-defined videos for scene");
+        // Precisamos buscar as informações completas de cada vídeo
+        finalVideos = await Promise.all(
+          scene.videos.map(videoUrl => this.videoSearch.getVideoByUrl(videoUrl))
+        );
+      } else {
+        // Senão, busca por novos vídeos
+        logger.debug({ videoId, sceneIndex }, "Searching for new videos for scene");
+        const filteredTerms = scene.searchTerms.filter(term => term.length >= 4).join(" ");
+        const searchTerms = filteredTerms.length > 0 ? filteredTerms : scene.searchTerms.join(" ");
+        
+        const searchResults = await this.videoSearch.findVideos(
+          searchTerms,
+          10,
+          excludeVideoIds,
+          orientation,
+          textParts.length
+        );
+        
+        if (searchResults.length === 0) {
+          throw new Error(`No videos found for scene ${sceneIndex} with search terms: ${searchTerms}`);
         }
+        
+        for (let i = 0; i < textParts.length; i++) {
+          finalVideos.push(searchResults[i % searchResults.length]);
+        }
+        searchResults.forEach(video => excludeVideoIds.push(video.id));
       }
-
-      // Adiciona os IDs dos vídeos selecionados ao excludeVideoIds
-      searchResults.forEach(video => excludeVideoIds.push(video.id));
 
       const sceneEndTime = Date.now();
       logger.debug({ 
         videoId, 
         sceneIndex, 
         duration: sceneEndTime - sceneStartTime,
-        videosFound: searchResults.length,
+        videosFound: finalVideos.length,
         videosNeeded: textParts.length
       }, "Scene video search completed");
 
@@ -223,7 +202,7 @@ export class ShortCreator {
     const videoSearchEnd = Date.now();
     logger.info({ 
       videoId, 
-      duration: videoSearchEnd - videoSearchStart,
+      duration: videoSearchEnd - startTime,
       scenesCount: inputScenes.length 
     }, "Video search phase completed");
 
@@ -237,182 +216,99 @@ export class ShortCreator {
         const sceneStartTime = Date.now();
         logger.debug({ videoId, sceneIndex }, "Processing scene");
         
-      const sceneResults: Scene[] = [];
+        const sceneResults: Scene[] = [];
 
         try {
-      for (let i = 0; i < textParts.length; i++) {
+          for (let i = 0; i < textParts.length; i++) {
             const partStartTime = Date.now();
-        const part = textParts[i];
-        const video = videos[i];
-        
-        // Check if video exists
-        if (!video || !video.url) {
-          logger.error({ 
-            videoId, 
-            sceneIndex, 
-            partIndex: i,
-            availableVideos: videos.length,
-            requiredVideos: textParts.length
-          }, "No video available for this part");
-          throw new Error(`No video available for part ${i} of scene ${sceneIndex}`);
-        }
-        
-        const tempId = cuid();
-        const tempWavFileName = `${tempId}.wav`;
-        const tempWavPath = path.join(this.globalConfig.tempDirPath, tempWavFileName);
-        tempFiles.push(tempWavPath);
-
-        let emotion = "neutral";
-        if (part.trim().endsWith("?")) {
-          emotion = "question";
-        } else if (part.trim().endsWith("!")) {
-          emotion = "exclamation";
-        }
-
-            // Substitui ponto final por vírgula
-            let textForTTS = part.trim();
-            if (textForTTS.endsWith(".")) {
-              textForTTS = textForTTS.slice(0, -1) + ", ";
+            const part = textParts[i];
+            const video = videos[i];
+            
+            if (!video || !video.url) {
+              throw new Error(`No video available for part ${i} of scene ${sceneIndex}`);
             }
 
+            let audioPath: string;
+            let audioDuration: number;
+            let captions: Caption[] = scene.captions || [];
+
+            if (scene.audio && scene.audio.url && scene.audio.duration) {
+              logger.debug({ videoId, sceneIndex }, "Using pre-existing audio for scene");
+              audioPath = scene.audio.url;
+              audioDuration = scene.audio.duration;
+            } else {
+              logger.debug({ videoId, sceneIndex }, "Generating new audio for scene part");
+              const tempId = cuid();
+              const tempWavFileName = `${tempId}.wav`;
+              const tempWavPath = path.join(this.globalConfig.tempDirPath, tempWavFileName);
+              tempFiles.push(tempWavPath);
+
+              const audioResult = await this.localTTS.generateSpeech(part, tempWavPath, config.voice, config.language, config.referenceAudioPath);
+              tempFiles.push(audioResult.audioPath);
+              
+              // Constrói a URL para o arquivo de áudio
+              audioPath = `${this.ensureAbsoluteUrl('/temp/')}${path.basename(audioResult.audioPath)}`;
+              audioDuration = audioResult.duration; 
+              captions = audioResult.subtitles.map((s: any) => ({ text: s.text, startMs: s.start, endMs: s.end }));
+              
+              if (audioDuration <= 0) {
+                throw new Error(`Generated audio for scene part has an invalid duration of ${audioDuration} seconds.`);
+              }
+
+              logger.debug({ videoId, sceneIndex, audioDuration }, "Audio generated successfully for scene part");
+            }
+            
+            totalDuration += audioDuration;
+            
+            const finalScene: Scene = {
+              id: cuid(),
+              text: part,
+              searchTerms: scene.searchTerms,
+              duration: audioDuration,
+              orientation: orientation,
+              captions: captions,
+              videos: [video.url],
+              audio: {
+                url: audioPath,
+                duration: audioDuration
+              }
+            };
+            
+            sceneResults.push(finalScene);
+
+            const partEndTime = Date.now();
             logger.debug({ 
               videoId, 
-              sceneIndex, 
+              sceneIndex,
               partIndex: i,
-              text: textForTTS,
-              emotion,
-            }, "Generating TTS audio");
-
-            try {
-              // Gera o áudio usando TTS
-              await this.localTTS.generateSpeech(
-                textForTTS,
-                tempWavPath,
-                emotion,
-                config.language || "pt",
-                config.referenceAudioPath
-              );
-
-              // Obtém a duração do áudio
-              const audioLength = await this.ffmpeg.getAudioDuration(tempWavPath);
-              let finalAudioLength = audioLength;
-              
-              if (inputScenes.indexOf(scene) + 1 === inputScenes.length && config.paddingBack) {
-                finalAudioLength += config.paddingBack / 1000;
-              }
-
-              const sceneText = cleanSceneText(part);
-              const phrases = splitTextByPunctuation(sceneText);
-              
-              const silenceBetweenPhrases = 1;
-              const numSilences = phrases.length - 1;
-              const totalSilence = numSilences * silenceBetweenPhrases;
-              const spokenAudioLength = finalAudioLength - totalSilence;
-
-              const words = part.split(" ");
-              const wordCount = words.length;
-              const baseWordDuration = (spokenAudioLength * 1000) / wordCount;
-              
-              let currentTime = 0;
-              const captions: Caption[] = words.map((word, i) => {
-                const wordLength = word.length;
-                const durationMultiplier = Math.max(0.7, Math.min(2.0, wordLength / 4));
-                const wordDuration = baseWordDuration * durationMultiplier;
-                
-                const startMs = currentTime;
-                currentTime += wordDuration;
-                
-                if (/[.,!?;]$/.test(word)) {
-                  currentTime += 200;
-                }
-                
-                return {
-                  text: word + (i < words.length - 1 ? " " : ""),
-                  startMs,
-                  endMs: currentTime,
-                  emotion: emotion as "question" | "exclamation" | "neutral"
-                };
-              });
-
-              const totalCaptionDuration = captions[captions.length - 1].endMs;
-              const timeAdjustment = (finalAudioLength * 1000) - totalCaptionDuration;
-              
-              if (timeAdjustment !== 0) {
-                const adjustmentPerWord = timeAdjustment / wordCount;
-                captions.forEach((caption, i) => {
-                  caption.startMs += adjustmentPerWord * i;
-                  caption.endMs += adjustmentPerWord * (i + 1);
-                });
-              }
-
-              totalDuration += finalAudioLength;
-
-              // Adiciona a cena ao array de resultados
-              sceneResults.push({
-                id: tempId,
-                text: part,
-                searchTerms: scene.searchTerms,
-                duration: finalAudioLength,
-                orientation,
-                captions: captions,
-                videos: [this.ensureAbsoluteUrl(video.url)],
-                audio: {
-                  url: this.ensureAbsoluteUrl(`/api/tmp/${tempWavFileName}`),
-                  duration: finalAudioLength,
-                }
-              });
-
-              const partEndTime = Date.now();
-              logger.debug({ 
-                videoId, 
-                sceneIndex, 
-                partIndex: i,
-                duration: partEndTime - partStartTime 
-              }, "Scene part processing completed");
-            } catch (error) {
-              logger.error({ 
-                error, 
-                videoId, 
-                sceneIndex, 
-                partIndex: i,
-                text: part,
-                emotion,
-              }, "Error processing scene part");
-              throw error;
-            }
+              duration: partEndTime - partStartTime 
+            }, "Part processing completed");
           }
-
-          const sceneEndTime = Date.now();
-          logger.debug({ 
-            videoId, 
-            sceneIndex, 
-            duration: sceneEndTime - sceneStartTime 
-          }, "Scene processing completed");
-
-      return sceneResults;
         } catch (error) {
-          logger.error({ 
-            error, 
-            videoId, 
-            sceneIndex,
-            sceneText: scene.text,
-            searchTerms: scene.searchTerms
-          }, "Error processing scene");
+          logger.error({ error, videoId, sceneIndex }, "Error processing part of scene");
           throw error;
         }
+
+        const sceneEndTime = Date.now();
+        logger.debug({ 
+          videoId, 
+          sceneIndex, 
+          duration: sceneEndTime - sceneStartTime,
+          sceneResultsCount: sceneResults.length
+        }, "Scene processing completed");
+        
+        return sceneResults;
       });
 
-    const sceneResults = await Promise.all(scenePromises);
-      sceneProcessingEnd = Date.now();
+      const processedScenesNested = await Promise.all(scenePromises);
+      scenes.push(...processedScenesNested.flat());
+
+      const sceneProcessingEnd = Date.now();
       logger.info({ 
         videoId, 
         duration: sceneProcessingEnd - sceneProcessingStart,
-        scenesCount: inputScenes.length 
+        scenesCount: scenes.length 
       }, "Scene processing phase completed");
-
-    // Flatten the array of scenes
-    const allScenes = sceneResults.flat();
-    scenes.push(...allScenes);
     } catch (error) {
       logger.error({ 
         error, 
@@ -438,69 +334,18 @@ export class ShortCreator {
     logger.info({ videoId }, "Starting video rendering phase");
 
     try {
-    await this.remotion.render(
-      {
-        music: {
-          ...selectedMusic,
-        },
-        scenes,
-        config: {
-          durationMs: totalDuration * 1000,
-          paddingBack: (config.paddingBack || 0) + (extraPadding * 1000),
-          ...{
-            captionBackgroundColor: config.captionBackgroundColor || "#dd0000",
-            captionTextColor: config.captionTextColor || "#ffffff",
-            captionPosition: config.captionPosition,
-          },
-          musicVolume: config.musicVolume,
-          overlay: config.overlay,
-          hook: config.hook,
-          port: this.globalConfig.port,
-        },
-      },
-      videoId,
-      orientation
-    );
-    // Salvar arquivos fonte Remotion após renderização
-    const outputDir = this.globalConfig.videosDirPath;
-    const baseName = path.join(outputDir, videoId);
-    const jsonPath = baseName + '.json';
-    const tsxPath = baseName + '.tsx';
-    const jsxPath = baseName + '.jsx';
-    const remotionSource = {
-      scenes,
-      config,
-      music: selectedMusic
-    };
-    // Salva JSON
-    await fs.writeJson(jsonPath, remotionSource, { spaces: 2 });
-    logger.info({ path: jsonPath }, 'Arquivo JSON Remotion salvo');
-    // Gera TSX
-    const tsxContent = `import { AbsoluteFill } from 'remotion';\n\nexport const MyRemotionVideo = ({ scenes, config, music }) => (\n  <AbsoluteFill style={{ background: 'black' }}>\n    {/* Renderize suas cenas aqui */}\n    {/* scenes, config e music disponíveis como props */}\n  </AbsoluteFill>\n);\n\nexport const input = ${JSON.stringify(remotionSource, null, 2)};\n`;
-    await fs.writeFile(tsxPath, tsxContent);
-    logger.info({ path: tsxPath }, 'Arquivo TSX Remotion salvo');
-    // Gera JSX
-    const jsxContent = `import { AbsoluteFill } from 'remotion';\n\nexport const MyRemotionVideo = ({ scenes, config, music }) => (\n  <AbsoluteFill style={{ background: 'black' }}>\n    {/* Renderize suas cenas aqui */}\n    {/* scenes, config e music disponíveis como props */}\n  </AbsoluteFill>\n);\n\nexport const input = ${JSON.stringify(remotionSource, null, 2)};\n`;
-    await fs.writeFile(jsxPath, jsxContent);
-    logger.info({ path: jsxPath }, 'Arquivo JSX Remotion salvo');
-    } catch (error: any) {
-      logger.error({ 
-        error, 
-        videoId,
-        scenes: scenes.map(s => ({ id: s.id, text: s.text })),
-        duration: totalDuration
-      }, "Error during video rendering");
+      const music = this.findMusic(totalDuration, config.music);
+      const videoData = { scenes, music, config };
+
+      // Salva os dados completos que serão usados para a renderização
+      fs.writeFileSync(path.join(this.outputDir, `${videoId}.json`), JSON.stringify(videoData, null, 2));
+
+      await this.renderVideoFromData(videoId);
       
-      // Limpa arquivos temporários em caso de erro
-      for (const file of tempFiles) {
-        try {
-          fs.removeSync(file);
-        } catch (cleanupError) {
-          logger.error({ error: cleanupError, file }, "Error cleaning up temp file");
-        }
-      }
-      
-      throw new Error(`Failed to render video: ${error.message || 'Unknown error'}`);
+    } catch (error) {
+      logger.error({ error, videoId }, "Error during createShort preparation phase");
+      this.statusManager.setStatus(videoId, "failed");
+      throw error;
     }
 
     const renderEnd = Date.now();
@@ -509,50 +354,46 @@ export class ShortCreator {
       duration: renderEnd - renderStart 
     }, "Video rendering phase completed");
 
-    // Clean up temp files
-    const cleanupStart = Date.now();
-    logger.info({ videoId }, "Starting cleanup phase");
-    
-    for (const file of tempFiles) {
-      fs.removeSync(file);
-    }
-
-    const cleanupEnd = Date.now();
-    logger.info({ 
-      videoId, 
-      duration: cleanupEnd - cleanupStart 
-    }, "Cleanup phase completed");
-
-    const totalEndTime = Date.now();
-    logger.info({ 
-      videoId, 
-      totalDuration: totalEndTime - startTime,
-      phases: {
-        videoSearch: videoSearchEnd - videoSearchStart,
-        sceneProcessing: sceneProcessingEnd - sceneProcessingStart,
-        rendering: renderEnd - renderStart,
-        cleanup: cleanupEnd - cleanupStart
-      }
-    }, "Video creation process completed");
+    const endTime = Date.now();
+    logger.info({ videoId, duration: endTime - startTime }, "Video creation process finished");
 
     return videoId;
   }
 
-  private splitTextIntoTwoParts(text: string): string[] {
-    // Remove espaços extras e ponto final no final, mas mantém ? e !
-    text = text.trim().replace(/\.$/, '');
-    // Divide o texto em partes usando pontuação de fim de frase
-    const parts = text.split(/(?<=[.!?:])\s+/);
-    // Filtra as partes que têm pelo menos 7 palavras
-    const validParts = parts.filter(part => {
-      const wordCount = part.split(/\s+/).length;
-      return wordCount >= 7;
-    });
-    // Se não houver partes válidas, retorna o texto original
-    if (validParts.length === 0) {
-      return [text];
+  private splitTextIntoScenes(text: string): string[] {
+    // Limpa e divide o texto em sentenças
+    const sentences = text.trim().replace(/(\\r\\n|\\n|\\r)/gm, " ").split(/(?<=[.!?])\\s+/).filter(s => s);
+
+    if (sentences.length <= 1) {
+      return sentences;
     }
-    return validParts;
+
+    const MIN_WORDS_PER_SCENE = 5;
+    const parts: string[] = [];
+    let currentPart = "";
+
+    for (const sentence of sentences) {
+      // Se a parte atual está vazia, começa com a nova sentença
+      if (currentPart === "") {
+        currentPart = sentence;
+      } else {
+        // Se a parte atual é muito curta, anexa a nova sentença
+        if (currentPart.split(/\\s+/).length < MIN_WORDS_PER_SCENE) {
+          currentPart += ` ${sentence}`;
+        } else {
+          // Senão, a parte atual tem tamanho suficiente. Salva e começa uma nova.
+          parts.push(currentPart);
+          currentPart = sentence;
+        }
+      }
+    }
+
+    // Adiciona a última parte que sobrou
+    if (currentPart) {
+      parts.push(currentPart);
+    }
+
+    return parts;
   }
 
   public getVideoPath(videoId: string): string {
@@ -563,6 +404,172 @@ export class ShortCreator {
     const videoPath = this.getVideoPath(videoId);
     fs.removeSync(videoPath);
     logger.debug({ videoId }, "Deleted video file");
+  }
+
+  public clearAllVideos(): void {
+    const videosDir = this.globalConfig.videosDirPath;
+    if (!fs.existsSync(videosDir)) {
+      logger.info("Videos directory does not exist, nothing to clear");
+      return;
+    }
+
+    const files = fs.readdirSync(videosDir);
+    const videoFiles = files.filter(file => file.endsWith('.mp4'));
+    const metadataFiles = files.filter(file => 
+      file.endsWith('.json') || file.endsWith('.jsx') || file.endsWith('.tsx')
+    );
+
+    logger.info({ 
+      videoFilesCount: videoFiles.length, 
+      metadataFilesCount: metadataFiles.length 
+    }, "Clearing all videos");
+
+    // Deletar arquivos de vídeo
+    for (const file of videoFiles) {
+      const filePath = path.join(videosDir, file);
+      fs.removeSync(filePath);
+      logger.debug({ file }, "Deleted video file");
+    }
+
+    // Deletar arquivos de metadados
+    for (const file of metadataFiles) {
+      const filePath = path.join(videosDir, file);
+      fs.removeSync(filePath);
+      logger.debug({ file }, "Deleted metadata file");
+    }
+
+    // Limpar diretório temporário
+    const tempDir = this.globalConfig.tempDirPath;
+    if (fs.existsSync(tempDir)) {
+      fs.emptyDirSync(tempDir);
+      logger.debug("Cleared temp directory");
+    }
+
+    // Limpar fila e processamento
+    this.queue = [];
+    this.processingVideos.clear();
+
+    logger.info("All videos cleared successfully");
+  }
+
+  public getVideoData(videoId: string): any {
+    const videoDataPath = path.join(this.globalConfig.videosDirPath, `${videoId}.json`);
+    if (!fs.existsSync(videoDataPath)) {
+      throw new Error('Video data not found');
+    }
+
+    const jsonContent = fs.readFileSync(videoDataPath, 'utf-8');
+    return JSON.parse(jsonContent);
+  }
+
+  public saveVideoData(videoId: string, data: any): void {
+    const jsonPath = path.join(this.globalConfig.videosDirPath, `${videoId}.json`);
+    const jsxPath = path.join(this.globalConfig.videosDirPath, `${videoId}.jsx`);
+    const tsxPath = path.join(this.globalConfig.videosDirPath, `${videoId}.tsx`);
+
+    // Salva o JSON
+    fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2));
+
+    // Atualiza os arquivos JSX e TSX (simplificado - em produção você pode querer regenerar completamente)
+    logger.info({ videoId }, "Video data saved successfully");
+  }
+
+  public async searchVideos(query: string, count: number = 10): Promise<any[]> {
+    try {
+      const videos = await this.videoSearch.findVideos(
+        query,
+        10, // duration estimate
+        [], // excludeIds
+        OrientationEnum.portrait,
+        count
+      );
+      return videos;
+    } catch (error) {
+      logger.error({ error, query }, "Error searching videos");
+      return [];
+    }
+  }
+
+  public async reRenderVideo(videoId: string): Promise<void> {
+    logger.info({ videoId }, "Spawning re-render worker");
+    await this.statusManager.setStatus(videoId, "processing");
+
+    const scriptPath = path.resolve(__dirname, "../../scripts/render-video.ts");
+    
+    // Usa 'npx' para garantir que o ts-node local seja usado
+    const child = spawn('npx', ['ts-node', scriptPath, videoId], {
+      detached: true, // Permite que o processo filho continue se o pai morrer
+      stdio: 'pipe' // Redireciona stdio para que possamos logar
+    });
+
+    child.stdout.on('data', (data) => {
+      logger.info(`Render worker [${videoId}] stdout: ${data.toString().trim()}`);
+    });
+
+    child.stderr.on('data', (data) => {
+      logger.error(`Render worker [${videoId}] stderr: ${data.toString().trim()}`);
+    });
+
+    child.on('exit', (code) => {
+      if (code !== 0) {
+        logger.error({ videoId, exitCode: code }, "Render worker exited with error");
+        this.statusManager.setStatus(videoId, "failed");
+      } else {
+        logger.info({ videoId }, "Render worker finished successfully");
+        // O status será atualizado para "ready" pelo polling quando o arquivo for encontrado
+      }
+    });
+
+    child.unref(); // Desvincula o processo filho do pai
+  }
+
+  // Novo método para conter a lógica de renderização
+  public async renderVideoFromData(videoId: string): Promise<void> {
+    const videoData = this.getVideoData(videoId);
+    const { scenes, music, config } = videoData;
+
+    try {
+      // Calcula a duração total em milissegundos
+      const totalDurationMs = scenes.reduce((acc: number, scene: any) => acc + (scene.duration * 1000), 0);
+      
+      // Estrutura os dados no formato esperado pelo Remotion
+      const remotionData = {
+        scenes: scenes.map((scene: any) => ({
+          videos: scene.videos,
+          captions: scene.captions || [],
+          audio: {
+            url: scene.audio.url,
+            duration: scene.duration
+          }
+        })),
+        music: {
+          file: music.file,
+          url: music.url,
+          start: music.start,
+          end: music.end,
+          mood: music.mood,
+          loop: music.loop
+        },
+        config: {
+          ...config,
+          durationMs: totalDurationMs
+        }
+      };
+
+      await this.remotion.renderMedia(
+        videoId,
+        remotionData,
+        (progress: number) => {
+          logger.info(`Rendering progress: ${Math.round(progress * 100)}%`);
+        },
+      );
+      await this.statusManager.setStatus(videoId, "ready");
+    } catch (error: any) {
+      const duration = scenes.reduce((acc: number, s: any) => acc + s.duration, 0)
+      logger.error({ error, videoId, scenes, duration }, "Error during video rendering");
+      await this.statusManager.setStatus(videoId, "failed");
+      throw new Error(`Failed to render video: ${error.message || 'Unknown error'}`);
+    }
   }
 
   private findMusic(duration: number, mood?: MusicTag): MusicForVideo {
@@ -617,14 +624,26 @@ export class ShortCreator {
     return Object.values(VoiceEnum);
   }
 
-  public listAllVideos(): string[] {
+  public async listAllVideos(): Promise<{ id: string, status: VideoStatus }[]> {
     const videosDir = this.globalConfig.videosDirPath;
     if (!fs.existsSync(videosDir)) {
       return [];
     }
-    return fs.readdirSync(videosDir)
-      .filter(file => file.endsWith('.mp4'))
-      .map(file => file.replace('.mp4', ''));
+    
+    const videoIds = fs.readdirSync(videosDir)
+      .filter(file => file.endsWith('.mp4') || file.endsWith('.json'))
+      .map(file => file.replace('.mp4', '').replace('.json', ''))
+      // Unique IDs
+      .filter((id, index, self) => self.indexOf(id) === index);
+  
+    const videoStatuses = await Promise.all(
+      videoIds.map(async (id) => {
+        const status = await this.status(id);
+        return { id, status };
+      })
+    );
+
+    return videoStatuses;
   }
 
   public async getVideoBuffer(videoId: string): Promise<Buffer> {
@@ -675,43 +694,47 @@ export class ShortCreator {
   }
 
   private async getVideoInfo(id: string): Promise<Video> {
-    logger.debug({ videoId: id }, "Checking video status");
+    const videoPath = this.getVideoPath(id);
     
-    // Verificar se o vídeo está na fila
-    const queuedVideo = this.queue.find((v) => v.id === id);
-    if (queuedVideo) {
-      logger.debug({ videoId: id }, "Video found in queue");
-      return {
-        id,
-        url: this.getVideoPath(id),
-        width: 1080,
-        height: 1920,
-        duration: 0
-      };
-    }
-
-    // Verificar se o vídeo existe no sistema de arquivos
-    const videoPath = path.join(this.globalConfig.videosDirPath, `${id}.mp4`);
-    if (fs.existsSync(videoPath)) {
-      logger.debug({ videoId: id, path: videoPath }, "Video found in filesystem");
-      return {
-        id,
-        url: videoPath,
-        width: 1080,
-        height: 1920,
-        duration: 0 // Será preenchido quando necessário
-      };
-    }
-
-    // Verificar se o vídeo está em processamento
+    // First, check if video is being processed
     const processingVideo = this.processingVideos.get(id);
     if (processingVideo) {
-      logger.debug({ videoId: id }, "Video is still processing");
+      logger.debug({ videoId: id }, "Video is currently being processed, returning cached data.");
       return processingVideo;
     }
 
-    logger.error({ videoId: id }, "Video not found in queue or filesystem");
-    throw new Error("Video not found");
+    try {
+      await fsPromises.access(videoPath);
+    } catch (error) {
+      logger.error({ videoId: id, path: videoPath }, "Video file not found for ffprobe, cannot get info.");
+      throw new Error(`Video file does not exist at path: ${videoPath}`);
+    }
+
+    return new Promise((resolve, reject) => {
+      ffmpeg.ffprobe(videoPath, (err: any, metadata: ffmpeg.FfprobeData) => {
+        if (err) {
+          logger.error({ videoId: id, error: err }, "Error getting video metadata with ffprobe");
+          reject(err);
+          return;
+        }
+
+        const stream = metadata.streams.find(s => s.codec_type === 'video');
+        if (!stream || !stream.width || !stream.height || !stream.duration) {
+          logger.error({ videoId: id, metadata }, "Video stream metadata is incomplete");
+          reject(new Error("Incomplete video stream data"));
+          return;
+        }
+        
+        const video: Video = {
+          id,
+          url: videoPath,
+          width: stream.width,
+          height: stream.height,
+          duration: parseFloat(stream.duration),
+        };
+        resolve(video);
+      });
+    });
   }
 
   private async cleanupVideo(id: string): Promise<void> {
@@ -738,5 +761,9 @@ export class ShortCreator {
       logger.error({ videoId: id, error }, "Error during cleanup");
       throw error;
     }
+  }
+
+  public get(id: string): Video | undefined {
+    return this.processingVideos.get(id);
   }
 }

@@ -32,9 +32,20 @@ export class LocalImageAPI implements VideoProvider {
         throw new VideoSearchError("LocalImageAPI request failed");
       }
       const data = await response.json();
+      
+      const isSearchById = searchTerms.length === 1 && /^\d+$/.test(searchTerms[0]);
+
       const availableVideos = data
-        .filter((video: any) => !excludeIds.includes(video.id.toString()))
-        .sort((a: any, b: any) => Math.abs(a.duration - minDurationSeconds) - Math.abs(b.duration - minDurationSeconds));
+        .filter((video: any) => {
+          if (isSearchById) {
+            return video.id.toString() === searchTerms[0];
+          }
+          return !excludeIds.includes(video.id.toString());
+        })
+        .sort((a: any, b: any) => {
+          if (isSearchById) return 0; // Se for busca por ID, a ordem não importa
+          return Math.abs(a.duration - minDurationSeconds) - Math.abs(b.duration - minDurationSeconds)
+        });
 
       if (!availableVideos.length) {
         throw new VideoSearchError("No videos found in LocalImageAPI");
@@ -68,6 +79,25 @@ export class LocalImageAPI implements VideoProvider {
       return selectedVideos;
     } catch (error) {
       throw new VideoSearchError("Error finding video in LocalImageAPI");
+    }
+  }
+
+  async getVideoById(id: string): Promise<Video> {
+    try {
+      const response = await fetch(`http://localhost:8000/v1/videos/${id}`);
+      if (!response.ok) {
+        throw new VideoSearchError(`LocalImageAPI request for id ${id} failed`);
+      }
+      const video = await response.json();
+      return {
+        id: video.id.toString(),
+        url: `http://localhost:8000${video.file_path}`,
+        duration: video.duration,
+        width: video.width,
+        height: video.height,
+      };
+    } catch (error) {
+      throw new VideoSearchError(`Error getting video by id in LocalImageAPI: ${id}`);
     }
   }
 } 

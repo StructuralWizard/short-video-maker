@@ -2,14 +2,15 @@ import pino from "pino";
 
 // Create the global logger
 const logger = pino({
-  level: 'info',
-  base: undefined,
-  timestamp: () => `,"time":"${new Date().toISOString()}"`,
-  formatters: {
-    level: (label) => {
-      return { level: label };
+  level: process.env.LOG_LEVEL || 'info',
+  transport: {
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      translateTime: 'SYS:standard',
+      ignore: 'pid,hostname',
     },
-  }
+  },
 });
 
 // Export both named and default exports
