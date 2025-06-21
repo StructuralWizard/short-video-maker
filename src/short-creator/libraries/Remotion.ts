@@ -99,11 +99,27 @@ export class Remotion {
 
   public async getMediaDuration(filePath: string): Promise<number> {
     try {
+      // Check if file exists and is not empty
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`File does not exist: ${filePath}`);
+      }
+      
+      const stats = fs.statSync(filePath);
+      if (stats.size === 0) {
+        throw new Error(`File is empty: ${filePath}`);
+      }
+      
       const durationInSeconds = await getAudioDurationInSeconds(filePath);
+      
+      // Validate duration
+      if (!durationInSeconds || isNaN(durationInSeconds) || durationInSeconds <= 0) {
+        throw new Error(`Invalid duration returned: ${durationInSeconds}`);
+      }
+      
       return durationInSeconds;
-    } catch (err) {
+    } catch (err: any) {
       logger.error({ filePath, error: err }, "Failed to get media duration.");
-      throw new Error(`Could not get duration for ${filePath}.`);
+      throw new Error(`Could not get duration for ${filePath}: ${err.message || 'Unknown error'}`);
     }
   }
 
@@ -144,8 +160,8 @@ export class Remotion {
         inputProps: data,
         onProgress: ({ progress }) => {
           const progressPercent = Math.round(progress * 100);
-          // Log apenas quando o progresso muda significativamente (a cada 5%)
-          if (progressPercent >= lastProgress + 5 || progressPercent === 100) {
+          // Log apenas quando o progresso muda significativamente (a cada 10%)
+          if (progressPercent >= lastProgress + 10 || progressPercent === 100) {
             logger.info({ 
               videoID: id, 
               progress: progressPercent,
@@ -155,7 +171,10 @@ export class Remotion {
             }, `Render progress: ${progressPercent}%`);
             lastProgress = progressPercent;
           }
-          onProgress(progress);
+          // Chama onProgress com menos frequência para reduzir I/O
+          if (progressPercent >= lastProgress + 5 || progressPercent === 100) {
+            onProgress(progress);
+          }
         },
         concurrency: 10,
         offthreadVideoCacheSizeInBytes: 1024 * 1024 * 1024 * 8, // 8GB de cache

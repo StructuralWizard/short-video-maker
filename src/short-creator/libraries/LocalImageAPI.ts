@@ -149,6 +149,7 @@ export class LocalImageAPI implements VideoProvider {
 
   async getVideoByUrl(url: string): Promise<Video> {
     try {
+      // Extrai o ID da URL
       const urlParts = url.split('/');
       const id = urlParts[urlParts.length - 1];
       
@@ -156,15 +157,61 @@ export class LocalImageAPI implements VideoProvider {
         throw new VideoSearchError(`Could not extract valid video ID from URL: ${url}`);
       }
 
+      logger.info({ url }, "🔍 Getting video by URL");
+      
+      // Faz uma consulta real à API usando o ID extraído
+      try {
+        const response = await fetch(`http://localhost:8000/v1/videos/${id}`);
+        
+        if (response.ok) {
+          const videoData = await response.json();
+          return {
+            id: videoData.id.toString(),
+            url: `http://localhost:8000${videoData.file_path}`,
+            duration: videoData.duration,
+            width: videoData.width,
+            height: videoData.height,
+          };
+        }
+      } catch (apiError) {
+        logger.warn({ id, error: apiError }, "Direct API call failed, trying query search");
+      }
+      
+      // Se a consulta direta falhar, tenta buscar por query
+      try {
+        const searchResponse = await fetch(`http://localhost:8000/v1/videos?query=${id}&per_page=1`);
+        
+        if (searchResponse.ok) {
+          const searchData = await searchResponse.json();
+          if (searchData && searchData.length > 0) {
+            const video = searchData[0];
+            return {
+              id: video.id.toString(),
+              url: `http://localhost:8000${video.file_path}`,
+              duration: video.duration,
+              width: video.width,
+              height: video.height,
+            };
+          }
+        }
+      } catch (searchError) {
+        logger.warn({ id, error: searchError }, "Query search also failed");
+      }
+      
+      // Se ambas as tentativas falharam, mas ainda temos a URL original,
+      // retorna dados estimados para permitir que o processo continue
+      logger.warn({ url }, "API calls failed, using fallback video data");
       return {
         id: id,
-        url: url,
-        duration: 10.0,
+        url: url, // Usa a URL original
+        duration: 10.0, // Duração padrão
         width: 1920,
         height: 1080,
       };
+      
     } catch (error) {
-      throw new VideoSearchError(`Error getting video by URL in LocalImageAPI: ${url}`);
+      logger.error({ url, error }, "Error getting video by URL");
+      throw new VideoSearchError(`Error getting video by URL: ${url} - ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 } 

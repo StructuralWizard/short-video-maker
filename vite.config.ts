@@ -33,10 +33,6 @@ export default {
         target: 'http://localhost:3123',
         changeOrigin: true,
       },
-      '/api/tts': {
-        target: 'http://localhost:5003',
-        changeOrigin: true,
-      },
       '/mcp': {
         target: 'http://localhost:3123',
         changeOrigin: true,

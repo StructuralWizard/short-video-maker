@@ -224,9 +224,60 @@ export function calculateVolume(
   }
 }
 
-export function getOverlayUrl(overlay: string): string {
-  const port = process.env.PORT || 3123;
-  return `http://localhost:${port}/api/overlays/${overlay}.png`;
+/**
+ * Resolve URLs in a port-agnostic way
+ * - In browser context: uses relative URLs that work with current host
+ * - In Remotion context: uses absolute URLs with correct port
+ * - In server context: uses localhost with configured port
+ */
+export function resolveUrl(path: string, context: 'browser' | 'remotion' | 'server' = 'browser'): string {
+  if (!path) return '';
+  
+  // If already absolute URL, return as is
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+  
+  // Normalize path to start with /
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  
+  switch (context) {
+    case 'browser':
+      // In browser, use relative URLs that work with current host
+      return normalizedPath;
+    
+    case 'remotion':
+      // In Remotion context, we need absolute URLs
+      // Try to get port from environment or use default
+      const remotionPort = process.env.PORT || process.env.REMOTION_SERVE_PORT || '3123';
+      return `http://localhost:${remotionPort}${normalizedPath}`;
+    
+    case 'server':
+      // In server context, use configured port
+      const serverPort = process.env.PORT || '3123';
+      return `http://localhost:${serverPort}${normalizedPath}`;
+    
+    default:
+      return normalizedPath;
+  }
+}
+
+/**
+ * Get audio URL for different contexts
+ */
+export function getAudioUrl(filename: string, context: 'browser' | 'remotion' | 'server' = 'browser'): string {
+  return resolveUrl(`/api/temp/${filename}`, context);
+}
+
+/**
+ * Get music URL for different contexts
+ */
+export function getMusicUrl(filename: string, context: 'browser' | 'remotion' | 'server' = 'browser'): string {
+  return resolveUrl(`/api/music/${encodeURIComponent(filename)}`, context);
+}
+
+export function getOverlayUrl(overlay: string, context: 'browser' | 'remotion' | 'server' = 'browser'): string {
+  return resolveUrl(`/api/overlays/${overlay}.png`, context);
 }
 
 export function getVideoUrl(url: string): string {

@@ -13,7 +13,7 @@ module.exports = {
     wait_ready: true,
     env: {
       NODE_ENV: "production",
-      PORT: 3000,
+      PORT: 3123,
       PATH: '/Users/nino/.pyenv/versions/3.10.17/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin',
       PYTHONPATH: '/Users/nino/.pyenv/versions/3.10.17/lib/python3.10/site-packages',
       PYTHONHOME: '/Users/nino/.pyenv/versions/3.10.17',

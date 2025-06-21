@@ -409,8 +409,16 @@ export class MusicManager {
   public musicList(): MusicForVideo[] {
     return MusicManager.musicList.map((music: Music) => ({
       ...music,
-      url: `http://localhost:${this.config.port}/api/music/${encodeURIComponent(music.file)}`,
+      url: this.getMusicUrl(music.file),
     }));
+  }
+
+  /**
+   * Get music URL using port-agnostic resolution
+   */
+  private getMusicUrl(filename: string): string {
+    // For music URLs, we need absolute URLs for Remotion context
+    return `http://localhost:${this.config.port}/api/music/${encodeURIComponent(filename)}`;
   }
   private musicFileExist(music: Music): boolean {
     return fs.existsSync(path.join(this.config.musicDirPath, music.file));

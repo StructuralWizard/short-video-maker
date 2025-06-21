@@ -21,6 +21,7 @@ import {
   shortVideoSchema,
   getOverlayUrl,
   getVideoUrl,
+  resolveUrl,
 } from "../../shared/utils";
 
 // Use local font instead of Google Fonts
@@ -131,7 +132,7 @@ export const LandscapeVideo: FC<Props> = ({
 
       {config?.overlay && (
         <Img
-          src={getOverlayUrl(config.overlay)}
+          src={getOverlayUrl(config.overlay, 'remotion')}
           style={{
             position: "absolute",
             top: 0,

@@ -8,7 +8,7 @@ LOG_FILE="logs/server-$(date +%Y%m%d-%H%M%S).log"
 
 # Inicia o servidor em segundo plano
 echo "🚀 Iniciando o servidor..."
-nohup npm start > "$LOG_FILE" 2>&1 &
+nohup npm run dev > "$LOG_FILE" 2>&1 &
 
 # Salva o PID do processo
 echo $! > .server.pid

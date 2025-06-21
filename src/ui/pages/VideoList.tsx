@@ -18,7 +18,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Chip
+  Chip,
+  LinearProgress
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -34,6 +35,10 @@ interface VideoItem {
   scenes?: any[];
   config?: any;
   createdAt?: string;
+  error?: string;
+  progress?: number;
+  stage?: string;
+  message?: string;
 }
 
 const VideoList: React.FC = () => {
@@ -66,13 +71,37 @@ const VideoList: React.FC = () => {
   useEffect(() => {
     fetchVideos();
     
-    // Polling para atualizar o status dos vídeos a cada 5 segundos
-    const interval = setInterval(() => {
-      fetchVideos();
-    }, 5000);
+    // Polling para atualizar o status dos vídeos
+    // Mais frequente se há vídeos processando, menos frequente caso contrário
+    const getPollingInterval = () => {
+      const hasProcessingVideos = videos.some(video => video.status === 'processing');
+      return hasProcessingVideos ? 2000 : 5000; // 2s se processando, 5s caso contrário
+    };
     
-    return () => clearInterval(interval);
-  }, []);
+    const setupPolling = () => {
+      const interval = setInterval(() => {
+        fetchVideos();
+      }, getPollingInterval());
+      
+      return interval;
+    };
+    
+    let interval = setupPolling();
+    
+    // Redefine o intervalo quando a lista de vídeos muda
+    const intervalCleanup = () => {
+      clearInterval(interval);
+      interval = setupPolling();
+    };
+    
+    // Timeout para reconfigurar o polling após mudanças
+    const timeout = setTimeout(intervalCleanup, 100);
+    
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [videos]); // Dependência nos vídeos para ajustar a frequência
 
   const handleCreateNew = () => {
     navigate('/create');
@@ -145,7 +174,7 @@ const VideoList: React.FC = () => {
     }
   };
 
-  const getStatusText = (status: string) => {
+  const getStatusText = (status: string, progress?: number, stage?: string) => {
     switch (status) {
       case 'ready':
         return 'Ready';
@@ -154,9 +183,14 @@ const VideoList: React.FC = () => {
       case 'no_script':
         return 'No Script';
       case 'processing':
-        return 'Processing';
+        if (progress !== undefined && stage) {
+          return `${stage} (${progress}%)`;
+        }
+        return progress !== undefined ? `Processing (${progress}%)` : 'Processing';
       case 'failed':
         return 'Failed';
+      case 'pending':
+        return 'Pending';
       default:
         return 'Unknown';
     }
@@ -250,22 +284,45 @@ const VideoList: React.FC = () => {
                     <ListItemText
                       primary={getVideoTitle(video)}
                       secondary={
-                        <Box component="div" display="flex" alignItems="center" gap={1} mt={1}>
-                          {(() => {
-                            const statusIcon = getStatusIcon(videoStatus);
-                            return (
-                              <Chip
-                                {...(statusIcon && { icon: statusIcon })}
-                                label={getStatusText(videoStatus)}
-                                color={getStatusColor(videoStatus) as any}
-                                size="small"
-                                variant="outlined"
+                        <Box component="div" display="flex" flexDirection="column" gap={1} mt={1}>
+                          <Box display="flex" alignItems="center" gap={1}>
+                            {(() => {
+                              const statusIcon = getStatusIcon(videoStatus);
+                              return (
+                                <Chip
+                                  {...(statusIcon && { icon: statusIcon })}
+                                  label={getStatusText(videoStatus, video.progress, video.stage)}
+                                  color={getStatusColor(videoStatus) as any}
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              );
+                            })()}
+                            {video.createdAt && (
+                              <Typography variant="caption" color="text.secondary">
+                                {new Date(video.createdAt).toLocaleDateString()}
+                              </Typography>
+                            )}
+                          </Box>
+                          {/* Progress bar for processing videos */}
+                          {videoStatus === 'processing' && video.progress !== undefined && (
+                            <Box width="100%">
+                              <LinearProgress 
+                                variant="determinate" 
+                                value={video.progress} 
+                                sx={{ height: 6, borderRadius: 3 }}
                               />
-                            );
-                          })()}
-                          {video.createdAt && (
-                            <Typography variant="caption" color="text.secondary">
-                              {new Date(video.createdAt).toLocaleDateString()}
+                              {video.stage && (
+                                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                                  {video.stage}
+                                </Typography>
+                              )}
+                            </Box>
+                          )}
+                          {/* Error message for failed videos */}
+                          {videoStatus === 'failed' && video.error && (
+                            <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                              {video.error}
                             </Typography>
                           )}
                         </Box>

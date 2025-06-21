@@ -178,6 +178,14 @@ export class LocalTTS {
       reference_audio_filename: refFileName,
     };
 
+    logger.debug("TTS request data", {
+      text,
+      language,
+      refPath,
+      refFileName,
+      requestData
+    });
+
     // Faz a requisição para o serviço TTS
     const response = await fetch(`${this.serviceUrl}/api/tts`, {
       method: 'POST',
@@ -205,7 +213,8 @@ export class LocalTTS {
     logger.debug("📥 Downloading chunk audio", { 
       downloadUrl,
       chunkIndex,
-      text
+      text,
+      responseData
     });
 
     const downloadResponse = await axios.get(downloadUrl, {

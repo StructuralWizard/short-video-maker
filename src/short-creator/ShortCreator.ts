@@ -34,6 +34,9 @@ export class ShortCreator {
   private outputDir: string;
   private musicManager: MusicManager;
 
+  // Progress throttling
+  private lastProgressUpdate: Map<string, number> = new Map();
+
   // Filas de processamento
   private creationQueue: QueueItem[] = [];
   private renderQueue: string[] = [];
@@ -62,7 +65,8 @@ export class ShortCreator {
   }
 
   /**
-   * Garante que a URL seja absoluta, adicionando o prefixo do servidor se necessário
+   * Garante que a URL seja absoluta para o contexto do Remotion
+   * Usa o sistema de resolução agnóstico à porta
    */
   private ensureAbsoluteUrl(url: string | undefined | null): string {
     if (!url) {
@@ -71,7 +75,76 @@ export class ShortCreator {
     if (url.startsWith('http')) {
       return url;
     }
-    return `http://localhost:${this.globalConfig.port}${url}`;
+    
+    // Use o sistema de resolução agnóstico à porta
+    // Para o contexto do Remotion, precisamos de URLs absolutas
+    const resolvedUrl = this.resolveUrlForRemotionContext(url);
+    
+    logger.debug({ originalUrl: url, resolvedUrl, port: this.globalConfig.port }, "URL resolved for Remotion context");
+    return resolvedUrl;
+  }
+
+  /**
+   * Resolve URLs especificamente para o contexto do Remotion
+   */
+  private resolveUrlForRemotionContext(path: string): string {
+    // Normalizar o path
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    
+    // Para o Remotion, sempre usar URLs absolutas com a porta configurada
+    return `http://localhost:${this.globalConfig.port}${normalizedPath}`;
+  }
+
+  /**
+   * Pré-processa os dados do vídeo para converter URLs relativas em absolutas
+   * Isso garante que o Remotion sempre tenha URLs corretas independente da porta
+   */
+  private preprocessVideoDataForRemotionRendering(videoData: any): any {
+    const processedData = JSON.parse(JSON.stringify(videoData)); // Deep clone
+    
+    // Processar URLs de áudio nas cenas
+    if (processedData.scenes) {
+      processedData.scenes.forEach((scene: any) => {
+        if (scene.audio && scene.audio.url) {
+          // Se a URL não é absoluta, convertê-la
+          if (!scene.audio.url.startsWith('http')) {
+            scene.audio.url = this.resolveUrlForRemotionContext(scene.audio.url);
+            logger.debug({ 
+              originalUrl: scene.audio.url, 
+              processedUrl: scene.audio.url 
+            }, "Preprocessed audio URL for Remotion");
+          }
+        }
+        
+        // Processar URLs de vídeo nas cenas
+        if (scene.videos) {
+          scene.videos = scene.videos.map((videoUrl: string) => {
+            if (!videoUrl.startsWith('http') && videoUrl.startsWith('/')) {
+              const processedUrl = this.resolveUrlForRemotionContext(videoUrl);
+              logger.debug({ 
+                originalUrl: videoUrl, 
+                processedUrl 
+              }, "Preprocessed video URL for Remotion");
+              return processedUrl;
+            }
+            return videoUrl;
+          });
+        }
+      });
+    }
+    
+    // Processar URL da música
+    if (processedData.music && processedData.music.url) {
+      if (!processedData.music.url.startsWith('http')) {
+        processedData.music.url = this.resolveUrlForRemotionContext(processedData.music.url);
+        logger.debug({ 
+          originalUrl: processedData.music.url, 
+          processedUrl: processedData.music.url 
+        }, "Preprocessed music URL for Remotion");
+      }
+    }
+    
+    return processedData;
   }
 
   public processTextForTTS(text: string): string[] {
@@ -103,34 +176,23 @@ export class ShortCreator {
     sceneInput: SceneInput[],
     config: RenderConfig,
   ): string {
-    const id = cuid();
+    const videoId = cuid();
+    logger.info({ videoId, sceneCount: sceneInput.length }, "Adding video to creation queue");
+
+    // Define o status inicial como "pending" imediatamente
+    this.statusManager.setStatus(videoId, "pending", "Video added to queue", 0, "Queued").catch(error => {
+      logger.error({ videoId, error }, "Failed to set initial status");
+    });
+
     this.creationQueue.push({
-      id,
-      sceneInput: JSON.parse(JSON.stringify(sceneInput)),
-      config: JSON.parse(JSON.stringify(config)),
+      id: videoId,
+      sceneInput: sceneInput,
+      config,
       status: "pending"
     });
-    this.statusManager.setStatus(id, "processing"); // Set initial status
-
-    // Salva o script do vídeo
-    const scriptData = {
-      scenes: sceneInput,
-      config: config,
-      createdAt: new Date().toISOString(),
-      status: "pending"
-    };
-    
-    const scriptPath = path.join(this.globalConfig.videosDirPath, `${id}.script.json`);
-    try {
-      fs.ensureDirSync(path.dirname(scriptPath));
-      fs.writeJsonSync(scriptPath, scriptData);
-      logger.info({ id }, "Saved video script");
-    } catch (error) {
-      logger.error({ id, error }, "Error saving video script");
-    }
 
     this.processCreationQueue();
-    return id;
+    return videoId;
   }
 
   private async processCreationQueue(): Promise<void> {
@@ -144,7 +206,7 @@ export class ShortCreator {
     }
     
     try {
-      await this.prepareAndRender(item.id);
+      await this.prepareAndRender(item);
     } catch (error) {
       logger.error({ videoId: item.id, error }, "Error in creation pipeline");
     } finally {
@@ -153,21 +215,57 @@ export class ShortCreator {
     }
   }
 
-  private async prepareAndRender(videoId: string): Promise<void> {
-    await this.statusManager.setStatus(videoId, "processing", "Preparing assets...");
-    
-    const scriptPath = path.join(this.globalConfig.videosDirPath, `${videoId}.script.json`);
-    const scriptData = fs.readJsonSync(scriptPath);
+  private async prepareAndRender(queueItem: QueueItem): Promise<void> {
+    const videoId = queueItem.id;
 
-    const { remotionData, updatedScriptScenes } = await this.processScenes(videoId, scriptData.scenes, scriptData.config);
+    try {
+      // Define o status como "processing" no início
+      await this.statusManager.setStatus(videoId, "processing", "Starting video preparation...", 0, "Initializing");
+      
+      // Salva o script do vídeo
+      const scriptData = {
+        id: videoId,
+        scenes: queueItem.sceneInput,
+        config: queueItem.config,
+        createdAt: new Date().toISOString(),
+        status: "processing"
+      };
+      
+      const scriptPath = path.join(this.globalConfig.videosDirPath, `${videoId}.script.json`);
+      try {
+        fs.ensureDirSync(path.dirname(scriptPath));
+        fs.writeJsonSync(scriptPath, scriptData, { spaces: 2 });
+        logger.info({ videoId }, "Saved video script");
+      } catch (error) {
+        logger.error({ videoId, error }, "Error saving video script");
+      }
 
-    const renderJsonPath = path.join(this.globalConfig.videosDirPath, `${videoId}.render.json`);
-    fs.writeJsonSync(renderJsonPath, remotionData, { spaces: 2 });
-    
-    scriptData.scenes = updatedScriptScenes;
-    fs.writeJsonSync(scriptPath, scriptData, { spaces: 2 });
+      // Processa as cenas e gera os dados para renderização
+      await this.statusManager.setProgress(videoId, 10, "Processing scenes...");
+      const { remotionData, updatedScriptScenes } = await this.processScenes(videoId, queueItem.sceneInput, queueItem.config);
 
-    await this.renderFromRenderJson(videoId);
+      // Salva os dados processados no .render.json
+      const renderJsonPath = path.join(this.globalConfig.videosDirPath, `${videoId}.render.json`);
+      fs.writeJsonSync(renderJsonPath, remotionData, { spaces: 2 });
+      
+      // Atualiza o script com as cenas processadas
+      scriptData.scenes = updatedScriptScenes;
+      fs.writeJsonSync(scriptPath, scriptData, { spaces: 2 });
+      
+      logger.info({ videoId }, "Video data prepared, adding to render queue");
+      
+      // Adiciona à fila de renderização
+      if (!this.renderQueue.includes(videoId)) {
+        this.renderQueue.push(videoId);
+      }
+      
+      // Inicia o processamento da fila de renderização
+      this.processRenderQueue();
+      
+    } catch (error: any) {
+      logger.error({ videoId, error }, "Error in prepareAndRender");
+      await this.statusManager.setError(videoId, error.message || "Failed to prepare video");
+    }
   }
 
   private async processScenes(
@@ -290,11 +388,26 @@ export class ShortCreator {
 
     if (!forceRegenerate && fs.existsSync(cachedAudioPath)) {
       try {
-        const duration = await this.remotion.getMediaDuration(cachedAudioPath);
-        logger.debug({ text, hash: configHash }, "TTS audio found in cache.");
-        return { audioPath: cachedAudioPath, duration, subtitles: [] };
+        // Check if file is not empty
+        const stats = fs.statSync(cachedAudioPath);
+        if (stats.size === 0) {
+          logger.warn({ text, path: cachedAudioPath }, "Cached TTS file is empty, regenerating");
+          fs.removeSync(cachedAudioPath);
+        } else {
+          const duration = await this.remotion.getMediaDuration(cachedAudioPath);
+          if (duration > 0) {
+            logger.debug({ text, hash: configHash }, "TTS audio found in cache.");
+            return { audioPath: cachedAudioPath, duration, subtitles: [] };
+          }
+        }
       } catch(e) {
-        logger.warn({ text, path: cachedAudioPath, error: e }, "Found cached TTS file, but failed to get duration. Regenerating.")
+        logger.warn({ text, path: cachedAudioPath, error: e }, "Found cached TTS file, but failed to get duration. Regenerating.");
+        // Remove the corrupted file
+        try {
+          fs.removeSync(cachedAudioPath);
+        } catch (removeError) {
+          logger.warn({ text, path: cachedAudioPath, error: removeError }, "Failed to remove corrupted cache file");
+        }
       }
     }
     
@@ -303,6 +416,21 @@ export class ShortCreator {
     const tempWavPath = path.join(this.globalConfig.tempDirPath, `${tempId}.wav`);
 
     const result = await this.localTTS.generateSpeech(text, tempWavPath, config.voice, config.language, config.referenceAudioPath);
+    
+    // Validate the generated file before caching
+    if (!fs.existsSync(result.audioPath)) {
+      throw new Error(`Generated TTS file not found: ${result.audioPath}`);
+    }
+    
+    const stats = fs.statSync(result.audioPath);
+    if (stats.size === 0) {
+      throw new Error(`Generated TTS file is empty: ${result.audioPath}`);
+    }
+    
+    // Verify duration is valid
+    if (!result.duration || result.duration <= 0 || isNaN(result.duration)) {
+      throw new Error(`Generated TTS has invalid duration: ${result.duration}`);
+    }
     
     fs.copyFileSync(result.audioPath, cachedAudioPath);
 
@@ -329,10 +457,18 @@ export class ShortCreator {
         
         // Se já existe um áudio único, precisamos dividi-lo ou usá-lo para a primeira parte.
         // Por simplicidade, vamos atribuí-lo à primeira parte e gerar para as demais.
+        
+        // Ajusta o timing das legendas pré-existentes para aparecerem 1 segundo antes
+        const adjustedCaptions = (scene.captions || []).map((caption: any) => ({
+          ...caption,
+          startMs: Math.max(0, (caption.startMs || caption.start || 0) - 1000),
+          endMs: Math.max(100, (caption.endMs || caption.end || 100) - 1000)
+        }));
+        
         audioResults.push({
             url: sceneAudio.url,
             duration: sceneAudio.duration,
-            captions: scene.captions || []
+            captions: adjustedCaptions
         });
         // Preenche o resto com silêncio ou gera novos áudios. Gerar novos é mais seguro.
         for (let i = 1; i < textParts.length; i++) {
@@ -357,7 +493,13 @@ export class ShortCreator {
     const audioResult = await this.getCachedOrGenerateTTS(text, config);
     
     const audioPath = this.ensureAbsoluteUrl(`/temp/${path.basename(audioResult.audioPath)}`);
-    const captions = audioResult.subtitles.map((s: any) => ({ text: s.text, startMs: s.start, endMs: s.end }));
+    
+    // Ajusta o timing das legendas para aparecerem 1 segundo antes
+    const captions = audioResult.subtitles.map((s: any) => ({ 
+      text: s.text, 
+      startMs: Math.max(0, s.start - 1000), // Adianta 1s, mas não permite valores negativos
+      endMs: Math.max(100, s.end - 1000)    // Adianta 1s, mas garante duração mínima
+    }));
     
     if (audioResult.duration <= 0) throw new Error(`Invalid audio duration for text: "${text}".`);
 
@@ -451,40 +593,47 @@ export class ShortCreator {
   ): Promise<void> {
     logger.info({ videoId }, "[FIXED RE-RENDER] Starting clean re-render process.");
 
-    // 1. Apaga o vídeo existente para garantir um processo limpo
-    const existingVideoPath = this.getVideoPath(videoId);
-    if (fs.existsSync(existingVideoPath)) {
-      fs.removeSync(existingVideoPath);
-      logger.info({ videoId }, "Deleted existing video file for clean re-render.");
+    try {
+      // 1. Apaga o vídeo existente para garantir um processo limpo
+      const existingVideoPath = this.getVideoPath(videoId);
+      if (fs.existsSync(existingVideoPath)) {
+        fs.removeSync(existingVideoPath);
+        logger.info({ videoId }, "Deleted existing video file for clean re-render.");
+      }
+
+      // 2. Reseta o status para "processing"
+      await this.statusManager.setStatus(videoId, "processing", "Starting re-render...");
+
+      // 3. Reprocessa as cenas enviadas pelo editor.
+      // Isso recalcula durações e legendas de forma segura no backend,
+      // mas reutiliza as mídias (vídeos/áudios) existentes.
+      const { remotionData, updatedScriptScenes } = await this.processScenes(videoId, scenes, config);
+
+      // 4. Salva os dados reprocessados e seguros no .render.json para a renderização.
+      const renderJsonPath = path.join(this.globalConfig.videosDirPath, `${videoId}.render.json`);
+      fs.writeJsonSync(renderJsonPath, remotionData, { spaces: 2 });
+      logger.info({ videoId }, ".render.json updated with sanitized, reprocessed data.");
+
+      // 5. Salva as edições de texto do usuário no .script.json para persistência.
+      const scriptPath = path.join(this.globalConfig.videosDirPath, `${videoId}.script.json`);
+      if (fs.existsSync(scriptPath)) {
+        const scriptData = fs.readJsonSync(scriptPath);
+        scriptData.scenes = updatedScriptScenes;
+        scriptData.config = config;
+        fs.writeJsonSync(scriptPath, scriptData, { spaces: 2 });
+      }
+
+      // 6. Adiciona o vídeo à fila de renderização pura.
+      if (!this.renderQueue.includes(videoId)) {
+        this.renderQueue.push(videoId);
+      }
+      this.processRenderQueue();
+      
+    } catch (error: any) {
+      logger.error({ videoId, error }, "Error in reRenderVideo process");
+      await this.statusManager.setError(videoId, error.message || "Failed to re-render video");
+      throw error; // Re-propaga o erro para o endpoint
     }
-
-    // 2. Reseta o status para "processing"
-    await this.statusManager.setStatus(videoId, "processing", "Starting re-render...");
-
-    // 3. Reprocessa as cenas enviadas pelo editor.
-    // Isso recalcula durações e legendas de forma segura no backend,
-    // mas reutiliza as mídias (vídeos/áudios) existentes.
-    const { remotionData, updatedScriptScenes } = await this.processScenes(videoId, scenes, config);
-
-    // 4. Salva os dados reprocessados e seguros no .render.json para a renderização.
-    const renderJsonPath = path.join(this.globalConfig.videosDirPath, `${videoId}.render.json`);
-    fs.writeJsonSync(renderJsonPath, remotionData, { spaces: 2 });
-    logger.info({ videoId }, ".render.json updated with sanitized, reprocessed data.");
-
-    // 5. Salva as edições de texto do usuário no .script.json para persistência.
-    const scriptPath = path.join(this.globalConfig.videosDirPath, `${videoId}.script.json`);
-    if (fs.existsSync(scriptPath)) {
-      const scriptData = fs.readJsonSync(scriptPath);
-      scriptData.scenes = updatedScriptScenes;
-      scriptData.config = config;
-      fs.writeJsonSync(scriptPath, scriptData, { spaces: 2 });
-    }
-
-    // 6. Adiciona o vídeo à fila de renderização pura.
-    if (!this.renderQueue.includes(videoId)) {
-      this.renderQueue.push(videoId);
-    }
-    this.processRenderQueue();
   }
 
   // Este método agora só renderiza. A preparação dos dados é feita antes.
@@ -537,13 +686,49 @@ export class ShortCreator {
           // Pega o status mais recente do gerenciador de status.
           const statusInfo = await this.statusManager.getStatus(id);
 
+          // Verifica se o vídeo MP4 existe
+          const videoPath = this.getVideoPath(id);
+          const videoExists = fs.existsSync(videoPath);
+
+          // Determina o status correto baseado no estado atual
+          let finalStatus = statusInfo.status;
+          
+          // Se o vídeo existe mas o status não é 'ready', corrige o status
+          if (videoExists && statusInfo.status !== 'ready') {
+            finalStatus = 'ready';
+            // Atualiza o status no arquivo para futuras consultas
+            await this.statusManager.setStatus(id, 'ready', 'Video rendered successfully', 100, 'Completed');
+          }
+          
+          // Se o vídeo não existe e o status é 'ready', corrige o status
+          if (!videoExists && statusInfo.status === 'ready') {
+            finalStatus = 'failed';
+            await this.statusManager.setError(id, 'Video file not found');
+          }
+
+          // Se não há status definido, define um status padrão baseado na existência do arquivo
+          if (!statusInfo.status) {
+            if (videoExists) {
+              finalStatus = 'ready';
+              await this.statusManager.setStatus(id, 'ready', 'Video rendered successfully', 100, 'Completed');
+            } else {
+              // Se não há vídeo e não há status, provavelmente falhou ou foi deletado
+              finalStatus = 'failed';
+              await this.statusManager.setError(id, 'Video file not found');
+            }
+          }
+
           return {
             id: id,
             createdAt: data.createdAt,
-            status: statusInfo.status || 'unknown',
+            status: finalStatus,
             error: statusInfo.error,
+            progress: statusInfo.progress,
+            stage: statusInfo.stage,
+            message: statusInfo.message,
+            scenes: data.scenes, // Incluir dados das cenas para o frontend
             // Adiciona um thumbnail se o vídeo estiver pronto.
-            thumbnail: statusInfo.status === 'ready' ? `/videos/${id}.mp4` : null,
+            thumbnail: finalStatus === 'ready' ? `/videos/${id}.mp4` : null,
           };
         } catch (error) {
           logger.error({ file, error }, "Failed to process video script file");
@@ -642,10 +827,13 @@ export class ShortCreator {
       throw new Error(`.render.json not found for ${videoId}`);
     }
     
-    const renderData = fs.readJsonSync(renderJsonPath);
+    const rawRenderData = fs.readJsonSync(renderJsonPath);
+
+    // Pré-processar os dados para garantir URLs absolutas
+    const renderData = this.preprocessVideoDataForRemotionRendering(rawRenderData);
 
     // Debug logs para verificar os dados
-    logger.debug({ videoId, renderData }, "Render data loaded from .render.json");
+    logger.debug({ videoId, renderData }, "Render data loaded and preprocessed from .render.json");
     
     // Verificar durações das cenas
     if (renderData.scenes) {
@@ -656,7 +844,7 @@ export class ShortCreator {
           sceneId: scene.id,
           audioDuration: scene.audio?.duration,
           audioUrl: scene.audio?.url 
-        }, "Scene audio data");
+        }, "Scene audio data after preprocessing");
       });
     }
 
@@ -667,13 +855,27 @@ export class ShortCreator {
                      progress < 0.5 ? "Processing frames" :
                      progress < 0.8 ? "Encoding video" : "Finalizing";
         
-        this.statusManager.setProgress(videoId, progressPercent, stage);
+        this.throttledProgressUpdate(videoId, progressPercent, stage);
       });
       
       await this.statusManager.setStatus(videoId, "ready", "Video rendered successfully", 100, "Completed");
     } catch (error: any) {
       await this.statusManager.setError(videoId, error.message);
       throw error;
+    }
+  }
+
+  private async throttledProgressUpdate(videoId: string, progress: number, stage: string): Promise<void> {
+    const lastUpdate = this.lastProgressUpdate.get(videoId) || 0;
+    const now = Date.now();
+    
+    // Only update if progress changed by 5% or more, or if it's been more than 2 seconds
+    const progressChanged = Math.abs(progress - lastUpdate) >= 5;
+    const timeElapsed = now - lastUpdate > 2000;
+    
+    if (progressChanged || timeElapsed || progress === 100) {
+      this.lastProgressUpdate.set(videoId, progress);
+      await this.statusManager.setProgress(videoId, progress, stage);
     }
   }
 
@@ -685,17 +887,24 @@ export class ShortCreator {
       const audioResult = await this.getCachedOrGenerateTTS(text, config, forceRegenerate);
       const audioUrl = this.ensureAbsoluteUrl(`/temp/${path.basename(audioResult.audioPath)}`);
 
+      // Ajusta o timing das legendas para aparecerem 1 segundo antes
+      const adjustedSubtitles = audioResult.subtitles.map((s: any) => ({
+        text: s.text,
+        start: Math.max(0, s.start - 1000), // Adianta 1s, mas não permite valores negativos
+        end: Math.max(100, s.end - 1000)    // Adianta 1s, mas garante duração mínima
+      }));
+
       const renderJsonPath = path.join(this.globalConfig.videosDirPath, `${videoId}.render.json`);
       if(fs.existsSync(renderJsonPath)) {
           const renderData = fs.readJsonSync(renderJsonPath);
           const scene = renderData.scenes.find((s: any) => s.id === sceneId);
           if (scene) {
               scene.audio = { url: audioUrl, duration: audioResult.duration };
-              scene.captions = audioResult.subtitles;
+              scene.captions = adjustedSubtitles;
               fs.writeJsonSync(renderJsonPath, renderData, { spaces: 2 });
           }
       }
-      return { audioUrl, duration: audioResult.duration, subtitles: audioResult.subtitles };
+      return { audioUrl, duration: audioResult.duration, subtitles: adjustedSubtitles };
   }
 
   private findMusic(duration: number, mood?: MusicTag): MusicForVideo {

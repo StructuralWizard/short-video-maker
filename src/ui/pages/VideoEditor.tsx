@@ -37,9 +37,11 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SearchIcon from '@mui/icons-material/Search';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import StopIcon from '@mui/icons-material/Stop';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SaveIcon from '@mui/icons-material/Save';
 import GraphicEqIcon from '@mui/icons-material/GraphicEq';
+import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
 import { nanoid } from 'nanoid';
 
 interface Scene {
@@ -82,9 +84,11 @@ const VideoEditor: React.FC = () => {
   const [searchResults, setSearchResults] = useState<VideoSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [rendering, setRendering] = useState(false);
-  const [generatingAudio, setGeneratingAudio] = useState<Record<number, boolean>>({});
   const [saving, setSaving] = useState<boolean>(false);
   const [referenceAudioPath, setReferenceAudioPath] = useState<string>("");
+  const [generatingAudio, setGeneratingAudio] = useState<{ [key: number]: boolean }>({});
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentPlayingUrl, setCurrentPlayingUrl] = useState<string | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
   const getPreviewUrl = (url: string, isSearchResult: boolean = false): string => {
@@ -237,64 +241,87 @@ const VideoEditor: React.FC = () => {
   const handlePlayAudio = (audioUrl: string) => {
     if (audioPlayerRef.current) {
       const player = audioPlayerRef.current;
+      
+      // Se já está tocando o mesmo áudio, para
+      if (isPlaying && currentPlayingUrl === audioUrl) {
+        player.pause();
+        player.currentTime = 0;
+        setIsPlaying(false);
+        setCurrentPlayingUrl(null);
+        return;
+      }
+      
+      // Se está tocando outro áudio, para o atual primeiro
+      if (isPlaying) {
+        player.pause();
+        player.currentTime = 0;
+      }
+      
       // Extract filename from the full URL and construct proxy URL
       const filename = audioUrl.split('/').pop();
       if (filename) {
         player.src = `/api/temp/${filename}`;
-        player.play().catch(e => console.error("Error playing audio:", e));
+        setCurrentPlayingUrl(audioUrl);
+        setIsPlaying(true);
+        
+        player.play()
+          .then(() => {
+            // Adiciona listener para quando o áudio terminar
+            player.onended = () => {
+              setIsPlaying(false);
+              setCurrentPlayingUrl(null);
+            };
+          })
+          .catch(e => {
+            console.error("Error playing audio:", e);
+            setIsPlaying(false);
+            setCurrentPlayingUrl(null);
+          });
       }
     }
   };
 
   const handleGenerateAudio = async (sceneIndex: number) => {
-    if (!videoData) return;
-    
+    if (!videoData || !videoData.scenes[sceneIndex]) return;
+
     const scene = videoData.scenes[sceneIndex];
-    const text = scene.text;
+    if (!scene.text.trim()) {
+      setError('O texto da cena não pode estar vazio para gerar áudio.');
+      return;
+    }
 
     setGeneratingAudio(prev => ({ ...prev, [sceneIndex]: true }));
+    setError(null);
 
     try {
       const response = await axios.post('/api/generate-tts', {
-        text: text,
-        videoId: id,
-        sceneId: scene.id,
-        voice: videoData.config.voice,
-        language: videoData.config.language || 'pt',
-        referenceAudioPath: referenceAudioPath,
-        forceRegenerate: true,
+        text: scene.text.trim(),
+        voice: 'af_heart',
+        language: 'pt',
+        referenceAudioPath: referenceAudioPath || undefined
       });
 
-      const { audioUrl, duration, subtitles } = response.data;
-
-      setGeneratingAudio(prev => ({ ...prev, [sceneIndex]: false }));
-
-      handlePlayAudio(audioUrl);
-
-      // Cria um novo objeto com os dados atualizados para garantir a consistência
-      const updatedData: VideoData = {
-        ...videoData,
-        scenes: videoData.scenes.map((s, i) => {
-          if (i === sceneIndex) {
-            return {
-              ...s,
-              audio: { url: audioUrl, duration: duration },
-              duration: duration,
-              captions: subtitles,
-            };
-          }
-          return s;
-        }),
-        config: videoData.config
+      const audioData = response.data;
+      
+      // Atualizar o áudio da cena
+      const updatedData = { ...videoData };
+      updatedData.scenes[sceneIndex].audio = {
+        url: `/temp/${audioData.filename}`,
+        duration: audioData.duration
       };
 
-      // Atualiza o estado da UI e persiste os dados no servidor
       setVideoData(updatedData);
-      saveVideoData(updatedData);
-
+      await saveVideoData(updatedData);
+      
+      setError(null);
     } catch (err) {
-      console.error("Failed to generate audio:", err);
-      setError(`Failed to generate audio for scene ${sceneIndex + 1}`);
+      console.error('Erro ao gerar áudio:', err);
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.error || 'Erro ao gerar áudio');
+      } else {
+        setError('Erro inesperado ao gerar áudio');
+      }
+    } finally {
       setGeneratingAudio(prev => ({ ...prev, [sceneIndex]: false }));
     }
   };
@@ -407,15 +434,28 @@ const VideoEditor: React.FC = () => {
                   onChange={(e) => handleSceneTextChange(sceneIndex, e.target.value)}
                   sx={{ flexGrow: 1 }}
                 />
-                <IconButton onClick={() => handlePlayAudio(scene.audio.url)} title="Play current audio">
-                  <PlayArrowIcon />
-                </IconButton>
                 <IconButton 
                   onClick={() => handleGenerateAudio(sceneIndex)} 
-                  disabled={generatingAudio[sceneIndex]}
-                  title="Generate new audio"
+                  title="Gerar novo áudio"
+                  disabled={generatingAudio[sceneIndex] || !scene.text.trim()}
+                  color="primary"
                 >
-                  {generatingAudio[sceneIndex] ? <CircularProgress size={24} /> : <GraphicEqIcon />}
+                  {generatingAudio[sceneIndex] ? (
+                    <CircularProgress size={24} />
+                  ) : (
+                    <RecordVoiceOverIcon />
+                  )}
+                </IconButton>
+                <IconButton 
+                  onClick={() => handlePlayAudio(scene.audio.url)} 
+                  title={isPlaying && currentPlayingUrl === scene.audio.url ? "Parar áudio" : "Reproduzir áudio atual"}
+                  color={isPlaying && currentPlayingUrl === scene.audio.url ? "secondary" : "default"}
+                >
+                  {isPlaying && currentPlayingUrl === scene.audio.url ? (
+                    <StopIcon />
+                  ) : (
+                    <PlayArrowIcon />
+                  )}
                 </IconButton>
               </Box>
             </Box>

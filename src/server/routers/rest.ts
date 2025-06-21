@@ -6,7 +6,7 @@ import path from "path";
 import { ShortCreator } from "../../short-creator/ShortCreator";
 import { Config } from "../../config";
 import { logger } from "../../logger";
-import { RenderRequest, VoiceEnum } from "../../types/shorts";
+import { RenderRequest, VoiceEnum, OrientationEnum } from "../../types/shorts";
 import { VideoStatusManager } from "../../short-creator/VideoStatusManager";
 import { RenderConfig } from "../../types/shorts";
 
@@ -76,11 +76,36 @@ export class APIRouter {
         if (renderRequest.id) {
           // Re-renderiza um vídeo existente
           videoId = renderRequest.id;
-          await this.shortCreator.reRenderVideo(
-            videoId,
-            renderRequest.scenes,
-            renderRequest.config
-          );
+          
+          // Se não há scenes ou config no request, carrega do arquivo existente
+          let scenes = renderRequest.scenes;
+          let config = renderRequest.config;
+          
+          if (!scenes || !config) {
+            const existingData = this.shortCreator.getScriptById(videoId);
+            if (!existingData) {
+              throw new Error(`No existing data found for video ${videoId}`);
+            }
+            
+            logger.debug({ videoId, existingData: !!existingData, hasScenes: !!existingData.scenes, hasConfig: !!existingData.config }, "Loading existing data for re-render");
+            
+            scenes = scenes || existingData.scenes;
+            config = config || existingData.config;
+            
+            logger.debug({ videoId, config }, "Config before defaults");
+            
+            // Garante que o config tenha valores padrão necessários
+            config = {
+              ...config,
+              orientation: config.orientation || OrientationEnum.portrait,
+              voice: config.voice || VoiceEnum.af_heart,
+              language: config.language || "pt"
+            };
+            
+            logger.debug({ videoId, config }, "Config after defaults");
+          }
+          
+          await this.shortCreator.reRenderVideo(videoId, scenes, config);
         } else {
           // Cria um novo vídeo
           videoId = await this.shortCreator.addToQueue(
@@ -235,30 +260,6 @@ export class APIRouter {
         });
       }
     });
-
-    this.router.post(
-      "/generate-tts",
-      async (req: ExpressRequest, res: ExpressResponse) => {
-        try {
-          const { text, videoId, sceneId, referenceAudioPath, language, voice, forceRegenerate } = req.body;
-          if (!text || !videoId || !sceneId) {
-            return res.status(400).json({ error: "text, videoId, and sceneId are required" });
-          }
-          
-          // A configuração da voz é passada para o método, então criamos um objeto config parcial.
-          const config: Partial<RenderConfig> = { voice, language, referenceAudioPath };
-
-          const result = await this.shortCreator.generateSingleTTSAndUpdate(videoId, sceneId, text, config as RenderConfig, forceRegenerate || false);
-          res.status(200).json(result);
-        } catch (error) {
-          logger.error({ error }, "Error generating TTS");
-          res.status(500).json({
-            error: "Failed to generate TTS",
-            details: error instanceof Error ? error.message : "Unknown error"
-          });
-        }
-      }
-    );
 
     this.router.get("/video/:id", (req, res) => {
       const { id } = req.params;
@@ -423,6 +424,52 @@ export class APIRouter {
       }
     });
 
+    this.router.post("/generate-tts", async (req: ExpressRequest, res: ExpressResponse) => {
+      try {
+        const { text, voice = "af_heart", language = "pt", referenceAudioPath } = req.body;
+        
+        if (!text || typeof text !== 'string' || !text.trim()) {
+          return res.status(400).json({ error: "Text is required" });
+        }
+
+        // Criar um ID temporário para a geração do TTS
+        const tempId = `tts_${Date.now()}`;
+        const sceneId = `scene_${Date.now()}`;
+        
+        // Configuração para o TTS
+        const config: RenderConfig = {
+          voice: voice as VoiceEnum,
+          language: language as "pt" | "en",
+          referenceAudioPath: referenceAudioPath || undefined
+        };
+
+        // Gerar o áudio usando o método do ShortCreator
+        const audioResult = await this.shortCreator.generateSingleTTSAndUpdate(
+          tempId,
+          sceneId,
+          text.trim(),
+          config,
+          false
+        );
+
+        // Extrair o nome do arquivo do caminho
+        const filename = path.basename(audioResult.audioUrl);
+
+        res.status(200).json({
+          filename,
+          duration: audioResult.duration,
+          url: `/api/temp/${filename}`,
+          text: text.trim()
+        });
+      } catch (error) {
+        logger.error({ error }, "Error generating TTS");
+        res.status(500).json({
+          error: "Failed to generate TTS audio",
+          details: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    });
+
     this.router.use('/music', express.static(path.join(process.cwd(), 'static/music')));
     this.router.use('/overlays', express.static(path.join(process.cwd(), 'static/overlays')));
     this.router.use('/fonts', express.static(path.join(process.cwd(), 'fonts')));
@@ -435,5 +482,35 @@ export class APIRouter {
       }
     };
     this.router.use("/proxy", createProxyMiddleware(proxyOptions));
+
+    this.router.post("/force-refresh/:id", async (req: ExpressRequest, res: ExpressResponse) => {
+      try {
+        const { id } = req.params;
+        
+        // Força uma atualização do status baseado no estado real dos arquivos
+        const videoPath = this.shortCreator.getVideoPath(id);
+        const videoExists = fs.existsSync(videoPath);
+        
+        if (videoExists) {
+          await this.videoStatusManager.setStatus(id, "ready", "Video file exists", 100, "Completed");
+        } else {
+          await this.videoStatusManager.setError(id, "Video file not found");
+        }
+        
+        // Retorna o status atualizado
+        const updatedStatus = await this.shortCreator.status(id);
+        res.status(200).json({
+          message: "Status refreshed",
+          videoId: id,
+          status: updatedStatus
+        });
+      } catch (error) {
+        logger.error({ error }, "Error refreshing video status");
+        res.status(500).json({
+          error: "Failed to refresh video status",
+          details: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    });
   }
 }

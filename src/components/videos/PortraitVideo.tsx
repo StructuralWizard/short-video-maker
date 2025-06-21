@@ -20,6 +20,7 @@ import {
   shortVideoSchema,
   getOverlayUrl,
   getVideoUrl,
+  resolveUrl,
 } from "../../shared/utils";
 import { fontFamily } from "./fonts";
 
@@ -274,7 +275,7 @@ export const PortraitVideo: FC<Props> = ({
 
       {config?.overlay && (
         <Img
-          src={getOverlayUrl(config.overlay)}
+          src={getOverlayUrl(config.overlay, 'remotion')}
           style={{
             position: "absolute",
             top: 0,
