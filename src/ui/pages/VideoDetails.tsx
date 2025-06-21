@@ -9,7 +9,12 @@ import {
   CircularProgress, 
   Alert,
   Grid,
-  Snackbar
+  Snackbar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -18,8 +23,6 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { Video } from '../../types/shorts';
-
-const API_BASE_URL = 'http://localhost:3123';
 
 const VideoDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -177,9 +180,9 @@ const VideoDetails: React.FC = () => {
       });
 
       // Opcional: redirecionar após um delay
-      setTimeout(() => {
-        navigate('/');
-      }, 2000);
+      // setTimeout(() => {
+      //   navigate('/');
+      // }, 2000);
 
     } catch (error) {
       console.error(`Error ${action} video:`, error);
@@ -285,7 +288,7 @@ const VideoDetails: React.FC = () => {
           <Box textAlign="center" display="flex" justifyContent="center" gap={2} flexWrap="wrap">
             <Button 
               component="a"
-              href={`${API_BASE_URL}/api/video/${id}`}
+              href={`/api/video/${id}`}
               download
               variant="contained" 
               color="primary" 
@@ -423,6 +426,37 @@ const VideoDetails: React.FC = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        aria-labelledby="alert-dialog-title"
+        aria-describedby="alert-dialog-description"
+      >
+        <DialogTitle id="alert-dialog-title">
+          {"Confirmar Exclusão"}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="alert-dialog-description">
+            Tem certeza de que deseja apagar este vídeo? Esta ação não pode ser desfeita.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleDeleteVideo} 
+            color="error" 
+            variant="contained" 
+            autoFocus
+            disabled={deleting}
+            startIcon={deleting ? <CircularProgress size={16} /> : <DeleteIcon />}
+          >
+            {deleting ? 'Apagando...' : 'Apagar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
