@@ -142,4 +142,45 @@ export class FFMpeg {
         .mergeToFile(outputPath, path.dirname(outputPath));
     });
   }
+
+  public async concatenateWithSilence(filePaths: string[], outputPath: string, silenceDuration: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (filePaths.length === 0) {
+        return reject(new Error("No files to concatenate."));
+      }
+
+      const command = ffmpeg();
+      const complexFilter: string[] = [];
+      let inputStreamIndex = 0;
+
+      // Adiciona cada arquivo de áudio como uma entrada
+      filePaths.forEach((filePath, index) => {
+        command.input(filePath);
+        complexFilter.push(`[${inputStreamIndex}:a]`);
+        inputStreamIndex++;
+
+        // Adiciona um atraso de silêncio entre os arquivos
+        if (index < filePaths.length - 1) {
+          const silenceInput = `aevalsrc=0:d=${silenceDuration}`;
+          command.input(silenceInput).inputOptions('-f lavfi');
+          complexFilter.push(`[${inputStreamIndex}:a]`);
+          inputStreamIndex++;
+        }
+      });
+
+      // Concatena todas as entradas de áudio
+      command
+        .complexFilter(complexFilter.join('') + `concat=n=${complexFilter.length}:v=0:a=1[outa]`)
+        .outputOptions('-map', '[outa]')
+        .on('error', (err) => {
+          logger.error('Error concatenating audio files:', err);
+          reject(err);
+        })
+        .on('end', () => {
+          logger.info('Audio files concatenated successfully.');
+          resolve();
+        })
+        .save(outputPath);
+    });
+  }
 }

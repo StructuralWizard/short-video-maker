@@ -42,6 +42,24 @@ export const PortraitVideo: FC<Props> = ({
   music,
   config,
 }) => {
+  // Validate input data
+  console.log('[PortraitVideo] Input validation:', {
+    scenesLength: scenes?.length,
+    scenes: scenes?.map((scene, i) => ({
+      index: i,
+      audioDuration: scene.audio?.duration,
+      audioUrl: scene.audio?.url,
+      videosLength: scene.videos?.length
+    })),
+    music,
+    config
+  });
+
+  if (!scenes || scenes.length === 0) {
+    console.error('[PortraitVideo] No scenes provided');
+    return <AbsoluteFill style={{ backgroundColor: "red" }}><div>No scenes</div></AbsoluteFill>;
+  }
+
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -94,7 +112,7 @@ export const PortraitVideo: FC<Props> = ({
   // Ensure music starts from 0 if the start time would make it end before the video
   const startFrom = Math.min(music.start * fps, totalDurationInFrames - 1);
 
-  const fadeOutDuration = 2; // segundos
+  const fadeOutDuration = 3; // segundos
   const fadeOutStartFrame = totalDurationInFrames - fadeOutDuration * fps;
 
   const finalVolume = (frame: number) => {
@@ -196,9 +214,9 @@ export const PortraitVideo: FC<Props> = ({
       <Audio
         loop
         src={music.url}
-        startFrom={music.start * fps}
+        startFrom={startFrom}
         endAt={music.end * fps}
-        volume={finalVolume}
+        volume={finalVolume(frame)}
         muted={musicMuted}
       />
 
@@ -282,19 +300,46 @@ export const PortraitVideo: FC<Props> = ({
         // Calculate the start and end time of the scene
         const startFrame =
           scenes.slice(0, i).reduce((acc, curr) => {
-            return acc + curr.audio.duration;
+            const duration = curr.audio?.duration || 0;
+            const validDuration = isNaN(duration) ? 0 : duration;
+            console.log(`[PortraitVideo] Scene ${i} - reducing scene ${scenes.indexOf(curr)}: duration=${duration}, validDuration=${validDuration}, acc=${acc}`);
+            return acc + validDuration;
           }, 0) * fps;
-        let durationInFrames =
-          scenes.slice(0, i + 1).reduce((acc, curr) => {
-            return acc + curr.audio.duration;
-          }, 0) * fps;
+        
+        // Ensure startFrame is finite
+        const validStartFrame = isFinite(startFrame) ? startFrame : 0;
+        
+        const sceneDuration = scene.audio?.duration || 0;
+        let durationInFrames = Math.max((isNaN(sceneDuration) ? 1 : sceneDuration), 0.1) * fps;
         if (config.paddingBack && i === scenes.length - 1) {
           durationInFrames += (config.paddingBack / 1000) * fps;
         }
 
+        // Ensure minimum duration to prevent 0 duration errors
+        durationInFrames = Math.max(durationInFrames, 1);
+        
+        // Additional safety check - if durationInFrames is still 0 or NaN, force it to 1
+        if (durationInFrames <= 0 || isNaN(durationInFrames)) {
+          console.error(`[PortraitVideo] Scene ${i} has invalid durationInFrames: ${durationInFrames}, forcing to 1`);
+          durationInFrames = 1;
+        }
+
+        // Debug logs
+        console.log(`[PortraitVideo] Scene ${i}:`, {
+          sceneDuration,
+          durationInFrames,
+          startFrame,
+          validStartFrame,
+          fps,
+          audioUrl: scene.audio?.url,
+          audioDuration: scene.audio?.duration,
+          scenesLength: scenes.length,
+          i
+        });
+
         return (
           <Sequence
-            from={startFrame}
+            from={validStartFrame}
             durationInFrames={durationInFrames}
             key={`scene-${i}`}
           >
@@ -321,13 +366,40 @@ export const PortraitVideo: FC<Props> = ({
             </div>
             <Audio src={audio.url} />
             {pages.map((page, j) => {
+              // Usa apenas os campos que existem no tipo CaptionPage
+              const pageStartMs = page.startMs ?? 0;
+              const pageEndMs = page.endMs ?? 0;
+              const pageDurationMs = Math.max(pageEndMs - pageStartMs, 0.001); // Minimum 1ms to avoid 0
+              
+              // Additional safety checks to prevent NaN values
+              const validPageStartMs = isNaN(pageStartMs) ? 0 : Math.max(0, pageStartMs);
+              const validPageEndMs = isNaN(pageEndMs) ? Math.max(validPageStartMs + 100, 100) : Math.max(pageEndMs, validPageStartMs + 100);
+              const validPageDurationMs = Math.max(validPageEndMs - validPageStartMs, 0.001);
+              
+              const fromFrame = Math.round((validPageStartMs / 1000) * fps);
+              const durationFrames = Math.max(1, Math.round((validPageDurationMs / 1000) * fps));
+              
+              // Final safety check - ensure fromFrame is finite
+              if (!isFinite(fromFrame)) {
+                console.error(`[PortraitVideo] Scene ${i}, Page ${j}: Invalid fromFrame: ${fromFrame}, pageStartMs: ${pageStartMs}, validPageStartMs: ${validPageStartMs}`);
+                return null; // Skip this page if we can't calculate valid timing
+              }
+              
+              console.log(`[PortraitVideo] Scene ${i}, Page ${j}:`, {
+                pageStartMs,
+                pageEndMs,
+                validPageStartMs,
+                validPageEndMs,
+                fromFrame,
+                durationFrames,
+                fps
+              });
+              
               return (
                 <Sequence
                   key={`scene-${i}-page-${j}`}
-                  from={Math.round((page.startMs / 1000) * fps)}
-                  durationInFrames={Math.round(
-                    ((page.endMs - page.startMs) / 1000) * fps,
-                  )}
+                  from={fromFrame}
+                  durationInFrames={durationFrames}
                 >
                   <div
                     style={{
@@ -356,12 +428,14 @@ export const PortraitVideo: FC<Props> = ({
                           key={`scene-${i}-page-${j}-line-${k}`}
                         >
                           {line.texts.map((text, l) => {
+                            const textStartMs = text.startMs || 0;
+                            const textEndMs = text.endMs || 0;
                             const active =
                               frame >=
-                                startFrame + (text.startMs / 1000) * fps &&
-                              frame <= startFrame + (text.endMs / 1000) * fps;
-                            const wordStart = Math.round((text.startMs / 1000) * fps) - Math.round(0.1 * fps);
-                            const wordEnd = Math.round((text.endMs / 1000) * fps) - Math.round(0.1 * fps);
+                                validStartFrame + (textStartMs / 1000) * fps &&
+                              frame <= validStartFrame + (textEndMs / 1000) * fps;
+                            const wordStart = Math.round((textStartMs / 1000) * fps) - Math.round(0.1 * fps);
+                            const wordEnd = Math.round((textEndMs / 1000) * fps) - Math.round(0.1 * fps);
                             return (
                               <>
                                 <span

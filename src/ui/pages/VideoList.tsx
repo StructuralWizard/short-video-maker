@@ -17,16 +17,23 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Chip
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ClearIcon from '@mui/icons-material/Clear';
+import EditIcon from '@mui/icons-material/Edit';
+import WarningIcon from '@mui/icons-material/Warning';
+import ErrorIcon from '@mui/icons-material/Error';
 
 interface VideoItem {
   id: string;
   status: string;
+  scenes?: any[];
+  config?: any;
+  createdAt?: string;
 }
 
 const VideoList: React.FC = () => {
@@ -39,18 +46,32 @@ const VideoList: React.FC = () => {
 
   const fetchVideos = async () => {
     try {
-      const response = await axios.get('/api/short-videos');
-      setVideos(response.data.videos || []);
+      const response = await axios.get('/api/videos');
+      console.log('API response:', response.data);
+      
+      // Garante que videos seja sempre um array
+      const videosData = Array.isArray(response.data) ? response.data : [];
+      console.log('Processed videos data:', videosData);
+      
+      setVideos(videosData);
       setLoading(false);
     } catch (err) {
-      setError('Failed to fetch videos');
-      setLoading(false);
       console.error('Error fetching videos:', err);
+      setError('Failed to fetch videos');
+      setVideos([]); // Garante que videos seja um array vazio em caso de erro
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchVideos();
+    
+    // Polling para atualizar o status dos vídeos a cada 5 segundos
+    const interval = setInterval(() => {
+      fetchVideos();
+    }, 5000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const handleCreateNew = () => {
@@ -61,11 +82,16 @@ const VideoList: React.FC = () => {
     navigate(`/video/${id}`);
   };
 
+  const handleEditVideo = (id: string, event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    navigate(`/edit/${id}`);
+  };
+
   const handleDeleteVideo = async (id: string, event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     
     try {
-      await axios.delete(`/api/short-video/${id}`);
+      await axios.delete(`/api/videos/${id}`);
       fetchVideos();
     } catch (err) {
       setError('Failed to delete video');
@@ -76,8 +102,7 @@ const VideoList: React.FC = () => {
   const handleClearAllVideos = async () => {
     setClearing(true);
     try {
-      // Fazer uma requisição para limpar todos os vídeos
-      await axios.post('/api/clear-all-videos');
+      await axios.delete('/api/videos');
       setVideos([]);
       setClearDialogOpen(false);
     } catch (err) {
@@ -88,9 +113,60 @@ const VideoList: React.FC = () => {
     }
   };
 
-  const capitalizeFirstLetter = (str: string) => {
-    if (!str || typeof str !== 'string') return 'Unknown';
-    return str.charAt(0).toUpperCase() + str.slice(1);
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'ready':
+        return 'success';
+      case 'missing_mp4':
+        return 'warning';
+      case 'no_script':
+        return 'error';
+      case 'processing':
+        return 'info';
+      case 'failed':
+        return 'error';
+      default:
+        return 'default';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'ready':
+        return <PlayArrowIcon />;
+      case 'missing_mp4':
+        return <WarningIcon />;
+      case 'no_script':
+        return <ErrorIcon />;
+      case 'processing':
+        return <CircularProgress size={16} />;
+      default:
+        return null;
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'ready':
+        return 'Ready';
+      case 'missing_mp4':
+        return 'Missing MP4';
+      case 'no_script':
+        return 'No Script';
+      case 'processing':
+        return 'Processing';
+      case 'failed':
+        return 'Failed';
+      default:
+        return 'Unknown';
+    }
+  };
+
+  const getVideoTitle = (video: VideoItem) => {
+    if (video.scenes && video.scenes.length > 0) {
+      return video.scenes[0].text?.substring(0, 50) + (video.scenes[0].text?.length > 50 ? '...' : '');
+    }
+    return `Video ${video.id.substring(0, 8)}...`;
   };
 
   if (loading) {
@@ -101,14 +177,18 @@ const VideoList: React.FC = () => {
     );
   }
 
+  // Garante que videos seja sempre um array
+  const videosArray = Array.isArray(videos) ? videos : [];
+  console.log('Rendering with videos:', videosArray);
+
   return (
     <Box maxWidth="md" mx="auto" py={4}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
         <Typography variant="h4" component="h1">
-          Your Videos
+          Your Videos ({videosArray.length})
         </Typography>
         <Box display="flex" gap={2}>
-          {videos.length > 0 && (
+          {videosArray.length > 0 && (
             <Button 
               variant="outlined" 
               color="error" 
@@ -133,7 +213,7 @@ const VideoList: React.FC = () => {
         <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>
       )}
       
-      {videos.length === 0 ? (
+      {videosArray.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
           <Typography variant="body1" color="text.secondary" gutterBottom>
             You haven't created any videos yet.
@@ -150,7 +230,7 @@ const VideoList: React.FC = () => {
       ) : (
         <Paper>
           <List>
-            {videos.map((video, index) => {
+            {videosArray.map((video, index) => {
               const videoId = video?.id || '';
               const videoStatus = video?.status || 'unknown';
               
@@ -168,28 +248,48 @@ const VideoList: React.FC = () => {
                     }}
                   >
                     <ListItemText
-                      primary={`Video ${videoId.substring(0, 8)}...`}
+                      primary={getVideoTitle(video)}
                       secondary={
-                        <Typography
-                          component="span"
-                          variant="body2"
-                          color={
-                            videoStatus === 'ready' ? 'success.main' : 
-                            videoStatus === 'processing' ? 'info.main' : 
-                            videoStatus === 'failed' ? 'error.main' : 'text.secondary'
-                          }
-                        >
-                          {capitalizeFirstLetter(videoStatus)}
-                        </Typography>
+                        <Box component="div" display="flex" alignItems="center" gap={1} mt={1}>
+                          {(() => {
+                            const statusIcon = getStatusIcon(videoStatus);
+                            return (
+                              <Chip
+                                {...(statusIcon && { icon: statusIcon })}
+                                label={getStatusText(videoStatus)}
+                                color={getStatusColor(videoStatus) as any}
+                                size="small"
+                                variant="outlined"
+                              />
+                            );
+                          })()}
+                          {video.createdAt && (
+                            <Typography variant="caption" color="text.secondary">
+                              {new Date(video.createdAt).toLocaleDateString()}
+                            </Typography>
+                          )}
+                        </Box>
                       }
                     />
                     <ListItemSecondaryAction>
+                      {(videoStatus === 'missing_mp4' || videoStatus === 'no_script' || videoStatus === 'failed') && (
+                        <IconButton 
+                          edge="end" 
+                          aria-label="edit"
+                          onClick={(e) => handleEditVideo(videoId, e)}
+                          color="primary"
+                          sx={{ mr: 1 }}
+                        >
+                          <EditIcon />
+                        </IconButton>
+                      )}
                       {videoStatus === 'ready' && (
                         <IconButton 
                           edge="end" 
                           aria-label="play"
                           onClick={() => handleVideoClick(videoId)}
                           color="primary"
+                          sx={{ mr: 1 }}
                         >
                           <PlayArrowIcon />
                         </IconButton>
@@ -199,7 +299,6 @@ const VideoList: React.FC = () => {
                         aria-label="delete" 
                         onClick={(e) => handleDeleteVideo(videoId, e)}
                         color="error"
-                        sx={{ ml: 1 }}
                       >
                         <DeleteIcon />
                       </IconButton>
@@ -217,7 +316,7 @@ const VideoList: React.FC = () => {
         <DialogTitle>Clear All Videos</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete all {videos.length} videos? This action cannot be undone.
+            Are you sure you want to delete all {videosArray.length} videos? This action cannot be undone.
           </Typography>
         </DialogContent>
         <DialogActions>

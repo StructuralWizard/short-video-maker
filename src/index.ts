@@ -2,6 +2,7 @@
 import path from "path";
 import fs from "fs-extra";
 import "dotenv/config";
+import { bundle } from "@remotion/bundler";
 
 import { Remotion } from "./short-creator/libraries/Remotion";
 import { FFMpeg } from "./short-creator/libraries/FFmpeg";
@@ -9,38 +10,36 @@ import { Config } from "./config";
 import { ShortCreator } from "./short-creator/ShortCreator";
 import { logger } from "./logger";
 import { Server } from "./server/server";
-import { MusicManager } from "./short-creator/music";
-import { LocalTTS } from "./short-creator/libraries/LocalTTS";
-import { VideoProcessor } from "./short-creator/libraries/VideoProcessor";
 import { LocalImageAPI } from "./short-creator/libraries/LocalImageAPI";
 import { VideoStatusManager } from "./short-creator/VideoStatusManager";
+import { LocalTTS } from "./short-creator/libraries/LocalTTS";
 
 async function main() {
   try {
     // Carregar configuração
     const config = new Config();
 
+    // Bundle Remotion
+    const bundled = await bundle({
+      entryPoint: path.join(process.cwd(), "src", "components", "root", "index.ts"),
+      // Adicione outras opções de bundle se necessário
+    });
+
     // Inicializar componentes
-    const remotion = await Remotion.init(config);
-    const ffmpeg = await FFMpeg.init();
-    const localImageApi = new LocalImageAPI();
-    const musicManager = new MusicManager(config);
-    const localTTS = await LocalTTS.init(config);
-    const videoProcessor = new VideoProcessor(config.videosDirPath);
+    const remotion = new Remotion(bundled, config);
+    const ffmpeg = new FFMpeg(config);
+    const localImageApi = new LocalImageAPI(config.port);
+    const localTTS = await LocalTTS.init(config); // Usando LocalTTS real
     const statusManager = new VideoStatusManager(config);
 
     const shortCreator = new ShortCreator(
+      bundled,
       config,
       remotion,
       ffmpeg,
       localImageApi,
-      musicManager,
       localTTS,
-      statusManager,
-      undefined, // pixabay
-      undefined, // pexels
-      videoProcessor,
-      config.concurrency
+      statusManager
     );
 
     // Iniciar servidor

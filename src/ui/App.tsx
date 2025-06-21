@@ -9,13 +9,19 @@ import TTSGenerator from './TTSGenerator';
 
 const App: React.FC = () => {
   return (
-    <Router>
+    <Router
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true
+      }}
+    >
       <Layout>
         <Routes>
           <Route path="/" element={<VideoList />} />
           <Route path="/create" element={<VideoCreator />} />
-          <Route path="/video/:videoId" element={<VideoDetails />} />
-          <Route path="/video/:videoId/edit" element={<VideoEditor />} />
+          <Route path="/video/:id" element={<VideoDetails />} />
+          <Route path="/edit/:id" element={<VideoEditor />} />
+          <Route path="/video/:id/edit" element={<VideoEditor />} />
           <Route path="/tts" element={<TTSGenerator />} />
         </Routes>
       </Layout>

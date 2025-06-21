@@ -4,7 +4,7 @@ import torch
 from TTS.api import TTS
 import soundfile as sf
 from pathlib import Path
-from flask import Flask, request, send_file
+from flask import Flask, request, send_file, send_from_directory, jsonify
 import threading
 import logging
 
@@ -38,11 +38,11 @@ def load_model():
         logger.info(f"Modelo TTS carregado com sucesso no dispositivo: {device}")
     return tts_model
 
-def generate_speech(text, reference_audio, output_path, language="pt", emotion="neutral"):
+def generate_speech(text, reference_audio_filename, output_path, language="pt"):
     """Gera áudio usando o modelo TTS"""
     try:
-        # Verifica se o arquivo de referência existe
-        ref_path = REFERENCE_AUDIO_DIR / reference_audio
+        # Verifica se o arquivo de referência existe no diretório de referência
+        ref_path = REFERENCE_AUDIO_DIR / reference_audio_filename
         if not ref_path.exists():
             raise FileNotFoundError(f"Arquivo de referência não encontrado: {ref_path}")
         
@@ -69,36 +69,40 @@ def generate_speech(text, reference_audio, output_path, language="pt", emotion="
         logger.error(f"Erro ao gerar áudio: {str(e)}")
         return False
 
-@app.route('/tts', methods=['POST'])
+@app.route('/api/tts', methods=['POST'])
 def handle_tts_request():
     try:
-        # Extrai os parâmetros da requisição
+        # Extrai os parâmetros da requisição JSON
         data = request.get_json()
         text = data.get("text", "")
-        reference_audio = data.get("reference_audio", "")
+        reference_audio_filename = data.get("reference_audio_filename")
         language = data.get("language", "pt")
-        emotion = data.get("emotion", "neutral")
         
+        if not reference_audio_filename:
+            return jsonify({"error": "reference_audio_filename é obrigatório"}), 400
+
         # Gera um nome único para o arquivo de saída
-        output_filename = f"generated_{hash(text + reference_audio)}.wav"
+        output_filename = f"generated_{hash(text + reference_audio_filename)}.wav"
         output_path = OUTPUT_DIR / output_filename
         
         # Gera o áudio
-        success = generate_speech(text, reference_audio, output_path, language, emotion)
+        success = generate_speech(text, reference_audio_filename, output_path, language)
         
         if success:
-            return send_file(
-                output_path,
-                mimetype='audio/wav',
-                as_attachment=True,
-                download_name=output_filename
-            )
+            # Retorna o link para download em JSON
+            download_link = f"/api/download/{output_filename}"
+            return jsonify({"download_link": download_link})
         else:
-            return {"error": "Falha ao gerar áudio"}, 500
+            return jsonify({"error": "Falha ao gerar áudio"}), 500
             
     except Exception as e:
         logger.error(f"Erro ao processar requisição: {str(e)}")
-        return {"error": str(e)}, 500
+        return jsonify({"error": f"Erro interno do servidor: {str(e)}"}), 500
+
+@app.route('/api/download/<filename>')
+def download_file(filename):
+    """Rota para servir os arquivos de áudio gerados."""
+    return send_from_directory(OUTPUT_DIR, filename, as_attachment=True)
 
 @app.route('/health', methods=['GET'])
 def health_check():

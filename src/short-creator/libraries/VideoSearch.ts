@@ -1,5 +1,5 @@
-import { OrientationEnum } from "../../types/shorts";
-import { VideoProvider, VideoResult, VideoSearchError } from "./VideoProvider";
+import { OrientationEnum, Video } from "../../types/shorts";
+import { VideoProvider, VideoSearchError } from "./VideoProvider";
 import { logger } from "../../logger";
 import { LocalImageAPI } from "./LocalImageAPI";
 
@@ -13,7 +13,7 @@ export class VideoSearch {
     duration: number,
     excludeVideoIds: string[] = [],
     orientation: OrientationEnum = OrientationEnum.portrait
-  ): Promise<VideoResult> {
+  ): Promise<Video> {
     logger.info({ searchTerms, duration, excludeVideoIds, orientation }, "🔍 Starting video search");
 
     return await this.localImageApi.findVideo(
@@ -30,7 +30,7 @@ export class VideoSearch {
     excludeVideoIds: string[] = [],
     orientation: OrientationEnum = OrientationEnum.portrait,
     count: number = 1
-  ): Promise<VideoResult[]> {
+  ): Promise<Video[]> {
     logger.info({ searchTerms, duration, excludeVideoIds, orientation, count }, "🔍 Starting video search for multiple videos");
 
     return await this.localImageApi.findVideos(
@@ -42,12 +42,16 @@ export class VideoSearch {
     );
   }
 
-  public async getVideoByUrl(url: string): Promise<VideoResult> {
+  public async findRandomVideo(
+    excludeVideoIds: string[] = [],
+    orientation: OrientationEnum = OrientationEnum.portrait
+  ): Promise<Video> {
+    logger.info("Delegating random video search to LocalImageAPI");
+    return await this.localImageApi.findRandomVideo(excludeVideoIds, orientation);
+  }
+
+  public async getVideoByUrl(url: string): Promise<Video> {
     logger.info({ url }, "🔍 Getting video by URL");
-    const videoId = url.split('/').pop();
-    if (!videoId) {
-      throw new VideoSearchError(`Could not extract video ID from URL: ${url}`);
-    }
-    return await this.localImageApi.getVideoById(videoId);
+    return await this.localImageApi.getVideoByUrl(url);
   }
 } 

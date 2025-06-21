@@ -1,4 +1,4 @@
-import { OrientationEnum } from "../../types/shorts";
+import { OrientationEnum, Video } from "../../types/shorts";
 
 export interface VideoResult {
   id: string;
@@ -12,7 +12,19 @@ export interface VideoProvider {
     duration: number,
     excludeIds: string[],
     orientation: OrientationEnum
-  ): Promise<VideoResult>;
+  ): Promise<Video>;
+  findVideos(
+    searchTerms: string[],
+    duration: number,
+    excludeIds: string[],
+    orientation: OrientationEnum,
+    count: number
+  ): Promise<Video[]>;
+  findRandomVideo(
+    excludeIds: string[],
+    orientation: OrientationEnum
+  ): Promise<Video>;
+  getVideoByUrl(url: string): Promise<Video>;
 }
 
 export class VideoSearchError extends Error {

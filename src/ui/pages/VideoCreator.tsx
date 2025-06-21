@@ -29,6 +29,7 @@ import {
   OrientationEnum,
   MusicVolumeEnum,
 } from "../../types/shorts";
+import { VideoStatus } from "../components/VideoStatus";
 
 interface SceneFormData {
   text: string;
@@ -41,7 +42,7 @@ const VideoCreator: React.FC = () => {
     { text: "", searchTerms: "" },
   ]);
   const [config, setConfig] = useState<RenderConfig>({
-    paddingBack: 1000,
+    paddingBack: 3000,
     music: MusicMoodEnum.chill,
     captionPosition: CaptionPositionEnum.bottom,
     captionBackgroundColor: "#000000",
@@ -53,6 +54,7 @@ const VideoCreator: React.FC = () => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
   const [voices, setVoices] = useState<VoiceEnum[]>([]);
   const [musicTags, setMusicTags] = useState<MusicMoodEnum[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
@@ -126,7 +128,8 @@ const VideoCreator: React.FC = () => {
         config,
       });
 
-      navigate(`/video/${response.data.videoId}`);
+      setCurrentVideoId(response.data.videoId);
+      // navigate(`/video/${response.data.videoId}`);
     } catch (err) {
       setError("Failed to create video. Please try again.");
       console.error(err);
@@ -153,6 +156,20 @@ const VideoCreator: React.FC = () => {
       <Typography variant="h4" component="h1" gutterBottom>
         Create New Video
       </Typography>
+
+      {currentVideoId && (
+        <VideoStatus 
+          videoId={currentVideoId} 
+          onStatusChange={(status) => {
+            if (status.status === 'ready') {
+              // Auto-navigate when video is ready
+              setTimeout(() => {
+                navigate(`/video/${currentVideoId}`);
+              }, 2000);
+            }
+          }}
+        />
+      )}
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>

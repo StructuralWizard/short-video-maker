@@ -177,6 +177,10 @@ export const createShortInput = z.object({
 });
 export type CreateShortInput = z.infer<typeof createShortInput>;
 
+export type RenderRequest = CreateShortInput & {
+  id?: string; // Para edição de vídeos existentes
+};
+
 export type Music = {
   file: string;
   start: number;

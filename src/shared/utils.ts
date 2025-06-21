@@ -65,6 +65,15 @@ export function createCaptionPages({
   lineCount: number;
   maxDistanceMs: number;
 }) {
+  console.log('[createCaptionPages] Input captions:', captions.map((c, i) => ({
+    index: i,
+    text: c.text,
+    startMs: c.startMs,
+    endMs: c.endMs,
+    start: (c as any).start,
+    end: (c as any).end
+  })));
+
   const pages = [];
   let currentPage: CaptionPage = {
     startMs: 0,
@@ -76,8 +85,26 @@ export function createCaptionPages({
   };
 
   captions.forEach((caption, i) => {
+    // Handle both startMs/endMs and start/end field formats
+    const startMs = caption.startMs ?? (caption as any).start ?? 0;
+    const endMs = caption.endMs ?? (caption as any).end ?? 0;
+    
+    // Ensure we have valid timing values
+    const validStartMs = isNaN(startMs) ? 0 : Math.max(0, startMs);
+    const validEndMs = isNaN(endMs) ? Math.max(validStartMs + 100, 100) : Math.max(endMs, validStartMs + 100);
+
+    console.log(`[createCaptionPages] Caption ${i}:`, {
+      text: caption.text,
+      originalStartMs: caption.startMs,
+      originalEndMs: caption.endMs,
+      originalStart: (caption as any).start,
+      originalEnd: (caption as any).end,
+      validStartMs,
+      validEndMs
+    });
+
     // Check if we need to start a new page due to time gap
-    if (i > 0 && caption.startMs - currentPage.endMs > maxDistanceMs) {
+    if (i > 0 && validStartMs - currentPage.endMs > maxDistanceMs) {
       // Add current line if not empty
       if (currentLine.texts.length > 0) {
         currentPage.lines.push(currentLine);
@@ -88,8 +115,8 @@ export function createCaptionPages({
       }
       // Start new page
       currentPage = {
-        startMs: caption.startMs,
-        endMs: caption.endMs,
+        startMs: validStartMs,
+        endMs: validEndMs,
         lines: [],
       };
       currentLine = {
@@ -115,8 +142,8 @@ export function createCaptionPages({
         pages.push(currentPage);
         // Start new page
         currentPage = {
-          startMs: caption.startMs,
-          endMs: caption.endMs,
+          startMs: validStartMs,
+          endMs: validEndMs,
           lines: [],
         };
       }
@@ -125,16 +152,16 @@ export function createCaptionPages({
     // Add caption to current line
     currentLine.texts.push({
       text: caption.text,
-      startMs: caption.startMs,
-      endMs: caption.endMs,
+      startMs: validStartMs,
+      endMs: validEndMs,
     });
 
     // Update page timing
-    currentPage.endMs = caption.endMs;
+    currentPage.endMs = validEndMs;
     if (i === 0 || currentPage.startMs === 0) {
-      currentPage.startMs = caption.startMs;
+      currentPage.startMs = validStartMs;
     } else {
-      currentPage.startMs = Math.min(currentPage.startMs, caption.startMs);
+      currentPage.startMs = Math.min(currentPage.startMs, validStartMs);
     }
   });
 
@@ -145,6 +172,15 @@ export function createCaptionPages({
   if (currentPage.lines.length > 0) {
     pages.push(currentPage);
   }
+
+  console.log('[createCaptionPages] Final pages:', pages.map((page, i) => ({
+    pageIndex: i,
+    startMs: page.startMs,
+    endMs: page.endMs,
+    durationMs: page.endMs - page.startMs,
+    linesCount: page.lines.length,
+    textsCount: page.lines.reduce((acc, line) => acc + line.texts.length, 0)
+  })));
 
   return pages;
 }

@@ -8,7 +8,8 @@ import {
   Img,
 } from "remotion";
 import { z } from "zod";
-import { loadFont } from "@remotion/google-fonts/BarlowCondensed";
+// Use local font instead of Google Fonts to avoid timeout issues
+// import { loadFont } from "@remotion/google-fonts/BarlowCondensed";
 
 import {
   calculateVolume,
@@ -16,7 +17,8 @@ import {
   shortVideoSchema,
 } from "../utils";
 
-const { fontFamily } = loadFont(); // "Barlow Condensed"
+// Use local font instead of Google Fonts
+const fontFamily = "'BenzGrotesk', sans-serif";
 
 export const PortraitVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
   scenes,
@@ -92,10 +94,7 @@ export const PortraitVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
           scenes.slice(0, i).reduce((acc, curr) => {
             return acc + curr.audio.duration;
           }, 0) * fps;
-        let durationInFrames =
-          scenes.slice(0, i + 1).reduce((acc, curr) => {
-            return acc + curr.audio.duration;
-          }, 0) * fps;
+        let durationInFrames = scene.audio.duration * fps;
         if (config.paddingBack && i === scenes.length - 1) {
           durationInFrames += (config.paddingBack / 1000) * fps;
         }

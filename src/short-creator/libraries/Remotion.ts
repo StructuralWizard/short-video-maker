@@ -7,6 +7,7 @@ import fs from "fs-extra";
 import https from "https";
 import { URL } from "url";
 import http from "http";
+import { getAudioDurationInSeconds } from "@remotion/media-utils";
 
 import { Config } from "../../config";
 import { shortVideoSchema, getOrientationConfig } from "../../shared/utils";
@@ -96,6 +97,16 @@ export class Remotion {
     return new Remotion(bundled, config);
   }
 
+  public async getMediaDuration(filePath: string): Promise<number> {
+    try {
+      const durationInSeconds = await getAudioDurationInSeconds(filePath);
+      return durationInSeconds;
+    } catch (err) {
+      logger.error({ filePath, error: err }, "Failed to get media duration.");
+      throw new Error(`Could not get duration for ${filePath}.`);
+    }
+  }
+
   public async renderMedia(
     id: string,
     data: ShortVideoData,
@@ -104,15 +115,27 @@ export class Remotion {
   ) {
     const { component } = getOrientationConfig(orientation);
 
+    logger.info({ videoID: id, component }, "Starting Remotion render process");
+
     const composition = await selectComposition({
       serveUrl: this.bundled,
       id: component,
       inputProps: data,
     });
 
+    logger.info({ 
+      videoID: id, 
+      component, 
+      durationInFrames: composition.durationInFrames,
+      fps: composition.fps,
+      width: composition.width,
+      height: composition.height
+    }, "Composition selected for rendering");
+
     const outputLocation = path.join(this.config.videosDirPath, `${id}.mp4`);
 
     try {
+      let lastProgress = 0;
       await renderMedia({
         codec: "h264",
         composition,
@@ -120,6 +143,18 @@ export class Remotion {
         outputLocation,
         inputProps: data,
         onProgress: ({ progress }) => {
+          const progressPercent = Math.round(progress * 100);
+          // Log apenas quando o progresso muda significativamente (a cada 5%)
+          if (progressPercent >= lastProgress + 5 || progressPercent === 100) {
+            logger.info({ 
+              videoID: id, 
+              progress: progressPercent,
+              stage: progressPercent < 20 ? "Initializing" : 
+                     progressPercent < 50 ? "Processing frames" :
+                     progressPercent < 80 ? "Encoding video" : "Finalizing"
+            }, `Render progress: ${progressPercent}%`);
+            lastProgress = progressPercent;
+          }
           onProgress(progress);
         },
         concurrency: 10,
@@ -130,9 +165,15 @@ export class Remotion {
         },
         timeoutInMilliseconds: 300000 // 5 minutos para o processo todo
       });
-      logger.debug({ component, videoID: id }, "Video rendered with Remotion");
+      
+      logger.info({ 
+        component, 
+        videoID: id,
+        outputLocation,
+        fileSize: fs.existsSync(outputLocation) ? fs.statSync(outputLocation).size : 0
+      }, "Video rendered successfully with Remotion");
     } catch (err) {
-      logger.error("Remotion render failed");
+      logger.error({ videoID: id, error: err }, "Remotion render failed");
       throw err;
     }
   }

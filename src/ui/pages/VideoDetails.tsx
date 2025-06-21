@@ -8,77 +8,221 @@ import {
   Button, 
   CircularProgress, 
   Alert,
-  Grid
+  Grid,
+  Snackbar
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DownloadIcon from '@mui/icons-material/Download';
 import EditIcon from '@mui/icons-material/Edit';
-import { VideoStatus } from '../../types/shorts';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CancelIcon from '@mui/icons-material/Cancel';
+import DeleteIcon from '@mui/icons-material/Delete';
+import { Video } from '../../types/shorts';
+
+const API_BASE_URL = 'http://localhost:3123';
 
 const VideoDetails: React.FC = () => {
-  const { videoId } = useParams<{ videoId: string }>();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<VideoStatus>('processing');
+  const [video, setVideo] = useState<Video | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [approving, setApproving] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isMounted = useRef(true);
 
-  const checkVideoStatus = async () => {
-    if (!isMounted.current) return;
-    try {
-      const response = await axios.get(`/api/short-video/${videoId}/status`);
-      const newStatus = response.data.status;
-
-      if (isMounted.current) {
-        setStatus((currentStatus) => {
-          if (currentStatus === newStatus) {
-            return currentStatus;
-          }
-          if (newStatus !== 'processing' && intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
-          }
-          return newStatus || 'unknown';
-        });
-        setLoading(false);
-      }
-    } catch (error) {
-      if (isMounted.current) {
-        setError('Failed to fetch video status');
-        setStatus('failed');
-        setLoading(false);
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
-      }
-    }
-  };
-
   useEffect(() => {
-    isMounted.current = true;
-    checkVideoStatus();
-    
-    intervalRef.current = setInterval(() => {
-      checkVideoStatus();
-    }, 5000);
-    
-    return () => {
-      isMounted.current = false;
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+    const fetchVideoDetails = async () => {
+      if (!id) {
+        setError('No video ID provided');
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      try {
+        const detailsResponse = await axios.get(`/api/video-data/${id}`);
+        setVideo(detailsResponse.data);
+
+        const statusResponse = await axios.get(`/api/status/${id}`);
+        setStatus(statusResponse.data.status);
+        setStatusError(statusResponse.data.error || null);
+
+      } catch (err) {
+        setError('Failed to fetch video details');
+        console.error('Error fetching video details:', err);
+      } finally {
+        setLoading(false);
       }
     };
-  }, [videoId]);
+
+    fetchVideoDetails();
+
+    const intervalId = setInterval(async () => {
+      if (!id) return;
+      try {
+        const response = await axios.get(`/api/status/${id}`);
+        const newStatus = response.data.status;
+        const newError = response.data.error || null;
+        setStatus(newStatus);
+        setStatusError(newError);
+        if (newStatus === 'ready' || newStatus === 'failed') {
+          clearInterval(intervalId);
+        }
+      } catch (err) {
+        console.error('Error fetching video status update:', err);
+      }
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [id]);
 
   const handleBack = () => {
     navigate('/');
   };
 
   const handleEdit = () => {
-    navigate(`/video/${videoId}/edit`);
+    navigate(`/edit/${id}`);
+  };
+
+  const handleDownload = () => {
+    const link = document.createElement('a');
+    link.href = `/api/video/${id}`;
+    link.download = `video-${id}.mp4`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const getVideoData = async () => {
+    try {
+      // Buscar dados completos do vídeo
+      const [videoDataResponse, scriptResponse] = await Promise.all([
+        axios.get(`/api/video-data/${id}`),
+        axios.get(`/api/script/${id}`).catch(() => ({ data: null }))
+      ]);
+
+      return {
+        videoData: videoDataResponse.data,
+        script: scriptResponse.data
+      };
+    } catch (error) {
+      console.error('Error fetching video data:', error);
+      throw error;
+    }
+  };
+
+  const handleApproval = async (action: 'approved' | 'reproved') => {
+    if (!id) return;
+
+    console.log('Vite Env:', (import.meta as any).env);
+
+    const setLoadingState = action === 'approved' ? setApproving : setRejecting;
+    setLoadingState(true);
+
+    try {
+      // Buscar todos os dados do vídeo
+      const { videoData, script } = await getVideoData();
+      
+      // URL de download direto
+      const downloadUrl = `${window.location.origin}/api/video/${id}`;
+      
+      // Preparar payload completo
+      const payload = {
+        videoId: id,
+        status: action,
+        timestamp: new Date().toISOString(),
+        video: {
+          id: id,
+          status: status,
+          downloadUrl: downloadUrl,
+          ...video
+        },
+        videoData: videoData,
+        script: script,
+        originalJson: {
+          scenes: videoData?.scenes || [],
+          config: videoData?.config || {},
+          music: videoData?.music || {}
+        }
+      };
+
+      // Enviar para a URL de aprovação
+      const approvalUrl = (import.meta as any).env?.VITE_APPROVAL_URL;
+      
+      if (!approvalUrl) {
+        throw new Error('A variável VITE_APPROVAL_URL não está configurada no seu arquivo .env. Por favor, adicione-a para continuar.');
+      }
+
+      const response = await axios.post(approvalUrl, payload, {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        timeout: 300000
+      });
+
+      setSnackbar({
+        open: true,
+        message: `Vídeo ${action === 'approved' ? 'aprovado' : 'reprovado'} com sucesso!`,
+        severity: 'success'
+      });
+
+      // Opcional: redirecionar após um delay
+      setTimeout(() => {
+        navigate('/');
+      }, 2000);
+
+    } catch (error) {
+      console.error(`Error ${action} video:`, error);
+      setSnackbar({
+        open: true,
+        message: `Erro ao ${action === 'approved' ? 'aprovar' : 'reprovar'} vídeo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+        severity: 'error'
+      });
+    } finally {
+      setLoadingState(false);
+    }
+  };
+
+  const handleApprove = () => handleApproval('approved');
+  const handleReject = () => handleApproval('reproved');
+
+  const handleDeleteVideo = async () => {
+    if (!id) return;
+
+    setDeleting(true);
+    try {
+      await axios.delete(`/api/videos/${id}`);
+      setSnackbar({
+        open: true,
+        message: 'Vídeo deletado com sucesso!',
+        severity: 'success'
+      });
+      
+      // Redirecionar para a lista após um delay
+      setTimeout(() => {
+        navigate('/');
+      }, 1500);
+    } catch (error) {
+      console.error('Error deleting video:', error);
+      setSnackbar({
+        open: true,
+        message: 'Erro ao deletar vídeo',
+        severity: 'error'
+      });
+    } finally {
+      setDeleting(false);
+      setDeleteDialogOpen(false);
+    }
   };
 
   const renderContent = () => {
@@ -116,29 +260,32 @@ const VideoDetails: React.FC = () => {
           </Box>
           
           <Box sx={{ 
-            position: 'relative', 
-            paddingTop: '56.25%',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
             mb: 3,
-            backgroundColor: '#000'
+            backgroundColor: '#000',
+            borderRadius: 1,
+            overflow: 'hidden'
           }}>
-            <video
-              controls
-              autoPlay
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-              }}
-              src={`/api/short-video/${videoId}`}
-            />
+            {video && (
+              <Box
+                component="video"
+                controls
+                sx={{
+                  maxHeight: '70vh',
+                  maxWidth: '100%',
+                  objectFit: 'contain',
+                }}
+                src={`/api/video/${id}`}
+              />
+            )}
           </Box>
           
-          <Box textAlign="center" display="flex" justifyContent="center" gap={2}>
+          <Box textAlign="center" display="flex" justifyContent="center" gap={2} flexWrap="wrap">
             <Button 
               component="a"
-              href={`/api/short-video/${videoId}`}
+              href={`${API_BASE_URL}/api/video/${id}`}
               download
               variant="contained" 
               color="primary" 
@@ -155,6 +302,33 @@ const VideoDetails: React.FC = () => {
             >
               Edit Video
             </Button>
+            <Button 
+              variant="contained" 
+              color="success" 
+              startIcon={approving ? <CircularProgress size={16} /> : <CheckCircleIcon />}
+              onClick={handleApprove}
+              disabled={approving || rejecting}
+            >
+              {approving ? 'Aprovando...' : 'Aprovar'}
+            </Button>
+            <Button 
+              variant="contained" 
+              color="error" 
+              startIcon={rejecting ? <CircularProgress size={16} /> : <CancelIcon />}
+              onClick={handleReject}
+              disabled={approving || rejecting}
+            >
+              {rejecting ? 'Reprovando...' : 'Reprovar'}
+            </Button>
+            <Button 
+              variant="outlined" 
+              color="error" 
+              startIcon={<DeleteIcon />}
+              onClick={() => setDeleteDialogOpen(true)}
+              disabled={approving || rejecting}
+            >
+              Deletar
+            </Button>
           </Box>
         </Box>
       );
@@ -162,9 +336,19 @@ const VideoDetails: React.FC = () => {
 
     if (status === 'failed') {
       return (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          Video processing failed. Please try again with different settings.
-        </Alert>
+        <Box textAlign="center">
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {statusError || 'Video processing failed. Please try again with different settings.'}
+          </Alert>
+          <Button 
+            variant="outlined" 
+            color="primary" 
+            startIcon={<EditIcon />}
+            onClick={handleEdit}
+          >
+            Edit Video
+          </Button>
+        </Box>
       );
     }
 
@@ -202,7 +386,7 @@ const VideoDetails: React.FC = () => {
               Video ID
             </Typography>
             <Typography variant="body1">
-              {videoId || 'Unknown'}
+              {id || 'Unknown'}
             </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
@@ -217,13 +401,28 @@ const VideoDetails: React.FC = () => {
                 status === 'failed' ? 'error.main' : 'text.primary'
               }
             >
-              {capitalizeFirstLetter(status)}
+              {capitalizeFirstLetter(status || 'unknown')}
             </Typography>
           </Grid>
         </Grid>
         
         {renderContent()}
       </Paper>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

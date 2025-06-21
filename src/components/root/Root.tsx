@@ -14,7 +14,29 @@ const PORT = 3123;
 export const calculateMetadata: CalculateMetadataFunction<
   z.infer<typeof shortVideoSchema>
 > = async ({ props }) => {
-  const durationInFrames = Math.floor((props.config.durationMs / 1000) * FPS);
+  // Calcula a duração total somando a duração de todas as cenas de áudio
+  const scenesDuration = props.scenes.reduce((acc, scene) => {
+    // Garante que a duração seja um número válido, tratando casos de NaN ou undefined
+    const duration = scene.audio?.duration;
+    return acc + (typeof duration === 'number' && isFinite(duration) ? duration : 0);
+  }, 0);
+
+  // Adiciona o padding final, se existir
+  const paddingInSeconds = (props.config.paddingBack || 0) / 1000;
+  
+  // Duração total em segundos
+  const totalDurationInSeconds = scenesDuration + paddingInSeconds;
+
+  // Converte para frames, garantindo que seja no mínimo 1
+  const durationInFrames = Math.max(1, Math.round(totalDurationInSeconds * FPS));
+  
+  console.log('[Metadata] Calculated total duration:', {
+    scenesDuration,
+    paddingInSeconds,
+    totalDurationInSeconds,
+    durationInFrames
+  });
+
   return {
     ...props,
     durationInFrames,
@@ -52,7 +74,7 @@ export const RemotionRoot: React.FC = () => {
                 "https://videos.pexels.com/video-files/4625747/4625747-hd_1080_1920_24fps.mp4",
               ],
               audio: {
-                url: `http://localhost:${PORT}/api/tmp/cma1lgean0001rlsi52b8h3n3.mp3`,
+                url: `http://localhost:${PORT}/api/temp/cma1lgean0001rlsi52b8h3n3.mp3`,
                 duration: 3.15,
               },
             },
@@ -270,7 +292,7 @@ export const RemotionRoot: React.FC = () => {
                 "https://videos.pexels.com/video-files/1168989/1168989-hd_1920_1080_30fps.mp4",
               ],
               audio: {
-                url: `http://localhost:${PORT}/api/tmp/cma9ctvpo0001aqsia12i82db.mp3`,
+                url: `http://localhost:${PORT}/api/temp/cma9ctvpo0001aqsia12i82db.mp3`,
                 duration: 12.8,
               },
             },

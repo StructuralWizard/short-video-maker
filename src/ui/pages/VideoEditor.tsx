@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -39,6 +39,8 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SaveIcon from '@mui/icons-material/Save';
+import GraphicEqIcon from '@mui/icons-material/GraphicEq';
+import { nanoid } from 'nanoid';
 
 interface Scene {
   id: string;
@@ -68,7 +70,7 @@ interface VideoSearchResult {
 }
 
 const VideoEditor: React.FC = () => {
-  const { videoId } = useParams<{ videoId: string }>();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,31 +82,66 @@ const VideoEditor: React.FC = () => {
   const [searchResults, setSearchResults] = useState<VideoSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [rendering, setRendering] = useState(false);
+  const [generatingAudio, setGeneratingAudio] = useState<Record<number, boolean>>({});
+  const [saving, setSaving] = useState<boolean>(false);
+  const [referenceAudioPath, setReferenceAudioPath] = useState<string>("");
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
   const getPreviewUrl = (url: string, isSearchResult: boolean = false): string => {
-    const baseUrl = `/api/proxy?src=${url}`;
+    const path = url.replace(/https?:\/\/[^/]+/, '');
+    const baseUrl = `/api/proxy${path}`;
     if (isSearchResult) {
-      return `${baseUrl}&nocache=true`;
+      return `${baseUrl}?nocache=true`;
     }
     return baseUrl;
   };
 
   useEffect(() => {
-    if (videoId) {
+    if (id) {
       loadVideoData();
     }
-  }, [videoId]);
+  }, [id]);
 
   const loadVideoData = async () => {
     try {
+      console.log(`[VideoEditor] Loading data for ID: ${id}`);
       setLoading(true);
-      const response = await axios.get(`/api/video-data/${videoId}`);
-      setVideoData(response.data);
+      setError(null);
+      
+      const response = await axios.get(`/api/video-data/${id}`);
+      console.log('[VideoEditor] API Response:', response);
+      
+      const data = response.data;
+      console.log('[VideoEditor] Data received:', data);
+
+      if (!data) {
+        throw new Error("API returned no data");
+      }
+
+      if (!data.scenes) {
+        console.warn('[VideoEditor] No scenes found in data, initializing as empty array.');
+        data.scenes = [];
+      }
+      if (!data.config) {
+        console.warn('[VideoEditor] No config found in data, initializing as empty object.');
+        data.config = {};
+      }
+      
+      setVideoData(data);
+      
+      if (data.config && data.config.referenceAudioPath) {
+        setReferenceAudioPath(data.config.referenceAudioPath);
+      }
     } catch (err) {
-      setError('Failed to load video data');
-      console.error('Error loading video data:', err);
+      const errorMessage = `Failed to load video data for ID: ${id}`;
+      console.error(errorMessage, err);
+      if (axios.isAxiosError(err)) {
+        console.error('Axios error details:', err.response?.data);
+      }
+      setError(errorMessage);
     } finally {
       setLoading(false);
+      console.log('[VideoEditor] Finished loading attempt.');
     }
   };
 
@@ -123,34 +160,51 @@ const VideoEditor: React.FC = () => {
     }
   };
 
+  const saveVideoData = async (data: VideoData) => {
+    if (!id) return;
+    try {
+      await axios.post(`/api/video-data/${id}`, data);
+    } catch (err) {
+      console.error("Failed to auto-save video data:", err);
+      // Opcional: Adicionar um alerta para o usuário
+    }
+  };
+
   const handleReplaceVideo = (newVideo: VideoSearchResult) => {
     if (!videoData) return;
 
-    const updatedVideoData = { ...videoData };
-    const scene = updatedVideoData.scenes[currentSceneIndex];
-    
-    // Substitui o vídeo na posição atual
-    scene.videos[currentVideoIndex] = newVideo.url;
-    
-    setVideoData(updatedVideoData);
+    const updatedData = { ...videoData };
+    updatedData.scenes[currentSceneIndex].videos[currentVideoIndex] = newVideo.url;
+
+    setVideoData(updatedData);
+    saveVideoData(updatedData);
+
     setSearchDialogOpen(false);
     setSearchResults([]);
     setSearchTerm('');
   };
 
   const handleSaveAndRender = async () => {
-    if (!videoData || !videoId) return;
+    if (!videoData || !id) return;
 
     setRendering(true);
     try {
-      // Salva os dados atualizados
-      await axios.put(`/api/video-data/${videoId}`, videoData);
-      
-      // Re-renderiza o vídeo
-      await axios.post(`/api/re-render-video/${videoId}`);
-      
-      // Redireciona para a página de detalhes do vídeo
-      navigate(`/video/${videoId}`);
+      const payload = {
+        id: id,
+        scenes: videoData.scenes,
+        config: {
+          ...videoData.config,
+          referenceAudioPath: referenceAudioPath,
+        },
+      };
+
+      await fetch('/api/render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      navigate('/');
     } catch (err) {
       setError('Failed to save and render video');
       console.error('Error saving and rendering video:', err);
@@ -171,6 +225,80 @@ const VideoEditor: React.FC = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const handleSceneTextChange = (sceneIndex: number, newText: string) => {
+    setVideoData(prevData => {
+      if (!prevData) return null;
+      const updatedScenes = [...prevData.scenes];
+      updatedScenes[sceneIndex].text = newText;
+      return { ...prevData, scenes: updatedScenes };
+    });
+  };
+
+  const handlePlayAudio = (audioUrl: string) => {
+    if (audioPlayerRef.current) {
+      const player = audioPlayerRef.current;
+      // Extract filename from the full URL and construct proxy URL
+      const filename = audioUrl.split('/').pop();
+      if (filename) {
+        player.src = `/api/temp/${filename}`;
+        player.play().catch(e => console.error("Error playing audio:", e));
+      }
+    }
+  };
+
+  const handleGenerateAudio = async (sceneIndex: number) => {
+    if (!videoData) return;
+    
+    const scene = videoData.scenes[sceneIndex];
+    const text = scene.text;
+
+    setGeneratingAudio(prev => ({ ...prev, [sceneIndex]: true }));
+
+    try {
+      const response = await axios.post('/api/generate-tts', {
+        text: text,
+        videoId: id,
+        sceneId: scene.id,
+        voice: videoData.config.voice,
+        language: videoData.config.language || 'pt',
+        referenceAudioPath: referenceAudioPath,
+        forceRegenerate: true,
+      });
+
+      const { audioUrl, duration, subtitles } = response.data;
+
+      setGeneratingAudio(prev => ({ ...prev, [sceneIndex]: false }));
+
+      handlePlayAudio(audioUrl);
+
+      // Cria um novo objeto com os dados atualizados para garantir a consistência
+      const updatedData: VideoData = {
+        ...videoData,
+        scenes: videoData.scenes.map((s, i) => {
+          if (i === sceneIndex) {
+            return {
+              ...s,
+              audio: { url: audioUrl, duration: duration },
+              duration: duration,
+              captions: subtitles,
+            };
+          }
+          return s;
+        }),
+        config: videoData.config
+      };
+
+      // Atualiza o estado da UI e persiste os dados no servidor
+      setVideoData(updatedData);
+      saveVideoData(updatedData);
+
+    } catch (err) {
+      console.error("Failed to generate audio:", err);
+      setError(`Failed to generate audio for scene ${sceneIndex + 1}`);
+      setGeneratingAudio(prev => ({ ...prev, [sceneIndex]: false }));
+    }
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" height="80vh">
@@ -184,11 +312,12 @@ const VideoEditor: React.FC = () => {
   }
 
   if (!videoData) {
-    return <Alert severity="error">Video data not found</Alert>;
+    return <Alert severity="info">Loading video data...</Alert>;
   }
 
   return (
     <Box maxWidth="lg" mx="auto" py={4}>
+      <audio ref={audioPlayerRef} hidden />
       <Box display="flex" alignItems="center" mb={3}>
         <Button 
           startIcon={<ArrowBackIcon />} 
@@ -198,7 +327,7 @@ const VideoEditor: React.FC = () => {
           Back to videos
         </Button>
         <Typography variant="h4" component="h1">
-          Edit Video: {videoId?.substring(0, 8)}...
+          Edit Video: {id?.substring(0, 8)}...
         </Typography>
       </Box>
 
@@ -233,6 +362,17 @@ const VideoEditor: React.FC = () => {
               {formatDuration(videoData.scenes.reduce((acc, scene) => acc + scene.duration, 0))}
             </Typography>
           </Grid>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="Reference Audio Path"
+              variant="outlined"
+              value={referenceAudioPath}
+              onChange={(e) => setReferenceAudioPath(e.target.value)}
+              placeholder="e.g., /path/to/your/audio.wav"
+              size="small"
+            />
+          </Grid>
         </Grid>
       </Paper>
 
@@ -241,73 +381,89 @@ const VideoEditor: React.FC = () => {
       </Typography>
 
       {videoData.scenes.map((scene, sceneIndex) => (
-        <Accordion key={scene.id} sx={{ mb: 2 }}>
+        <Accordion key={scene.id} defaultExpanded={sceneIndex === 0} sx={{ mb: 2 }}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Box display="flex" alignItems="center" width="100%">
               <Typography variant="h6" sx={{ flexGrow: 1 }}>
                 Scene {sceneIndex + 1}
               </Typography>
               <Chip 
-                label={formatDuration(scene.duration)} 
-                size="small" 
-                sx={{ mr: 2 }}
+                label={`${formatDuration(scene.duration)}`} 
+                size="small"
               />
             </Box>
           </AccordionSummary>
           <AccordionDetails>
-            <Grid container spacing={3}>
-              <Grid item xs={12}>
-                <Typography variant="subtitle1" gutterBottom>
-                  Text: {scene.text}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  Search Terms: {scene.searchTerms.join(', ')}
-                </Typography>
-              </Grid>
-              
-              <Grid item xs={12}>
-                <Typography variant="subtitle2" gutterBottom>
-                  Videos ({scene.videos.length})
-                </Typography>
-                <Grid container spacing={2}>
-                  {scene.videos.map((videoUrl, videoIndex) => (
-                    <Grid item xs={12} sm={6} md={4} key={videoIndex}>
-                      <Card>
-                        <video
-                          src={getPreviewUrl(videoUrl)}
-                          height="140"
-                          style={{ width: '100%', objectFit: 'cover', background: '#000' }}
-                          controls
-                          muted
-                          autoPlay
-                          loop
-                          playsInline
-                        />
-                        <CardContent>
-                          <Typography variant="body2" color="text.secondary">
-                            Video {videoIndex + 1}
-                          </Typography>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<SearchIcon />}
-                            onClick={() => openSearchDialog(sceneIndex, videoIndex)}
-                            sx={{ mt: 1 }}
-                          >
-                            Replace
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  ))}
+            <Box mb={3}>
+              <Typography variant="subtitle1" gutterBottom>
+                Scene Text & Audio
+              </Typography>
+              <Box display="flex" alignItems="center" gap={1}>
+                <TextField
+                  fullWidth
+                  multiline
+                  variant="outlined"
+                  value={scene.text}
+                  onChange={(e) => handleSceneTextChange(sceneIndex, e.target.value)}
+                  sx={{ flexGrow: 1 }}
+                />
+                <IconButton onClick={() => handlePlayAudio(scene.audio.url)} title="Play current audio">
+                  <PlayArrowIcon />
+                </IconButton>
+                <IconButton 
+                  onClick={() => handleGenerateAudio(sceneIndex)} 
+                  disabled={generatingAudio[sceneIndex]}
+                  title="Generate new audio"
+                >
+                  {generatingAudio[sceneIndex] ? <CircularProgress size={24} /> : <GraphicEqIcon />}
+                </IconButton>
+              </Box>
+            </Box>
+            
+            <Divider sx={{ my: 3 }} />
+
+            <Typography variant="subtitle1" gutterBottom>
+                Video Clips
+            </Typography>
+            <Grid container spacing={2}>
+              {(scene.videos || []).map((videoUrl, videoIndex) => (
+                <Grid item xs={12} sm={6} md={4} key={videoIndex}>
+                  <Card sx={{ position: 'relative' }}>
+                    <video
+                      src={getPreviewUrl(videoUrl)}
+                      muted
+                      autoPlay
+                      loop
+                      playsInline
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={(e) => console.error("Video error:", e)}
+                    />
+                    <Box
+                      position="absolute"
+                      top={0}
+                      left={0}
+                      right={0}
+                      bottom={0}
+                      display="flex"
+                      justifyContent="center"
+                      alignItems="center"
+                    >
+                      <Button
+                        variant="contained"
+                        size="small"
+                        onClick={() => openSearchDialog(sceneIndex, videoIndex)}
+                      >
+                        Replace
+                      </Button>
+                    </Box>
+                  </Card>
                 </Grid>
-              </Grid>
+              ))}
             </Grid>
           </AccordionDetails>
         </Accordion>
       ))}
 
-      {/* Dialog para buscar e substituir vídeos */}
       <Dialog 
         open={searchDialogOpen} 
         onClose={() => setSearchDialogOpen(false)}

@@ -37,12 +37,16 @@ export class MCPRouter {
         videoId: z.string().describe("The ID of the video"),
       },
       async ({ videoId }) => {
-        const status = await this.shortCreator.status(videoId);
+        const statusObject = await this.shortCreator.status(videoId);
+        let statusText = `Status: ${statusObject.status}`;
+        if (statusObject.error) {
+          statusText += `\nError: ${statusObject.error}`;
+        }
         return {
           content: [
             {
               type: "text",
-              text: status,
+              text: statusText,
             },
           ],
         };

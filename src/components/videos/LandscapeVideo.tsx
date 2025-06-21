@@ -11,7 +11,9 @@ import {
   VideoConfig,
 } from "remotion";
 import { z } from "zod";
-import { loadFont } from "@remotion/google-fonts/BarlowCondensed";
+// Use local font instead of Google Fonts
+// import { loadFont } from "@remotion/google-fonts/BarlowCondensed";
+import "../../../fonts/fonts.css";
 
 import {
   calculateVolume,
@@ -21,7 +23,8 @@ import {
   getVideoUrl,
 } from "../../shared/utils";
 
-const { fontFamily } = loadFont(); // "Barlow Condensed"
+// Use local font instead of Google Fonts
+const fontFamily = "'BenzGrotesk', sans-serif";
 
 type Props = z.infer<typeof shortVideoSchema> & {
   config: {
@@ -42,6 +45,24 @@ export const LandscapeVideo: FC<Props> = ({
   music,
   config,
 }) => {
+  // Validate input data
+  console.log('[LandscapeVideo] Input validation:', {
+    scenesLength: scenes?.length,
+    scenes: scenes?.map((scene, i) => ({
+      index: i,
+      audioDuration: scene.audio?.duration,
+      audioUrl: scene.audio?.url,
+      videosLength: scene.videos?.length
+    })),
+    music,
+    config
+  });
+
+  if (!scenes || scenes.length === 0) {
+    console.error('[LandscapeVideo] No scenes provided');
+    return <AbsoluteFill style={{ backgroundColor: "red" }}><div>No scenes</div></AbsoluteFill>;
+  }
+
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -75,16 +96,36 @@ export const LandscapeVideo: FC<Props> = ({
   }
 
   const [musicVolume, musicMuted] = calculateVolume(config.musicVolume);
-  const finalVolume = musicVolume;
+
+  // Calculate total duration including padding
+  const totalDurationInFrames = Math.round(
+    scenes.reduce((acc, curr) => acc + curr.audio.duration, 0) * fps
+  ) + (config.paddingBack ? Math.round((config.paddingBack / 1000) * fps) : 0);
+
+  // Ensure music starts from 0 if the start time would make it end before the video
+  const startFrom = Math.min(music.start * fps, totalDurationInFrames - 1);
+
+  const fadeOutDuration = 3; // segundos
+  const fadeOutStartFrame = totalDurationInFrames - fadeOutDuration * fps;
+
+  const finalVolume = (frame: number) => {
+    if (frame >= fadeOutStartFrame) {
+      // Interpola o volume de musicVolume até 0 nos últimos 2 segundos
+      return (
+        musicVolume * (totalDurationInFrames - frame) / (fadeOutDuration * fps)
+      );
+    }
+    return musicVolume;
+  };
 
   return (
     <AbsoluteFill style={{ backgroundColor: "white" }}>
       <Audio
         loop
         src={music.url}
-        startFrom={music.start * fps}
+        startFrom={startFrom}
         endAt={music.end * fps}
-        volume={finalVolume}
+        volume={finalVolume(frame)}
         muted={musicMuted}
       />
 
@@ -167,19 +208,46 @@ export const LandscapeVideo: FC<Props> = ({
         // Calculate the start and end time of the scene
         const startFrame =
           scenes.slice(0, i).reduce((acc, curr) => {
-            return acc + curr.audio.duration;
+            const duration = curr.audio?.duration || 0;
+            const validDuration = isNaN(duration) ? 0 : duration;
+            console.log(`[LandscapeVideo] Scene ${i} - reducing scene ${scenes.indexOf(curr)}: duration=${duration}, validDuration=${validDuration}, acc=${acc}`);
+            return acc + validDuration;
           }, 0) * fps;
-        let durationInFrames =
-          scenes.slice(0, i + 1).reduce((acc, curr) => {
-            return acc + curr.audio.duration;
-          }, 0) * fps;
+        
+        // Ensure startFrame is finite
+        const validStartFrame = isFinite(startFrame) ? startFrame : 0;
+        
+        const sceneDuration = scene.audio?.duration || 0;
+        let durationInFrames = Math.max((isNaN(sceneDuration) ? 1 : sceneDuration), 0.1) * fps;
         if (config.paddingBack && i === scenes.length - 1) {
           durationInFrames += (config.paddingBack / 1000) * fps;
         }
 
+        // Ensure minimum duration to prevent 0 duration errors
+        durationInFrames = Math.max(durationInFrames, 1);
+        
+        // Additional safety check - if durationInFrames is still 0 or NaN, force it to 1
+        if (durationInFrames <= 0 || isNaN(durationInFrames)) {
+          console.error(`[LandscapeVideo] Scene ${i} has invalid durationInFrames: ${durationInFrames}, forcing to 1`);
+          durationInFrames = 1;
+        }
+
+        // Debug logs
+        console.log(`[LandscapeVideo] Scene ${i}:`, {
+          sceneDuration,
+          durationInFrames,
+          startFrame,
+          validStartFrame,
+          fps,
+          audioUrl: scene.audio?.url,
+          audioDuration: scene.audio?.duration,
+          scenesLength: scenes.length,
+          i
+        });
+
         return (
           <Sequence
-            from={startFrame}
+            from={validStartFrame}
             durationInFrames={durationInFrames}
             key={`scene-${i}`}
           >
@@ -206,13 +274,39 @@ export const LandscapeVideo: FC<Props> = ({
             </div>
             <Audio src={audio.url} />
             {pages.map((page, j) => {
+              const pageStartMs = page.startMs ?? 0;
+              const pageEndMs = page.endMs ?? 0;
+              const pageDurationMs = Math.max(pageEndMs - pageStartMs, 0.001); // Minimum 1ms to avoid 0
+              
+              // Additional safety checks to prevent NaN values
+              const validPageStartMs = isNaN(pageStartMs) ? 0 : Math.max(0, pageStartMs);
+              const validPageEndMs = isNaN(pageEndMs) ? Math.max(validPageStartMs + 100, 100) : Math.max(pageEndMs, validPageStartMs + 100);
+              const validPageDurationMs = Math.max(validPageEndMs - validPageStartMs, 0.001);
+              
+              const fromFrame = Math.round((validPageStartMs / 1000) * fps);
+              const durationFrames = Math.max(1, Math.round((validPageDurationMs / 1000) * fps));
+              
+              // Final safety check - ensure fromFrame is finite
+              if (!isFinite(fromFrame)) {
+                console.error(`[LandscapeVideo] Scene ${i}, Page ${j}: Invalid fromFrame: ${fromFrame}, pageStartMs: ${pageStartMs}, validPageStartMs: ${validPageStartMs}`);
+                return null; // Skip this page if we can't calculate valid timing
+              }
+              
+              console.log(`[LandscapeVideo] Scene ${i}, Page ${j}:`, {
+                pageStartMs,
+                pageEndMs,
+                validPageStartMs,
+                validPageEndMs,
+                fromFrame,
+                durationFrames,
+                fps
+              });
+              
               return (
                 <Sequence
                   key={`scene-${i}-page-${j}`}
-                  from={Math.round((page.startMs / 1000) * fps)}
-                  durationInFrames={Math.round(
-                    ((page.endMs - page.startMs) / 1000) * fps,
-                  )}
+                  from={fromFrame}
+                  durationInFrames={durationFrames}
                 >
                   <div
                     style={{
@@ -241,10 +335,12 @@ export const LandscapeVideo: FC<Props> = ({
                           key={`scene-${i}-page-${j}-line-${k}`}
                         >
                           {line.texts.map((text, l) => {
+                            const textStartMs = text.startMs || 0;
+                            const textEndMs = text.endMs || 0;
                             const active =
                               frame >=
-                                startFrame + (text.startMs / 1000) * fps &&
-                              frame <= startFrame + (text.endMs / 1000) * fps;
+                                validStartFrame + (textStartMs / 1000) * fps &&
+                              frame <= validStartFrame + (textEndMs / 1000) * fps;
                             return (
                               <>
                                 <span

@@ -1,5 +1,6 @@
 import { OrientationEnum, Video } from "../../types/shorts";
 import { VideoSearchError, VideoProvider } from "./VideoProvider";
+import { logger } from "../../logger";
 
 export class LocalImageAPI implements VideoProvider {
   constructor(private port: number = 3123) {}
@@ -25,70 +26,115 @@ export class LocalImageAPI implements VideoProvider {
     timeout: number = 5000,
     retryCounter: number = 0,
   ): Promise<Video[]> {
-    try {
-      const response = await fetch(`http://localhost:8000/v1/videos?query=${encodeURIComponent(searchTerms.join(" "))}&per_page=20&orientation=${orientation === OrientationEnum.portrait ? "portrait" : "landscape"}`);
+    const originalQuery = searchTerms.join(" ");
+    let queryWords = originalQuery.split(" ");
 
-      if (!response.ok) {
-        throw new VideoSearchError("LocalImageAPI request failed");
-      }
-      const data = await response.json();
-      
-      const isSearchById = searchTerms.length === 1 && /^\d+$/.test(searchTerms[0]);
+    while (queryWords.length > 0) {
+      const currentQuery = queryWords.join(" ");
+      try {
+        logger.info({ query: currentQuery }, "Attempting video search with query");
+        
+        const response = await fetch(`http://localhost:8000/v1/videos?query=${encodeURIComponent(currentQuery)}&per_page=20&orientation=${orientation === OrientationEnum.portrait ? "portrait" : "landscape"}`);
 
-      const availableVideos = data
-        .filter((video: any) => {
-          if (isSearchById) {
-            return video.id.toString() === searchTerms[0];
+        if (!response.ok) {
+          logger.warn({ query: currentQuery, status: response.status }, "API request failed.");
+          queryWords.pop();
+          continue;
+        }
+        
+        const data = await response.json();
+        
+        if (!data || data.length === 0) {
+          logger.warn({ query: currentQuery }, "Query yielded no results.");
+          queryWords.pop();
+          continue;
+        }
+
+        const availableVideos = data
+          .filter((video: any) => !excludeIds.includes(video.id.toString()))
+          .sort((a: any, b: any) => Math.abs(a.duration - minDurationSeconds) - Math.abs(b.duration - minDurationSeconds));
+
+        if (availableVideos.length > 0) {
+          const selectedVideos = [];
+          const usedIndices = new Set<number>();
+          while (selectedVideos.length < count && usedIndices.size < availableVideos.length) {
+            const randomIndex = Math.floor(Math.random() * availableVideos.length);
+            if (!usedIndices.has(randomIndex)) {
+              usedIndices.add(randomIndex);
+              const video = availableVideos[randomIndex];
+              selectedVideos.push({
+                id: video.id.toString(),
+                url: `http://localhost:8000${video.file_path}`,
+                duration: video.duration,
+                width: video.width,
+                height: video.height,
+              });
+            }
           }
-          return !excludeIds.includes(video.id.toString());
-        })
-        .sort((a: any, b: any) => {
-          if (isSearchById) return 0; // Se for busca por ID, a ordem não importa
-          return Math.abs(a.duration - minDurationSeconds) - Math.abs(b.duration - minDurationSeconds)
-        });
-
-      if (!availableVideos.length) {
-        throw new VideoSearchError("No videos found in LocalImageAPI");
+          if (selectedVideos.length > 0) {
+            logger.info({ query: currentQuery, count: selectedVideos.length }, "Successfully found videos.");
+            return selectedVideos;
+          }
+        }
+      } catch (error) {
+        logger.error({ query: currentQuery, error }, "An unexpected error occurred during video search.");
       }
 
-      // Seleciona 'count' vídeos aleatórios
-      const selectedVideos = [];
-      const maxAttempts = Math.min(availableVideos.length, count * 2); // Tenta pegar o dobro para ter mais opções
-      const usedIndices = new Set<number>();
+      // Se chegamos aqui, a tentativa falhou. Tenta com uma query mais curta.
+      queryWords.pop();
+    }
 
-      while (selectedVideos.length < count && usedIndices.size < maxAttempts) {
-        const randomIndex = Math.floor(Math.random() * availableVideos.length);
-        if (!usedIndices.has(randomIndex)) {
-          usedIndices.add(randomIndex);
-          const video = availableVideos[randomIndex];
-          
-          selectedVideos.push({
+    // ÚLTIMO RECURSO: Tenta uma busca em branco
+    try {
+      logger.info("Falling back to an empty search as a last resort.");
+      const response = await fetch(`http://localhost:8000/v1/videos?query=&per_page=20&orientation=${orientation === OrientationEnum.portrait ? "portrait" : "landscape"}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.length > 0) {
+          const video = data[Math.floor(Math.random() * data.length)];
+          return [{
             id: video.id.toString(),
             url: `http://localhost:8000${video.file_path}`,
             duration: video.duration,
             width: video.width,
             height: video.height,
-          });
+          }];
         }
       }
-
-      if (selectedVideos.length === 0) {
-        throw new VideoSearchError("No videos found in LocalImageAPI");
-      }
-
-      return selectedVideos;
     } catch (error) {
-      throw new VideoSearchError("Error finding video in LocalImageAPI");
+      logger.error({ error }, "Empty search fallback also failed.");
     }
+
+    logger.error({ originalQuery }, "No videos found for any variation of the search query.");
+    throw new VideoSearchError(`No videos found for any variation of the search query: ${originalQuery}`);
+  }
+
+  public async findRandomVideo(
+    excludeIds: string[],
+    orientation: OrientationEnum = OrientationEnum.portrait
+  ): Promise<Video> {
+    logger.info("Searching for a random video.");
+    // Usa a busca em branco para pegar um vídeo aleatório
+    const videos = await this.findVideos([], 10, excludeIds, orientation, 1);
+    if (videos.length === 0) {
+      throw new VideoSearchError("Could not find any random video.");
+    }
+    return videos[0];
   }
 
   async getVideoById(id: string): Promise<Video> {
     try {
-      const response = await fetch(`http://localhost:8000/v1/videos/${id}`);
+      const response = await fetch(`http://localhost:8000/v1/videos?query=${id}&per_page=1`);
       if (!response.ok) {
         throw new VideoSearchError(`LocalImageAPI request for id ${id} failed`);
       }
-      const video = await response.json();
+      const data = await response.json();
+      
+      if (!data || data.length === 0) {
+        throw new VideoSearchError(`Video with id ${id} not found in LocalImageAPI`);
+      }
+      
+      const video = data[0];
       return {
         id: video.id.toString(),
         url: `http://localhost:8000${video.file_path}`,
@@ -98,6 +144,27 @@ export class LocalImageAPI implements VideoProvider {
       };
     } catch (error) {
       throw new VideoSearchError(`Error getting video by id in LocalImageAPI: ${id}`);
+    }
+  }
+
+  async getVideoByUrl(url: string): Promise<Video> {
+    try {
+      const urlParts = url.split('/');
+      const id = urlParts[urlParts.length - 1];
+      
+      if (!id || !/^\d+$/.test(id)) {
+        throw new VideoSearchError(`Could not extract valid video ID from URL: ${url}`);
+      }
+
+      return {
+        id: id,
+        url: url,
+        duration: 10.0,
+        width: 1920,
+        height: 1080,
+      };
+    } catch (error) {
+      throw new VideoSearchError(`Error getting video by URL in LocalImageAPI: ${url}`);
     }
   }
 } 

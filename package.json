@@ -8,7 +8,7 @@
   "scripts": {
     "build": "rimraf dist && tsc --project tsconfig.build.json && vite build && vite build --config vite.remotion.config.ts",
     "dev": "REMOTION_HOST=0.0.0.0 concurrently \"npm:dev:server\" \"npm:dev:ui\"",
-    "dev:server": "node --watch -r ts-node/register src/index.ts",
+    "dev:server": "tsx watch src/index.ts",
     "dev:ui": "vite",
     "start": "node dist/index.js",
     "test": "vitest",
@@ -104,6 +104,7 @@
     "rimraf": "^6.0.1",
     "tailwindcss": "^3.3.0",
     "ts-node": "^10.9.2",
+    "tsx": "^4.20.3",
     "typescript": "^5.8.3",
     "vite": "^6.3.4",
     "vitest": "^3.1.1"

@@ -1,4 +1,2 @@
-import { loadFont } from "@remotion/google-fonts/OpenSans";
-
-// Load the OpenSans font
-export const { fontFamily } = loadFont(); 
+// Use local OpenSans-ExtraBoldItalic font for captions
+export const fontFamily = "'OpenSansExtraBoldItalic', sans-serif"; 

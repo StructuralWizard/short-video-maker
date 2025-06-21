@@ -1,414 +1,439 @@
-import express from "express";
-import type {
-  Request as ExpressRequest,
-  Response as ExpressResponse,
-} from "express";
-import fs from "fs-extra";
+import { createProxyMiddleware, Options } from "http-proxy-middleware";
+import express, { Router, Request as ExpressRequest, Response as ExpressResponse } from "express";
+import fs from "fs";
 import path from "path";
-import fetch from "node-fetch";
-import { createProxyMiddleware, Options } from 'http-proxy-middleware';
-import http from 'http';
 
-import { validateCreateShortInput } from "../validator";
 import { ShortCreator } from "../../short-creator/ShortCreator";
-import { logger } from "../../logger";
 import { Config } from "../../config";
+import { logger } from "../../logger";
+import { RenderRequest, VoiceEnum } from "../../types/shorts";
+import { VideoStatusManager } from "../../short-creator/VideoStatusManager";
+import { RenderConfig } from "../../types/shorts";
 
-// todo abstract class
 export class APIRouter {
-  public router: express.Router;
+  router: Router;
   private shortCreator: ShortCreator;
   private config: Config;
+  private videoStatusManager: VideoStatusManager;
 
-  constructor(config: Config, shortCreator: ShortCreator) {
+  constructor(config: Config, shortCreator: ShortCreator, videoStatusManager: VideoStatusManager) {
+    this.router = Router();
     this.config = config;
-    this.router = express.Router();
     this.shortCreator = shortCreator;
-
+    this.videoStatusManager = videoStatusManager;
     this.router.use(express.json());
-
     this.setupRoutes();
   }
 
   private setupRoutes() {
-    this.router.post(
-      "/short-video",
-      async (req: ExpressRequest, res: ExpressResponse) => {
-        try {
-          const input = validateCreateShortInput(req.body);
-
-          logger.info({ input }, "Creating short video");
-
-          const videoId = this.shortCreator.addToQueue(
-            input.scenes,
-            input.config,
-          );
-
-          res.status(201).json({
-            videoId,
-          });
-        } catch (error: unknown) {
-          logger.error(error, "Error validating input");
-
-          // Handle validation errors specifically
-          if (error instanceof Error && error.message.startsWith("{")) {
-            try {
-              const errorData = JSON.parse(error.message);
-              res.status(400).json({
-                error: "Validation failed",
-                message: errorData.message,
-                missingFields: errorData.missingFields,
-              });
-              return;
-            } catch (parseError: unknown) {
-              logger.error(parseError, "Error parsing validation error");
-            }
-          }
-
-          // Fallback for other errors
-          res.status(400).json({
-            error: "Invalid input",
-            message: error instanceof Error ? error.message : "Unknown error",
-          });
-        }
-      },
-    );
-
-    this.router.get(
-      "/short-video/:videoId/status",
-      async (req: ExpressRequest, res: ExpressResponse) => {
-        try {
-          const { videoId } = req.params;
-          if (!videoId) {
-            logger.error("Status check failed: videoId is required");
-            res.status(400).json({
-              error: "videoId is required",
-            });
-            return;
-          }
-          
-          logger.info({ videoId }, "Checking video status");
-          const status = await this.shortCreator.status(videoId);
-          logger.info({ videoId, status }, "Video status retrieved");
-          
-          res.status(200).json({
-            status,
-          });
-        } catch (error) {
-          logger.error({ error, videoId: req.params.videoId }, "Error checking video status");
-          res.status(500).json({
-            error: "Failed to check video status",
-            details: error instanceof Error ? error.message : "Unknown error"
-          });
-        }
-      },
-    );
-
-    this.router.get(
-      "/music-tags",
-      (req: ExpressRequest, res: ExpressResponse) => {
-        res.status(200).json(this.shortCreator.ListAvailableMusicTags());
-      },
-    );
-
-    this.router.get("/voices", (req: ExpressRequest, res: ExpressResponse) => {
-      res.status(200).json(this.shortCreator.ListAvailableVoices());
+    this.router.get("/status/:id", async (req: ExpressRequest, res: ExpressResponse) => {
+      try {
+        const { id } = req.params;
+        const statusObject = await this.shortCreator.status(id);
+        res.status(200).json(statusObject);
+      } catch (error) {
+        logger.error({ error }, "Error fetching video status");
+        res.status(500).json({
+          error: "Failed to fetch video status",
+          details: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
     });
 
-    this.router.get(
-      "/short-videos",
-      async (req: ExpressRequest, res: ExpressResponse) => {
-        const videos = await this.shortCreator.listAllVideos();
+    this.router.get("/logs/:id", async (req: ExpressRequest, res: ExpressResponse) => {
+      try {
+        const { id } = req.params;
+        const { limit = 50 } = req.query;
+        
+        // Aqui você pode implementar um sistema de logs em tempo real
+        // Por enquanto, vamos retornar logs básicos do sistema
+        const logs = [
+          {
+            timestamp: new Date().toISOString(),
+            level: "info",
+            message: `Video ${id} processing started`,
+            videoId: id
+          }
+        ];
+        
         res.status(200).json({
-          videos,
+          logs: logs.slice(-Number(limit)),
+          total: logs.length
         });
-      },
-    );
-
-    this.router.delete(
-      "/short-video/:videoId",
-      (req: ExpressRequest, res: ExpressResponse) => {
-        const { videoId } = req.params;
-        if (!videoId) {
-          res.status(400).json({
-            error: "videoId is required",
-          });
-          return;
-        }
-        this.shortCreator.deleteVideo(videoId);
-        res.status(200).json({
-          success: true,
+      } catch (error) {
+        logger.error({ error }, "Error fetching video logs");
+        res.status(500).json({
+          error: "Failed to fetch video logs",
+          details: error instanceof Error ? error.message : "Unknown error",
         });
-      },
-    );
+      }
+    });
 
-    this.router.post(
-      "/clear-all-videos",
-      (req: ExpressRequest, res: ExpressResponse) => {
-        try {
-          this.shortCreator.clearAllVideos();
-          res.status(200).json({
-            success: true,
-            message: "All videos cleared successfully",
-          });
-        } catch (error) {
-          logger.error({ error }, "Error clearing all videos");
-          res.status(500).json({
-            error: "Failed to clear all videos",
-            details: error instanceof Error ? error.message : "Unknown error"
-          });
-        }
-      },
-    );
-
-    this.router.get(
-      "/video-data/:videoId",
-      (req: ExpressRequest, res: ExpressResponse) => {
-        try {
-          const { videoId } = req.params;
-          if (!videoId) {
-            res.status(400).json({
-              error: "videoId is required",
-            });
-            return;
-          }
-          
-          const videoData = this.shortCreator.getVideoData(videoId);
-          res.status(200).json(videoData);
-        } catch (error) {
-          logger.error({ error, videoId: req.params.videoId }, "Error getting video data");
-          res.status(404).json({
-            error: "Video data not found",
-            details: error instanceof Error ? error.message : "Unknown error"
-          });
-        }
-      },
-    );
-
-    this.router.put(
-      "/video-data/:videoId",
-      (req: ExpressRequest, res: ExpressResponse) => {
-        try {
-          const { videoId } = req.params;
-          if (!videoId) {
-            res.status(400).json({
-              error: "videoId is required",
-            });
-            return;
-          }
-          
-          const videoData = req.body;
-          this.shortCreator.saveVideoData(videoId, videoData);
-          
-          res.status(200).json({
-            success: true,
-            message: "Video data saved successfully",
-          });
-        } catch (error) {
-          logger.error({ error, videoId: req.params.videoId }, "Error saving video data");
-          res.status(500).json({
-            error: "Failed to save video data",
-            details: error instanceof Error ? error.message : "Unknown error"
-          });
-        }
-      },
-    );
-
-    this.router.get(
-      "/search-videos",
-      async (req: ExpressRequest, res: ExpressResponse) => {
-        try {
-          const { query, count = 10 } = req.query;
-          if (!query || typeof query !== 'string') {
-            res.status(400).json({
-              error: "query parameter is required",
-            });
-            return;
-          }
-          
-          const videos = await this.shortCreator.searchVideos(query, parseInt(count as string));
-          res.status(200).json({
-            videos,
-            query,
-            count: videos.length
-          });
-        } catch (error) {
-          logger.error({ error, query: req.query.query }, "Error searching videos");
-          res.status(500).json({
-            error: "Failed to search videos",
-            details: error instanceof Error ? error.message : "Unknown error"
-          });
-        }
-      },
-    );
-
-    this.router.post(
-      "/re-render-video/:videoId",
-      async (req: ExpressRequest, res: ExpressResponse) => {
-        try {
-          const { videoId } = req.params;
-          if (!videoId) {
-            res.status(400).json({
-              error: "videoId is required",
-            });
-            return;
-          }
-          
-          await this.shortCreator.reRenderVideo(videoId);
-          
-          res.status(200).json({
-            success: true,
-            message: "Video re-rendering started",
-          });
-        } catch (error) {
-          logger.error({ error, videoId: req.params.videoId }, "Error re-rendering video");
-          res.status(500).json({
-            error: "Failed to re-render video",
-            details: error instanceof Error ? error.message : "Unknown error"
-          });
-        }
-      },
-    );
-
-    this.router.get(
-      "/tmp/:tmpFile",
-      (req: ExpressRequest, res: ExpressResponse) => {
-        const { tmpFile } = req.params;
-        if (!tmpFile) {
-          res.status(400).json({
-            error: "tmpFile is required",
-          });
-          return;
-        }
-        const tmpFilePath = path.join(this.config.tempDirPath, tmpFile);
-        if (!fs.existsSync(tmpFilePath)) {
-          res.status(404).json({
-            error: "tmpFile not found",
-          });
-          return;
-        }
-
-        if (tmpFile.endsWith(".mp3")) {
-          res.setHeader("Content-Type", "audio/mpeg");
-        }
-        if (tmpFile.endsWith(".wav")) {
-          res.setHeader("Content-Type", "audio/wav");
-        }
-
-        const tmpFileStream = fs.createReadStream(tmpFilePath);
-        tmpFileStream.on("error", (error) => {
-          logger.error(error, "Error reading tmp file");
-          res.status(500).json({
-            error: "Error reading tmp file",
-            tmpFile,
-          });
-        });
-        tmpFileStream.pipe(res);
-      },
-    );
-
-    this.router.get(
-      "/music/:fileName",
-      (req: ExpressRequest, res: ExpressResponse) => {
-        const { fileName } = req.params;
-        if (!fileName) {
-          res.status(400).json({
-            error: "fileName is required",
-          });
-          return;
-        }
-        const musicFilePath = path.join(this.config.musicDirPath, fileName);
-        if (!fs.existsSync(musicFilePath)) {
-          res.status(404).json({
-            error: "music file not found",
-          });
-          return;
-        }
-        const musicFileStream = fs.createReadStream(musicFilePath);
-        musicFileStream.on("error", (error) => {
-          logger.error(error, "Error reading music file");
-          res.status(500).json({
-            error: "Error reading music file",
-            fileName,
-          });
-        });
-        musicFileStream.pipe(res);
-      },
-    );
-
-    this.router.get(
-      "/overlays/:fileName",
-      (req: ExpressRequest, res: ExpressResponse) => {
-        const { fileName } = req.params;
-        if (!fileName) {
-          res.status(400).json({
-            error: "fileName is required",
-          });
-          return;
-        }
-        const overlayFilePath = path.join(this.config.overlaysDirPath, fileName);
-        if (!fs.existsSync(overlayFilePath)) {
-          res.status(404).json({
-            error: "overlay file not found",
-          });
-          return;
-        }
-        res.setHeader("Content-Type", "image/png");
-        const overlayFileStream = fs.createReadStream(overlayFilePath);
-        overlayFileStream.on("error", (error) => {
-          logger.error(error, "Error reading overlay file");
-          res.status(500).json({
-            error: "Error reading overlay file",
-            fileName,
-          });
-        });
-        overlayFileStream.pipe(res);
-      },
-    );
-
-    this.router.get(
-      "/short-video/:videoId",
-      async (req: ExpressRequest, res: ExpressResponse) => {
-        try {
-          const { videoId } = req.params;
-          if (!videoId) {
-            res.status(400).json({
-              error: "videoId is required",
-            });
-            return;
-          }
-          const video = await this.shortCreator.getVideoBuffer(videoId);
-          res.setHeader("Content-Type", "video/mp4");
-          res.setHeader(
-            "Content-Disposition",
-            `inline; filename=${videoId}.mp4`,
+    this.router.post("/render", async (req: ExpressRequest, res: ExpressResponse) => {
+      const renderRequest = req.body as RenderRequest;
+      try {
+        let videoId: string;
+        if (renderRequest.id) {
+          // Re-renderiza um vídeo existente
+          videoId = renderRequest.id;
+          await this.shortCreator.reRenderVideo(
+            videoId,
+            renderRequest.scenes,
+            renderRequest.config
           );
-          res.send(video);
-        } catch (error: unknown) {
-          logger.error(error, "Error getting video");
-          res.status(404).json({
-            error: "Video not found",
-          });
+        } else {
+          // Cria um novo vídeo
+          videoId = await this.shortCreator.addToQueue(
+            renderRequest.scenes,
+            renderRequest.config
+          );
         }
+        res.status(202).json({
+          message: "Video rendering started",
+          videoId,
+        });
+      } catch (error) {
+        logger.error({ error }, "Error creating short");
+        res.status(500).json({
+          error: "Failed to start video rendering",
+          details: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    });
+
+    // Alias para /api/short-video (mantém compatibilidade)
+    this.router.post("/short-video", async (req: ExpressRequest, res: ExpressResponse) => {
+      const renderRequest = req.body as RenderRequest;
+      try {
+        let videoId: string;
+        if (renderRequest.id) {
+          // Re-renderiza um vídeo existente
+          videoId = renderRequest.id;
+          await this.shortCreator.reRenderVideo(
+            videoId,
+            renderRequest.scenes,
+            renderRequest.config
+          );
+        } else {
+          // Cria um novo vídeo
+          videoId = await this.shortCreator.addToQueue(
+            renderRequest.scenes,
+            renderRequest.config
+          );
+        }
+        res.status(202).json({
+          message: "Video rendering started",
+          videoId,
+        });
+      } catch (error) {
+        logger.error({ error }, "Error creating short");
+        res.status(500).json({
+          error: "Failed to start video rendering",
+          details: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    });
+
+    // Endpoint para status do vídeo (/api/short-video/:id/status)
+    this.router.get("/short-video/:id/status", async (req: ExpressRequest, res: ExpressResponse) => {
+      try {
+        const { id } = req.params;
+        const statusObject = await this.shortCreator.status(id);
+        res.status(200).json(statusObject);
+      } catch (error) {
+        logger.error({ error }, "Error fetching video status");
+        res.status(500).json({
+          error: "Failed to fetch video status",
+          details: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    });
+
+    // Endpoint para download do vídeo (/api/short-video/:id)
+    this.router.get("/short-video/:id", (req, res) => {
+      const { id } = req.params;
+      const videoPath = this.shortCreator.getVideoPath(id);
+
+      if (!videoPath || !fs.existsSync(videoPath)) {
+        return res.status(404).json({ error: "Video not found" });
+      }
+
+      const stat = fs.statSync(videoPath);
+      const fileSize = stat.size;
+      const range = req.headers.range;
+
+      if (range) {
+        const parts = range.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        const chunksize = (end - start) + 1;
+        const file = fs.createReadStream(videoPath, { start, end });
+        const head = {
+          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': chunksize,
+          'Content-Type': 'video/mp4',
+        };
+        res.writeHead(206, head);
+        file.pipe(res);
+      } else {
+        const head = {
+          'Content-Length': fileSize,
+          'Content-Type': 'video/mp4',
+        };
+        res.writeHead(200, head);
+        fs.createReadStream(videoPath).pipe(res);
+      }
+    });
+
+    // Endpoint para listar vídeos (/api/short-videos)
+    this.router.get("/short-videos", async (_req, res) => {
+      try {
+        const videos = await this.shortCreator.getAllVideos();
+        res.json({ videos });
+      } catch (error) {
+        logger.error({ error }, "Error fetching videos");
+        res.status(500).json({
+          error: "Failed to fetch videos",
+          details: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    });
+
+    // Endpoint para deletar vídeo (/api/short-video/:id)
+    this.router.delete("/short-video/:id", (req, res) => {
+      const { id } = req.params;
+      try {
+        this.shortCreator.deleteVideo(id);
+        res.status(200).json({ success: true });
+      } catch (error) {
+        logger.error({ error, id }, "Error deleting video");
+        res.status(500).json({
+          error: "Failed to delete video",
+          details: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    });
+
+    this.router.post(
+      "/remotion-webhook",
+      async (req: ExpressRequest, res: ExpressResponse) => {
+        console.log("Received remotion webhook", req.body);
+        res.status(200).json({ message: "Webhook received" });
       },
     );
+
+    this.router.get("/videos", async (_req, res) => {
+      try {
+        const videos = await this.shortCreator.getAllVideos();
+        res.json(videos);
+      } catch (error) {
+        logger.error({ error }, "Error fetching videos");
+        res.status(500).json({
+          error: "Failed to fetch videos",
+          details: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    });
+
+    this.router.post(
+      "/generate-tts",
+      async (req: ExpressRequest, res: ExpressResponse) => {
+        try {
+          const { text, videoId, sceneId, referenceAudioPath, language, voice, forceRegenerate } = req.body;
+          if (!text || !videoId || !sceneId) {
+            return res.status(400).json({ error: "text, videoId, and sceneId are required" });
+          }
+          
+          // A configuração da voz é passada para o método, então criamos um objeto config parcial.
+          const config: Partial<RenderConfig> = { voice, language, referenceAudioPath };
+
+          const result = await this.shortCreator.generateSingleTTSAndUpdate(videoId, sceneId, text, config as RenderConfig, forceRegenerate || false);
+          res.status(200).json(result);
+        } catch (error) {
+          logger.error({ error }, "Error generating TTS");
+          res.status(500).json({
+            error: "Failed to generate TTS",
+            details: error instanceof Error ? error.message : "Unknown error"
+          });
+        }
+      }
+    );
+
+    this.router.get("/video/:id", (req, res) => {
+      const { id } = req.params;
+      const videoPath = this.shortCreator.getVideoPath(id);
+
+      if (!videoPath || !fs.existsSync(videoPath)) {
+        return res.status(404).json({ error: "Video not found" });
+      }
+
+      const stat = fs.statSync(videoPath);
+      const fileSize = stat.size;
+      const range = req.headers.range;
+
+      if (range) {
+        const parts = range.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        const chunksize = (end - start) + 1;
+        const file = fs.createReadStream(videoPath, { start, end });
+        const head = {
+          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': chunksize,
+          'Content-Type': 'video/mp4',
+        };
+        res.writeHead(206, head);
+        file.pipe(res);
+      } else {
+        const head = {
+          'Content-Length': fileSize,
+          'Content-Type': 'video/mp4',
+        };
+        res.writeHead(200, head);
+        fs.createReadStream(videoPath).pipe(res);
+      }
+    });
+
+    this.router.get("/tmp/:filename", (req, res) => {
+      const { filename } = req.params;
+      const audioPath = path.join(this.config.tempDirPath, filename);
+
+      if (!fs.existsSync(audioPath)) {
+        logger.error({ audioPath }, "Audio file not found");
+        return res.status(404).json({ error: "Audio file not found" });
+      }
+
+      const stat = fs.statSync(audioPath);
+      const fileSize = stat.size;
+
+      const head = {
+        'Content-Length': fileSize,
+        'Content-Type': 'audio/wav',
+      };
+      res.writeHead(200, head);
+      fs.createReadStream(audioPath).pipe(res);
+    });
+
+    this.router.get("/temp/:filename", (req, res) => {
+      const { filename } = req.params;
+      const audioPath = path.join(this.config.tempDirPath, filename);
+
+      if (!fs.existsSync(audioPath)) {
+        logger.error({ audioPath }, "Audio file not found");
+        return res.status(404).json({ error: "Audio file not found" });
+      }
+
+      const stat = fs.statSync(audioPath);
+      const fileSize = stat.size;
+
+      const head = {
+        'Content-Length': fileSize,
+        'Content-Type': 'audio/wav',
+      };
+      res.writeHead(200, head);
+      fs.createReadStream(audioPath).pipe(res);
+    });
+
+    this.router.post("/video-data/:id", (req, res) => {
+      const { id } = req.params;
+      const videoData = req.body;
+      try {
+        this.shortCreator.saveVideoData(id, videoData);
+        res.status(200).json({ message: "Video data saved successfully" });
+      } catch (error) {
+        logger.error({ error, id }, "Error saving video data");
+        res.status(500).json({
+          error: "Failed to save video data",
+          details: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    });
+
+    this.router.get("/video-data/:id", (req, res) => {
+      const { id } = req.params;
+      const video = this.shortCreator.getVideoById(id);
+      if (video) {
+        res.status(200).json(video);
+      } else {
+        res.status(404).json({ error: "Video data not found" });
+      }
+    });
+
+    this.router.get("/script/:id", (req, res) => {
+      const { id } = req.params;
+      try {
+        const script = this.shortCreator.getScriptById(id);
+        if (script) {
+          res.status(200).json(script);
+        } else {
+          res.status(404).json({ error: "Script not found" });
+        }
+      } catch (error) {
+        logger.error({ error, id }, "Error getting script");
+        res.status(500).json({
+          error: "Failed to get script",
+          details: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    });
+
+    this.router.delete("/videos/:id", (req, res) => {
+      const { id } = req.params;
+      try {
+        this.shortCreator.deleteVideo(id);
+        res.status(200).json({ message: "Video deleted successfully" });
+      } catch (error) {
+        logger.error({ error, id }, "Error deleting video");
+        res.status(500).json({
+          error: "Failed to delete video",
+          details: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    });
+
+    this.router.delete("/videos", (req, res) => {
+      try {
+        this.shortCreator.clearAllVideos();
+        res.status(200).json({ message: "All videos deleted successfully" });
+      } catch (error) {
+        logger.error({ error }, "Error clearing all videos");
+        res.status(500).json({
+          error: "Failed to clear all videos",
+          details: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    });
+
+    this.router.get("/search-videos", async (req: ExpressRequest, res: ExpressResponse) => {
+      try {
+        const query = req.query.query as string;
+        if (!query) {
+          return res.status(400).json({ error: "Query parameter is required" });
+        }
+        const videos = await this.shortCreator.searchVideos(query);
+        res.status(200).json({ videos });
+      } catch (error) {
+        logger.error({ error }, "Error searching videos");
+        res.status(500).json({
+          error: "Failed to search videos",
+          details: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    });
+
+    this.router.use('/music', express.static(path.join(process.cwd(), 'static/music')));
+    this.router.use('/overlays', express.static(path.join(process.cwd(), 'static/overlays')));
+    this.router.use('/fonts', express.static(path.join(process.cwd(), 'fonts')));
 
     const proxyOptions: Options = {
-      target: 'http://localhost:8000', // Alvo padrão, mas será sobrescrito pelo router
+      target: this.config.remotion.rendering.serveUrl,
       changeOrigin: true,
-      pathRewrite: (path, req) => {
-        const src = (req as ExpressRequest).query.src as string;
-        // Apenas repassa o caminho do recurso de mídia, removendo o prefixo do proxy
-        return new URL(src).pathname;
-      },
-      router: (req) => {
-        const src = (req as ExpressRequest).query.src as string;
-        // Retorna a origem (protocolo, host, porta) da URL de destino
-        const url = new URL(src);
-        return `${url.protocol}//${url.host}`;
-      },
+      pathRewrite: {
+        '^/proxy': ''
+      }
     };
-
-    this.router.use('/proxy', createProxyMiddleware(proxyOptions));
+    this.router.use("/proxy", createProxyMiddleware(proxyOptions));
   }
 }

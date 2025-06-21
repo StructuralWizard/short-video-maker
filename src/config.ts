@@ -47,6 +47,11 @@ export interface Config {
   musicDirPath: string;
   overlaysDirPath: string;
   installationSuccessfulPath: string;
+  remotion: {
+    rendering: {
+      serveUrl: string;
+    };
+  };
 }
 
 export class Config {
@@ -66,6 +71,11 @@ export class Config {
   public musicDirPath: string;
   public overlaysDirPath: string;
   public installationSuccessfulPath: string;
+  public remotion: {
+    rendering: {
+      serveUrl: string;
+    };
+  };
 
   constructor() {
     this.dataDirPath = env.DATA_DIR_PATH || defaultDataDirPath;
@@ -88,6 +98,13 @@ export class Config {
     this.musicDirPath = path.join(this.packageDirPath, "static", "music");
     this.overlaysDirPath = path.join(this.packageDirPath, "static", "overlays");
     this.installationSuccessfulPath = path.join(this.dataDirPath, "installation-successful");
+
+    // Initialize Remotion config
+    this.remotion = {
+      rendering: {
+        serveUrl: "http://localhost:3122"
+      }
+    };
 
     // Create directories
     fs.ensureDirSync(this.dataDirPath);

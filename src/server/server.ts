@@ -12,13 +12,17 @@ import { MCPRouter } from "./routers/mcp";
 import { logger } from "../logger";
 import { Config } from "../config";
 import referenceAudioRouter from "./routes/referenceAudio";
+import { VideoStatusManager } from "../short-creator/VideoStatusManager";
 
 export class Server {
   private app: express.Application;
   private config: Config;
+  private shortCreator: ShortCreator;
+  private videoStatusManager: VideoStatusManager;
 
   constructor(config: Config, shortCreator: ShortCreator) {
     this.config = config;
+    this.shortCreator = shortCreator;
     this.app = express();
 
     // add healthcheck endpoint
@@ -26,7 +30,8 @@ export class Server {
       res.status(200).json({ status: "ok" });
     });
 
-    const apiRouter = new APIRouter(config, shortCreator);
+    this.videoStatusManager = new VideoStatusManager(config);
+    const apiRouter = new APIRouter(config, this.shortCreator, this.videoStatusManager);
     const mcpRouter = new MCPRouter(shortCreator);
     this.app.use("/api", apiRouter.router);
     this.app.use("/mcp", mcpRouter.router);
@@ -34,6 +39,24 @@ export class Server {
 
     // Serve a pasta de arquivos temporários
     this.app.use('/temp', express.static(this.config.tempDirPath));
+  }
+
+  private async cancelOngoingRenders(): Promise<void> {
+    logger.info("Verificando vídeos com status 'processing' na inicialização...");
+    try {
+      const videos = await this.shortCreator.getAllVideos();
+      for (const video of videos) {
+        const status = await this.videoStatusManager.getStatus(video.id);
+        if (status?.status === 'processing') {
+          logger.warn(`Vídeo ${video.id} estava com status 'processing'. Alterando para 'failed'.`);
+          await this.videoStatusManager.setStatus(video.id, 'failed',
+            "A renderização foi interrompida por uma reinicialização do servidor."
+          );
+        }
+      }
+    } catch (error) {
+      logger.error("Erro ao verificar e cancelar renders em andamento:", error);
+    }
   }
 
   private async killProcessOnPort(port: number): Promise<void> {
@@ -69,6 +92,8 @@ export class Server {
   public async start(): Promise<void> {
     const port = Number(process.env.PORT) || 3123;
     
+    await this.cancelOngoingRenders();
+
     try {
       // Tenta matar qualquer processo usando a porta antes de iniciar
       await this.killProcessOnPort(port);
