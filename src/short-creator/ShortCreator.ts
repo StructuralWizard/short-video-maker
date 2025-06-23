@@ -516,6 +516,135 @@ export class ShortCreator {
     };
   }
 
+    private async processReRenderScenes(
+    videoId: string,
+    inputScenes: SceneInput[],
+    config: RenderConfig
+  ): Promise<{ remotionData: any, updatedScriptScenes: SceneInput[] }> {
+    logger.info({ videoId }, "[RE-RENDER] Processing scenes with existing assets preservation.");
+    
+    const orientation: OrientationEnum = config.orientation || OrientationEnum.portrait;
+    const remotionDataNested: Scene[][] = [];
+    const newScriptScenes: SceneInput[] = [];
+
+    await this.statusManager.setProgress(videoId, 15, "Processing scenes for re-render...");
+
+    // Processar cada cena sem tentar revalidar vídeos
+    for (let sceneIndex = 0; sceneIndex < inputScenes.length; sceneIndex++) {
+      const scene: SceneInput = JSON.parse(JSON.stringify(inputScenes[sceneIndex]));
+      
+      logger.debug({ videoId, sceneIndex }, "Re-render: Processing scene with existing videos");
+
+      // Para re-render, assumimos que os vídeos já estão válidos
+      const videoUrls = scene.videos || [];
+
+      await this.statusManager.setProgress(videoId, 20 + (sceneIndex * 40 / inputScenes.length), "Processing audio for re-render...");
+
+      // Para re-render, verificar se há áudio pré-existente
+      let audioData: { url: string; duration: number; captions: any[] }[];
+      
+      if (scene.audio && scene.audio.url && scene.audio.duration) {
+        // Usar áudio existente diretamente
+        logger.debug({ videoId, sceneIndex }, "Re-render: Using existing audio");
+        const sceneAudio = scene.audio as any;
+        audioData = [{
+          url: sceneAudio.url,
+          duration: sceneAudio.duration,
+          captions: sceneAudio.captions || []
+        }];
+      } else {
+        // Gerar novo áudio se não existir
+        logger.debug({ videoId, sceneIndex }, "Re-render: Generating new audio");
+        const textParts = [scene.text]; // Não dividir o texto no re-render
+        audioData = await this.generateAudioForScene(videoId, scene, textParts, config);
+      }
+
+      // Criar as partes da cena - sempre uma única parte no re-render
+      const sceneParts: Scene[] = [];
+      const videoUrl = videoUrls[0]; // Usar apenas o primeiro vídeo
+      if (!videoUrl) {
+        throw new Error(`Missing video URL for scene ${sceneIndex} in re-render`);
+      }
+      
+      // Validar duração do áudio
+      const audioDuration = audioData[0].duration;
+      if (!audioDuration || audioDuration <= 0 || isNaN(audioDuration)) {
+        logger.error({ 
+          videoId, 
+          sceneIndex, 
+          audioDuration,
+          text: scene.text
+        }, "Invalid audio duration detected in re-render");
+        throw new Error(`Invalid audio duration for scene ${sceneIndex}: ${audioDuration}`);
+      }
+
+      // Para re-render, usar a URL do vídeo diretamente sem tentar revalidar
+      let finalVideoUrl = videoUrl;
+      
+      // Log para debug
+      if (videoUrl.startsWith('/api/cached-video/')) {
+        logger.debug({ 
+          videoId, 
+          sceneIndex, 
+          videoUrl 
+        }, "Re-render: Using existing cached video");
+      } else if (videoUrl.startsWith('http')) {
+        logger.debug({ 
+          videoId, 
+          sceneIndex, 
+          videoUrl 
+        }, "Re-render: Using external video URL");
+      } else {
+        logger.debug({ 
+          videoId, 
+          sceneIndex, 
+          videoUrl 
+        }, "Re-render: Using local video URL");
+      }
+      
+      sceneParts.push({
+        id: cuid(),
+        text: scene.text,
+        searchTerms: scene.searchTerms,
+        duration: audioDuration,
+        orientation,
+        captions: audioData[0].captions,
+        videos: [finalVideoUrl],
+        audio: { url: audioData[0].url, duration: audioDuration }
+      });
+      
+      remotionDataNested.push(sceneParts);
+      newScriptScenes.push(scene);
+    }
+
+    await this.statusManager.setProgress(videoId, 70, "Finalizing re-render data...");
+
+    // Calcular duração total e encontrar música
+    const totalDuration = remotionDataNested.flat().reduce((acc: number, s: any) => acc + s.duration, 0);
+    const music = this.findMusic(totalDuration, config.music);
+
+    // Criar objeto remotionData
+    const remotionData = {
+      scenes: remotionDataNested.flat(),
+      music,
+      config: {
+        ...config,
+        durationMs: totalDuration * 1000,
+      },
+    };
+
+    logger.info({ 
+      videoId, 
+      totalScenes: remotionDataNested.flat().length,
+      totalDuration 
+    }, "Re-render scenes processed successfully");
+
+    return {
+      remotionData,
+      updatedScriptScenes: newScriptScenes
+    };
+  }
+
   private async getCachedOrGenerateTTS(
     text: string,
     config: RenderConfig,
@@ -803,7 +932,7 @@ export class ShortCreator {
     scenes: SceneInput[],
     config: RenderConfig,
   ): Promise<void> {
-    logger.info({ videoId }, "[FIXED RE-RENDER] Starting clean re-render process.");
+    logger.info({ videoId }, "[RE-RENDER] Starting re-render with existing assets.");
 
     try {
       // 1. Apaga o vídeo existente para garantir um processo limpo
@@ -816,15 +945,13 @@ export class ShortCreator {
       // 2. Reseta o status para "processing"
       await this.statusManager.setStatus(videoId, "processing", "Starting re-render...");
 
-      // 3. Reprocessa as cenas enviadas pelo editor.
-      // Isso recalcula durações e legendas de forma segura no backend,
-      // mas reutiliza as mídias (vídeos/áudios) existentes.
-      const { remotionData, updatedScriptScenes } = await this.processScenes(videoId, scenes, config);
+      // 3. Usa pipeline específico para re-render que preserva assets existentes
+      const { remotionData, updatedScriptScenes } = await this.processReRenderScenes(videoId, scenes, config);
 
       // 4. Salva os dados reprocessados e seguros no .render.json para a renderização.
       const renderJsonPath = path.join(this.globalConfig.videosDirPath, `${videoId}.render.json`);
       fs.writeJsonSync(renderJsonPath, remotionData, { spaces: 2 });
-      logger.info({ videoId }, ".render.json updated with sanitized, reprocessed data.");
+      logger.info({ videoId }, ".render.json updated with reprocessed data.");
 
       // 5. Salva as edições de texto do usuário no .script.json para persistência.
       const scriptPath = path.join(this.globalConfig.videosDirPath, `${videoId}.script.json`);
@@ -1284,5 +1411,418 @@ export class ShortCreator {
 }
 
     throw new Error(`Timeout waiting for file to be ready: ${filePath}`);
+  }
+
+  /**
+   * Pipeline específico para edições de vídeo do editor.
+   * Detecta mudanças e processa apenas o que foi alterado.
+   */
+  public async processVideoEdition(
+    videoId: string, 
+    newData: any, 
+    originalData?: any
+  ): Promise<void> {
+    logger.info({ videoId }, "[EDIT] Starting video edition processing");
+    
+    try {
+      // 1. Obter dados originais se não fornecidos
+      if (!originalData) {
+        originalData = this.getVideoById(videoId);
+      }
+      
+      // 2. Detectar mudanças
+      const changes = this.detectChanges(originalData, newData);
+      logger.info({ videoId, changes }, "[EDIT] Detected changes in video data");
+      
+      // 3. Processar mudanças específicas
+      const updatedData = await this.processEditChanges(videoId, newData, changes);
+      
+      // 4. Salvar dados atualizados no script.json
+      const scriptData = {
+        id: videoId,
+        scenes: updatedData.scenes,
+        config: updatedData.config,
+        createdAt: originalData?.createdAt || new Date().toISOString(),
+        status: "processing", // Será atualizado durante re-render
+        editedAt: new Date().toISOString()
+      };
+      
+      const scriptPath = path.join(this.globalConfig.videosDirPath, `${videoId}.script.json`);
+      fs.writeJsonSync(scriptPath, scriptData, { spaces: 2 });
+      logger.info({ videoId }, "[EDIT] Saved updated script data");
+      
+      // 5. Atualizar dados de renderização
+      const renderJsonPath = path.join(this.globalConfig.videosDirPath, `${videoId}.render.json`);
+      fs.writeJsonSync(renderJsonPath, updatedData, { spaces: 2 });
+      logger.info({ videoId }, "[EDIT] Saved updated render data");
+      
+    } catch (error: any) {
+      logger.error({ videoId, error }, "[EDIT] Error processing video edition");
+      throw error;
+    }
+  }
+
+  /**
+   * Detecta que tipo de mudanças foram feitas no vídeo
+   */
+  private detectChanges(originalData: any, newData: any): {
+    textChanges: Array<{ sceneIndex: number, oldText: string, newText: string }>;
+    videoChanges: Array<{ sceneIndex: number, videoIndex: number, oldUrl: string, newUrl: string }>;
+    configChanges: boolean;
+  } {
+    const changes = {
+      textChanges: [] as Array<{ sceneIndex: number, oldText: string, newText: string }>,
+      videoChanges: [] as Array<{ sceneIndex: number, videoIndex: number, oldUrl: string, newUrl: string }>,
+      configChanges: false
+    };
+
+    // Detectar mudanças de texto
+    if (originalData?.scenes && newData?.scenes) {
+      for (let i = 0; i < Math.max(originalData.scenes.length, newData.scenes.length); i++) {
+        const oldScene = originalData.scenes[i];
+        const newScene = newData.scenes[i];
+        
+        if (oldScene && newScene && oldScene.text !== newScene.text) {
+          changes.textChanges.push({
+            sceneIndex: i,
+            oldText: oldScene.text || '',
+            newText: newScene.text || ''
+          });
+        }
+      }
+    }
+
+    // Detectar mudanças de vídeos
+    if (originalData?.scenes && newData?.scenes) {
+      for (let i = 0; i < Math.max(originalData.scenes.length, newData.scenes.length); i++) {
+        const oldScene = originalData.scenes[i];
+        const newScene = newData.scenes[i];
+        
+        if (oldScene?.videos && newScene?.videos) {
+          for (let j = 0; j < Math.max(oldScene.videos.length, newScene.videos.length); j++) {
+            const oldVideo = oldScene.videos[j];
+            const newVideo = newScene.videos[j];
+            
+            if (oldVideo !== newVideo) {
+              changes.videoChanges.push({
+                sceneIndex: i,
+                videoIndex: j,
+                oldUrl: oldVideo || '',
+                newUrl: newVideo || ''
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Detectar mudanças de configuração
+    if (JSON.stringify(originalData?.config) !== JSON.stringify(newData?.config)) {
+      changes.configChanges = true;
+    }
+
+    return changes;
+  }
+
+  /**
+   * Processa as mudanças específicas detectadas
+   */
+  private async processEditChanges(
+    videoId: string, 
+    newData: any, 
+    changes: any
+  ): Promise<any> {
+    const processedData = JSON.parse(JSON.stringify(newData)); // Deep clone
+    
+    // Garantir estrutura básica para todas as cenas
+    if (processedData.scenes) {
+      processedData.scenes.forEach((scene: any, index: number) => {
+        // Garantir propriedades básicas
+        if (!scene.id) {
+          scene.id = `scene_${index}_${Date.now()}`;
+        }
+        if (!scene.text) {
+          scene.text = "";
+        }
+        if (!scene.videos || !Array.isArray(scene.videos)) {
+          scene.videos = [];
+        }
+        if (!scene.audio) {
+          scene.audio = { url: "", duration: 0 };
+        }
+        if (!scene.captions || !Array.isArray(scene.captions)) {
+          scene.captions = [];
+        }
+        if (!scene.duration) {
+          scene.duration = scene.audio?.duration || 0;
+        }
+      });
+    }
+    
+    // Processar mudanças de texto (regerar áudio e legendas)
+    for (const textChange of changes.textChanges) {
+      if (textChange.newText.trim()) {
+        logger.info({ 
+          videoId, 
+          sceneIndex: textChange.sceneIndex, 
+          newText: textChange.newText 
+        }, "[EDIT] Regenerating audio for text change");
+        
+        const scene = processedData.scenes[textChange.sceneIndex];
+        if (scene) {
+          // Regenerar áudio com o novo texto
+          const audioResult = await this.getCachedOrGenerateTTS(
+            textChange.newText.trim(), 
+            processedData.config || {},
+            true // Force regenerate
+          );
+          
+          const audioUrl = this.ensureAbsoluteUrl(`/temp/${path.basename(audioResult.audioPath)}`);
+          
+          // Aplicar ajuste de timing nas legendas (1 segundo de avanço)
+          const adjustedSubtitles = audioResult.subtitles.map((s: any) => ({
+            text: s.text,
+            start: Math.max(0, s.start - 1000), // Adianta 1 segundo
+            end: Math.max(100, s.end - 1000)   // Mantém duração mínima
+          }));
+          
+          // Atualizar dados da cena
+          scene.audio = { 
+            url: audioUrl, 
+            duration: audioResult.duration 
+          };
+          scene.captions = adjustedSubtitles;
+          scene.duration = audioResult.duration; // Atualizar duração da cena
+          
+          logger.info({ 
+            videoId, 
+            sceneIndex: textChange.sceneIndex, 
+            newDuration: audioResult.duration 
+          }, "[EDIT] Audio regenerated for scene");
+        }
+      }
+    }
+    
+    // Processar mudanças de vídeos (adicionar ao cache)
+    for (const videoChange of changes.videoChanges) {
+      if (videoChange.newUrl && videoChange.newUrl !== videoChange.oldUrl) {
+        logger.info({ 
+          videoId, 
+          sceneIndex: videoChange.sceneIndex, 
+          videoIndex: videoChange.videoIndex, 
+          newUrl: videoChange.newUrl 
+        }, "[EDIT] Caching new video");
+        
+        try {
+          // Adicionar vídeo ao cache se for uma URL externa
+          if (videoChange.newUrl.startsWith('http')) {
+            const cacheResults = await this.videoCacheManager.preloadVideos([videoChange.newUrl]);
+            const cachedVideo = cacheResults.get(videoChange.newUrl);
+            
+            if (cachedVideo) {
+              // Atualizar URL para usar a versão em cache
+              processedData.scenes[videoChange.sceneIndex].videos[videoChange.videoIndex] = cachedVideo.proxyUrl;
+              
+              logger.info({ 
+                videoId, 
+                originalUrl: videoChange.newUrl, 
+                cachedUrl: cachedVideo.proxyUrl 
+              }, "[EDIT] Video cached successfully");
+            } else {
+              // Se não conseguiu fazer cache, usar URL original
+              processedData.scenes[videoChange.sceneIndex].videos[videoChange.videoIndex] = videoChange.newUrl;
+              logger.warn({ 
+                videoId, 
+                videoUrl: videoChange.newUrl 
+              }, "[EDIT] Failed to cache video, using original URL");
+            }
+          } else {
+            // URL local, usar diretamente
+            processedData.scenes[videoChange.sceneIndex].videos[videoChange.videoIndex] = videoChange.newUrl;
+          }
+        } catch (error) {
+          logger.warn({ 
+            videoId, 
+            videoUrl: videoChange.newUrl, 
+            error 
+          }, "[EDIT] Failed to cache video, using original URL");
+          
+          // Em caso de erro, manter a URL original
+          processedData.scenes[videoChange.sceneIndex].videos[videoChange.videoIndex] = videoChange.newUrl;
+        }
+      }
+    }
+    
+    // Garantir configuração básica
+    if (!processedData.config) {
+      processedData.config = {};
+    }
+    
+    // Garantir propriedades essenciais do config
+    processedData.config = {
+      orientation: processedData.config.orientation || "portrait",
+      voice: processedData.config.voice || "af_heart",
+      language: processedData.config.language || "pt",
+      ...processedData.config
+    };
+    
+    // Recalcular duração total
+    let totalDuration = 0;
+    if (processedData.scenes) {
+      for (const scene of processedData.scenes) {
+        if (scene.audio?.duration) {
+          totalDuration += scene.audio.duration;
+        }
+      }
+    }
+    
+    // Atualizar configuração com nova duração
+    processedData.config.durationInSec = totalDuration;
+    
+    logger.info({ 
+      videoId, 
+      totalDuration, 
+      sceneCount: processedData.scenes?.length || 0,
+      textChanges: changes.textChanges.length,
+      videoChanges: changes.videoChanges.length
+    }, "[EDIT] Finished processing edit changes");
+    
+    return processedData;
+  }
+
+  /**
+   * Endpoint específico para salvar e processar edições do editor
+   */
+  public async saveAndProcessVideoEdition(videoId: string, newData: any): Promise<void> {
+    logger.info({ videoId }, "[EDIT] Starting save and process video edition");
+    
+    try {
+      // 1. Obter dados originais
+      const originalData = this.getVideoById(videoId);
+      
+      // 2. Processar edições
+      await this.processVideoEdition(videoId, newData, originalData);
+      
+      logger.info({ videoId }, "[EDIT] Video edition processed successfully");
+    } catch (error: any) {
+      logger.error({ videoId, error }, "[EDIT] Error in save and process video edition");
+      throw error;
+    }
+  }
+
+  /**
+   * Re-renderiza um vídeo após edições
+   */
+  public async reRenderEditedVideo(
+    videoId: string,
+    editedData?: any
+  ): Promise<void> {
+    logger.info({ videoId }, "[EDIT-RENDER] Starting re-render of edited video");
+
+    try {
+      // 1. Obter dados editados se não fornecidos
+      if (!editedData) {
+        editedData = this.getVideoById(videoId);
+        if (!editedData) {
+          throw new Error(`No edited data found for video ${videoId}`);
+        }
+        logger.debug({ videoId, dataKeys: Object.keys(editedData) }, "[EDIT-RENDER] Loaded data from getVideoById");
+      } else {
+        logger.debug({ videoId, dataKeys: Object.keys(editedData) }, "[EDIT-RENDER] Using provided edited data");
+      }
+
+      // 2. Validar dados básicos e garantir estrutura mínima
+      if (!editedData.scenes || !Array.isArray(editedData.scenes)) {
+        logger.error({ 
+          videoId, 
+          editedData: editedData ? Object.keys(editedData) : null,
+          scenesType: typeof editedData?.scenes,
+          scenesValue: editedData?.scenes 
+        }, "[EDIT-RENDER] Invalid scenes data");
+        throw new Error(`Invalid scenes data for video ${videoId}`);
+      }
+
+      if (editedData.scenes.length === 0) {
+        logger.warn({ videoId }, "[EDIT-RENDER] No scenes found in video data");
+        throw new Error(`No scenes found for video ${videoId}`);
+      }
+
+      if (!editedData.config) {
+        logger.warn({ videoId }, "[EDIT-RENDER] No config found, using defaults");
+        editedData.config = {
+          orientation: "portrait",
+          voice: "af_heart",
+          language: "pt"
+        };
+      }
+
+      // Garantir que config tem propriedades essenciais
+      editedData.config = {
+        orientation: editedData.config.orientation || "portrait",
+        voice: editedData.config.voice || "af_heart", 
+        language: editedData.config.language || "pt",
+        ...editedData.config
+      };
+
+      logger.debug({ videoId, config: editedData.config, sceneCount: editedData.scenes.length }, "[EDIT-RENDER] Validated edited data");
+
+      // 3. Apagar vídeo existente
+      const existingVideoPath = this.getVideoPath(videoId);
+      if (fs.existsSync(existingVideoPath)) {
+        fs.removeSync(existingVideoPath);
+        logger.info({ videoId }, "[EDIT-RENDER] Deleted existing video file");
+      }
+
+      // 4. Resetar status
+      await this.statusManager.setStatus(videoId, "processing", "Starting re-render after edit...");
+
+      // 5. Calcular duração total
+      let totalDuration = 0;
+      for (const scene of editedData.scenes) {
+        if (scene.audio?.duration) {
+          totalDuration += scene.audio.duration;
+        } else if (scene.duration) {
+          totalDuration += scene.duration;
+        }
+      }
+
+      // 6. Adicionar música se não existir
+      if (!editedData.music && totalDuration > 0) {
+        const music = this.findMusic(totalDuration);
+        editedData.music = music;
+        logger.debug({ videoId, music: music.file }, "[EDIT-RENDER] Added music to edited data");
+      }
+
+      // 7. Atualizar config com duração
+      editedData.config.durationInSec = totalDuration;
+
+      // 8. Garantir que os dados estão no formato correto para renderização
+      const renderData = this.preprocessVideoDataForRemotionRendering(editedData);
+
+      logger.debug({ 
+        videoId, 
+        hasScenes: !!renderData.scenes,
+        sceneCount: renderData.scenes?.length || 0,
+        hasConfig: !!renderData.config,
+        hasMusic: !!renderData.music,
+        totalDuration 
+      }, "[EDIT-RENDER] Preprocessed render data");
+
+      // 9. Salvar dados finais de renderização
+      const renderJsonPath = path.join(this.globalConfig.videosDirPath, `${videoId}.render.json`);
+      fs.writeJsonSync(renderJsonPath, renderData, { spaces: 2 });
+      logger.info({ videoId }, "[EDIT-RENDER] Render data updated");
+
+      // 10. Adicionar à fila de renderização
+      if (!this.renderQueue.includes(videoId)) {
+        this.renderQueue.push(videoId);
+      }
+      this.processRenderQueue();
+      
+    } catch (error: any) {
+      logger.error({ videoId, error }, "[EDIT-RENDER] Error in re-render edited video");
+      await this.statusManager.setError(videoId, error.message || "Failed to re-render edited video");
+      throw error;
+    }
   }
 }

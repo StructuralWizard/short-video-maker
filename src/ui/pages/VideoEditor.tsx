@@ -100,7 +100,17 @@ const VideoEditor: React.FC = () => {
       return url;
     }
     
-    // Para URLs externas, usa o proxy
+    // Se é uma URL de cached-video local, extrai apenas o path
+    if (url.includes('localhost') && url.includes('/api/cached-video/')) {
+      const urlObj = new URL(url);
+      const localPath = urlObj.pathname; // Ex: /api/cached-video/filename.mp4
+      if (isSearchResult) {
+        return `${localPath}?nocache=true`;
+      }
+      return localPath;
+    }
+    
+    // Para URLs externas reais, usa o proxy
     const path = url.replace(/https?:\/\/[^/]+/, '');
     const baseUrl = `/api/proxy${path}`;
     if (isSearchResult) {
@@ -173,10 +183,11 @@ const VideoEditor: React.FC = () => {
     }
   };
 
-  const saveVideoData = async (data: VideoData) => {
+  const saveVideoData = async (data: VideoData, processEdition: boolean = false) => {
     if (!id) return;
     try {
-      await axios.post(`/api/video-data/${id}`, data);
+      const params = processEdition ? '?processEdition=true' : '';
+      await axios.post(`/api/video-data/${id}${params}`, data);
     } catch (err) {
       console.error("Failed to auto-save video data:", err);
       // Opcional: Adicionar um alerta para o usuário
@@ -190,7 +201,8 @@ const VideoEditor: React.FC = () => {
     updatedData.scenes[currentSceneIndex].videos[currentVideoIndex] = newVideo.url;
 
     setVideoData(updatedData);
-    saveVideoData(updatedData);
+    // Usar pipeline de edição para processar mudança de vídeo
+    saveVideoData(updatedData, true);
 
     setSearchDialogOpen(false);
     setSearchResults([]);
@@ -202,8 +214,7 @@ const VideoEditor: React.FC = () => {
 
     setRendering(true);
     try {
-      const payload = {
-        id: id,
+      const editedData = {
         scenes: videoData.scenes,
         config: {
           ...videoData.config,
@@ -211,18 +222,44 @@ const VideoEditor: React.FC = () => {
         },
       };
 
-      await fetch('/api/render', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      // Usar o novo pipeline de edição completo
+      await axios.post(`/api/video-data/${id}/process-edition`, editedData);
+
+      // Iniciar re-renderização após processamento com os dados editados
+      await axios.post(`/api/video-data/${id}/rerender`, editedData);
 
       navigate('/');
     } catch (err) {
-      setError('Failed to save and render video');
-      console.error('Error saving and rendering video:', err);
+      setError('Failed to process edits and render video');
+      console.error('Error processing edits and rendering video:', err);
     } finally {
       setRendering(false);
+    }
+  };
+
+  const handleSaveChanges = async () => {
+    if (!videoData || !id) return;
+
+    setSaving(true);
+    try {
+      const editedData = {
+        scenes: videoData.scenes,
+        config: {
+          ...videoData.config,
+          referenceAudioPath: referenceAudioPath,
+        },
+      };
+
+      // Processar edições sem re-renderizar
+      await axios.post(`/api/video-data/${id}/process-edition`, editedData);
+
+      // Opcional: mostrar feedback de sucesso
+      console.log('Changes saved successfully');
+    } catch (err) {
+      setError('Failed to save changes');
+      console.error('Error saving changes:', err);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -243,7 +280,21 @@ const VideoEditor: React.FC = () => {
       if (!prevData) return null;
       const updatedScenes = [...prevData.scenes];
       updatedScenes[sceneIndex].text = newText;
-      return { ...prevData, scenes: updatedScenes };
+      const updatedData = { ...prevData, scenes: updatedScenes };
+      
+      // Usar debounce para evitar muitas chamadas durante digitação
+      const timeoutId = setTimeout(() => {
+        // Usar pipeline de edição para processar mudança de texto
+        saveVideoData(updatedData, true);
+      }, 1000); // Aguarda 1 segundo após parar de digitar
+      
+      // Limpar timeout anterior se existir
+      if ((window as any).textChangeTimeout) {
+        clearTimeout((window as any).textChangeTimeout);
+      }
+      (window as any).textChangeTimeout = timeoutId;
+      
+      return updatedData;
     });
   };
 
@@ -370,15 +421,26 @@ const VideoEditor: React.FC = () => {
       <Paper sx={{ p: 3, mb: 3 }}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
           <Typography variant="h6">Video Configuration</Typography>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={rendering ? <CircularProgress size={16} /> : <SaveIcon />}
-            onClick={handleSaveAndRender}
-            disabled={rendering}
-          >
-            {rendering ? 'Rendering...' : 'Save & Re-render'}
-          </Button>
+          <Box display="flex" gap={1}>
+            <Button
+              variant="outlined"
+              color="primary"
+              startIcon={saving ? <CircularProgress size={16} /> : <SaveIcon />}
+              onClick={handleSaveChanges}
+              disabled={saving || rendering}
+            >
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={rendering ? <CircularProgress size={16} /> : <SaveIcon />}
+              onClick={handleSaveAndRender}
+              disabled={rendering || saving}
+            >
+              {rendering ? 'Rendering...' : 'Save & Re-render'}
+            </Button>
+          </Box>
         </Box>
         
         <Grid container spacing={2}>

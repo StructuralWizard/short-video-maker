@@ -374,16 +374,34 @@ export class APIRouter {
       }
     });
 
-    this.router.post("/video-data/:id", (req, res) => {
+    this.router.post("/video-data/:id", async (req, res) => {
       const { id } = req.params;
       const videoData = req.body;
+      const { processEdition = false, reRender = false } = req.query;
+      
       try {
-        this.shortCreator.saveVideoData(id, videoData);
-        res.status(200).json({ message: "Video data saved successfully" });
+        if (processEdition === 'true') {
+          // Pipeline de edição completo
+          await this.shortCreator.saveAndProcessVideoEdition(id, videoData);
+          
+          if (reRender === 'true') {
+            // Também inicia re-renderização após processamento
+            await this.shortCreator.reRenderEditedVideo(id);
+          }
+          
+          res.status(200).json({ 
+            message: "Video edition processed successfully",
+            reRenderStarted: reRender === 'true'
+          });
+        } else {
+          // Pipeline simples - apenas salva
+          this.shortCreator.saveVideoData(id, videoData);
+          res.status(200).json({ message: "Video data saved successfully" });
+        }
       } catch (error) {
-        logger.error({ error, id }, "Error saving video data");
-          res.status(500).json({
-          error: "Failed to save video data",
+        logger.error({ error, id }, "Error saving/processing video data");
+        res.status(500).json({
+          error: "Failed to save/process video data",
           details: error instanceof Error ? error.message : "Unknown error",
         });
       }
@@ -396,6 +414,44 @@ export class APIRouter {
         res.status(200).json(video);
       } else {
         res.status(404).json({ error: "Video data not found" });
+      }
+    });
+
+    this.router.post("/video-data/:id/rerender", async (req, res) => {
+      const { id } = req.params;
+      const editedData = req.body; // Dados editados opcionais
+      
+      try {
+        await this.shortCreator.reRenderEditedVideo(id, editedData);
+        res.status(202).json({ 
+          message: "Video re-render started", 
+          videoId: id 
+        });
+      } catch (error) {
+        logger.error({ error, id }, "Error starting video re-render");
+        res.status(500).json({
+          error: "Failed to start video re-render",
+          details: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    });
+
+    this.router.post("/video-data/:id/process-edition", async (req, res) => {
+      const { id } = req.params;
+      const videoData = req.body;
+      
+      try {
+        await this.shortCreator.saveAndProcessVideoEdition(id, videoData);
+        res.status(200).json({ 
+          message: "Video edition processed successfully",
+          videoId: id 
+        });
+      } catch (error) {
+        logger.error({ error, id }, "Error processing video edition");
+        res.status(500).json({
+          error: "Failed to process video edition",
+          details: error instanceof Error ? error.message : "Unknown error",
+        });
       }
     });
 
