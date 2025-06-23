@@ -170,7 +170,7 @@ const VideoDetails: React.FC = () => {
         headers: {
           'Content-Type': 'application/json'
         },
-        timeout: 300000
+        timeout: 1800000
       });
 
       setSnackbar({

@@ -5,7 +5,6 @@ import { PortraitVideo } from "../videos/PortraitVideo";
 import { LandscapeVideo } from "../videos/LandscapeVideo";
 import { TestVideo } from "../videos/Test";
 import z from "zod";
-import { AvailableComponentsEnum } from "../types";
 
 const FPS = 25;
 // Use the main API server port, not the UI dev server port
@@ -21,18 +20,18 @@ export const calculateMetadata: CalculateMetadataFunction<
     return acc + (typeof duration === 'number' && isFinite(duration) ? duration : 0);
   }, 0);
 
-  // Adiciona o padding final, se existir
-  const paddingInSeconds = (props.config.paddingBack || 0) / 1000;
+  // Adiciona automaticamente 3 segundos de fade out no final
+  const fadeOutDuration = 3; // segundos
   
   // Duração total em segundos
-  const totalDurationInSeconds = scenesDuration + paddingInSeconds;
+  const totalDurationInSeconds = scenesDuration + fadeOutDuration;
 
   // Converte para frames, garantindo que seja no mínimo 1
   const durationInFrames = Math.max(1, Math.round(totalDurationInSeconds * FPS));
   
-  console.log('[Metadata] Calculated total duration:', {
+  console.log('[Metadata] Calculated total duration with automatic fade out:', {
     scenesDuration,
-    paddingInSeconds,
+    fadeOutDuration,
     totalDurationInSeconds,
     durationInFrames
   });
@@ -47,7 +46,7 @@ export const RemotionRoot: React.FC = () => {
   return (
     <>
       <Composition
-        id={AvailableComponentsEnum.PortraitVideo}
+        id="PortraitVideo"
         component={PortraitVideo}
         durationInFrames={30}
         fps={FPS}
@@ -92,7 +91,7 @@ export const RemotionRoot: React.FC = () => {
         calculateMetadata={calculateMetadata}
       />
       <Composition
-        id={AvailableComponentsEnum.LandscapeVideo}
+        id="LandscapeVideo"
         component={LandscapeVideo}
         durationInFrames={30}
         fps={FPS}

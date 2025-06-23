@@ -119,6 +119,11 @@ export class Server {
                 reject(err);
               }
             });
+
+            // Configurar timeouts mais longos para o servidor
+            server.timeout = 1800000; // 30 minutos
+            server.keepAliveTimeout = 1800000; // 30 minutos
+            server.headersTimeout = 1800000; // 30 minutos
           });
           // Se chegou aqui, o servidor iniciou com sucesso
           break;

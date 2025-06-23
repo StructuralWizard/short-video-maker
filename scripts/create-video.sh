@@ -4,7 +4,7 @@
 HOST="http://localhost:3123"
 OUTPUT_DIR="./videos"
 CONFIG_FILE=""
-MAX_WAIT_TIME=300  # 5 minutes timeout
+MAX_WAIT_TIME=1800  # 30 minutes timeout
 WAIT_INTERVAL=5    # Check every 5 seconds
 
 # Help message
@@ -16,7 +16,7 @@ show_help() {
     echo "  -c, --config FILE      JSON configuration file"
     echo "  -w, --wait            Wait for video to be ready and download it"
     echo "  -v, --verbose         Show verbose output"
-    echo "  -t, --timeout SECONDS Maximum time to wait for video (default: 300)"
+    echo "  -t, --timeout SECONDS Maximum time to wait for video (default: 1800)"
     echo "  --help                Show this help message"
     echo ""
     echo "Example config.json:"
@@ -174,7 +174,7 @@ if [ "$WAIT" = true ]; then
         elapsed=$((current_time - start_time))
         
         if [ $elapsed -ge $MAX_WAIT_TIME ]; then
-            echo "Error: Timeout waiting for video after ${MAX_WAIT_TIME} seconds"
+            echo "Error: Timeout waiting for video after ${MAX_WAIT_TIME} seconds (30 minutes)"
             echo "The video might still be processing. You can check its status later with:"
             echo "curl $HOST/api/short-video/$VIDEO_ID/status"
             exit 1

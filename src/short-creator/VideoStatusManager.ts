@@ -238,4 +238,27 @@ export class VideoStatusManager {
     
     return defaultStatus;
   }
+
+  public async deleteStatus(videoId: string): Promise<void> {
+    const filePath = this.getStatusFilePath(videoId);
+    
+    // Wait for any ongoing writes to complete
+    await this.waitForWriteLock(videoId);
+    
+    // Acquire write lock
+    this.writeLocks.add(videoId);
+    
+    try {
+      if (fs.existsSync(filePath)) {
+        await fs.remove(filePath);
+        logger.info({ videoId, filePath }, "Video status file deleted");
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      logger.error({ videoId, error: errorMessage }, "Failed to delete video status file");
+    } finally {
+      // Release write lock
+      this.writeLocks.delete(videoId);
+    }
+  }
 } 

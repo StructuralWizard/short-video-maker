@@ -54,14 +54,42 @@ export const LandscapeVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
 
   const [musicVolume, musicMuted] = calculateVolume(config.musicVolume);
 
+  // Calculate total duration including automatic 3-second fade out
+  const fadeOutDuration = 3; // 3 segundos de fade out
+  const narrationDuration = scenes.reduce((acc, curr) => acc + curr.audio.duration, 0);
+  const totalDurationInFrames = Math.round((narrationDuration + fadeOutDuration) * fps);
+  
+  // Calculate fade out timing
+  const fadeOutStartFrame = Math.round(narrationDuration * fps);
+  const fadeOutEndFrame = totalDurationInFrames;
+
+  // Music volume with fade out
+  const getMusicVolume = (currentFrame) => {
+    if (currentFrame >= fadeOutStartFrame && currentFrame < fadeOutEndFrame) {
+      // Fade out linear de 100% para 0% nos últimos 3 segundos
+      const fadeProgress = (currentFrame - fadeOutStartFrame) / (fadeOutEndFrame - fadeOutStartFrame);
+      return musicVolume * (1 - fadeProgress);
+    }
+    return musicVolume;
+  };
+
+  // Video opacity with fade out
+  const getVideoOpacity = (currentFrame) => {
+    if (currentFrame >= fadeOutStartFrame && currentFrame < fadeOutEndFrame) {
+      // Fade out linear de 100% para 0% nos últimos 3 segundos
+      const fadeProgress = (currentFrame - fadeOutStartFrame) / (fadeOutEndFrame - fadeOutStartFrame);
+      return 1 - fadeProgress;
+    }
+    return 1;
+  };
+
   return (
     <AbsoluteFill style={{ backgroundColor: "white" }}>
       <Audio
         loop
         src={music.url}
         startFrom={music.start * fps}
-        endAt={music.end * fps}
-        volume={() => musicVolume}
+        volume={() => getMusicVolume(frame)}
         muted={musicMuted}
       />
 
@@ -76,6 +104,7 @@ export const LandscapeVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
             height: "100%",
             objectFit: "cover",
             zIndex: 1,
+            opacity: getVideoOpacity(frame),
           }}
         />
       )}
@@ -108,13 +137,29 @@ export const LandscapeVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
             <OffthreadVideo src={video} muted />
             <Audio src={audio.url} />
             {pages.map((page, j) => {
+              const pageStartMs = page.startMs ?? 0;
+              const pageEndMs = page.endMs ?? 0;
+              
+              // CORRIGIDO: Usar frames diretamente em vez de milissegundos
+              let fromFrame = Math.round((pageStartMs / 1000) * fps);
+              
+              if (i === 0) {
+                // Primeira cena: legendas começam no frame 2 (após hook)
+                fromFrame = Math.max(fromFrame, 2);
+              } else {
+                // Demais cenas: legendas começam no frame 1 da cena
+                fromFrame = Math.max(fromFrame, 1);
+              }
+              
+              // Duração em frames baseada no timing original da página
+              const pageDurationMs = Math.max(pageEndMs - pageStartMs, 0.001);
+              const durationFrames = Math.max(1, Math.round((pageDurationMs / 1000) * fps));
+              
               return (
                 <Sequence
                   key={`scene-${i}-page-${j}`}
-                  from={Math.round((page.startMs / 1000) * fps)}
-                  durationInFrames={Math.round(
-                    ((page.endMs - page.startMs) / 1000) * fps,
-                  )}
+                  from={fromFrame}
+                  durationInFrames={Math.max(1, durationFrames)}
                 >
                   <div
                     style={{
@@ -142,10 +187,12 @@ export const LandscapeVideo: React.FC<z.infer<typeof shortVideoSchema>> = ({
                           key={`scene-${i}-page-${j}-line-${k}`}
                         >
                           {line.texts.map((text, l) => {
+                            const textStartMs = text.startMs || 0;
+                            const textEndMs = text.endMs || 0;
                             const active =
                               frame >=
-                                startFrame + (text.startMs / 1000) * fps &&
-                              frame <= startFrame + (text.endMs / 1000) * fps;
+                                startFrame + (textStartMs / 1000) * fps &&
+                              frame <= startFrame + (textEndMs / 1000) * fps;
                             return (
                               <>
                                 <span

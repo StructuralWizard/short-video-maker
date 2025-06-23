@@ -6,7 +6,6 @@ import path from "path";
 import { execSync, spawn } from "child_process";
 import ffmpeg from "fluent-ffmpeg";
 import * as crypto from 'crypto';
-import { getAudioDurationInSeconds } from "@remotion/media-utils";
 
 import { Remotion } from "./libraries/Remotion";
 import { FFMpeg } from "./libraries/FFmpeg";
@@ -22,6 +21,7 @@ import { cleanSceneText, splitTextByPunctuation } from "./utils/textCleaner";
 import { LocalImageAPI } from "./libraries/LocalImageAPI";
 import { VideoStatus, VideoStatusManager, VideoStatusObject } from "./VideoStatusManager";
 import { QueueItem } from "./types/QueueItem";
+import { VideoCacheManager } from "./libraries/VideoCacheManager";
 
 export class ShortCreator {
   private bundled: string;
@@ -33,6 +33,7 @@ export class ShortCreator {
   private ffmpeg: FFMpeg;
   private outputDir: string;
   private musicManager: MusicManager;
+  private videoCacheManager: VideoCacheManager;
 
   // Progress throttling
   private lastProgressUpdate: Map<string, number> = new Map();
@@ -42,6 +43,10 @@ export class ShortCreator {
   private renderQueue: string[] = [];
   private isProcessingCreation = false;
   private isProcessingRender = false;
+
+  // Adicionar mapas para tracking de tempo
+  private progressUpdateTimes = new Map<string, number>();
+  private renderStartTimes = new Map<string, number>();
 
   constructor(
     bundled: string,
@@ -62,6 +67,7 @@ export class ShortCreator {
     this.musicManager = new MusicManager(globalConfig);
     this.outputDir = path.join(this.globalConfig.dataDirPath, "temp");
     fs.ensureDirSync(this.outputDir);
+    this.videoCacheManager = new VideoCacheManager(globalConfig);
   }
 
   /**
@@ -209,7 +215,7 @@ export class ShortCreator {
       await this.prepareAndRender(item);
     } catch (error) {
       logger.error({ videoId: item.id, error }, "Error in creation pipeline");
-    } finally {
+      } finally {
       this.isProcessingCreation = false;
       this.processCreationQueue();
     }
@@ -277,25 +283,89 @@ export class ShortCreator {
     const excludeVideoIds: string[] = [];
     const remotionDataNested: Scene[][] = [];
     const newScriptScenes: SceneInput[] = [];
+    const allVideoUrls: string[] = [];
 
-    // Usar um loop imperativo para garantir que a mutação aconteça de forma previsível.
+    await this.statusManager.setProgress(videoId, 15, "Finding videos for scenes...");
+
+    // FASE 1: Encontrar todos os vídeos primeiro (sem processar áudio ainda)
+    const scenesWithVideos: { scene: SceneInput; videos: Video[] }[] = [];
+    
     for (const originalScene of inputScenes) {
-      // Cria uma cópia para trabalhar, garantindo que o original não seja modificado por referência.
       const scene: SceneInput = JSON.parse(JSON.stringify(originalScene));
-      
       let finalVideos: Video[];
 
-      // Lógica para encontrar os vídeos
       if (scene.videos && scene.videos.length > 0 && scene.videos.every(v => v)) {
         logger.debug({ videoId, sceneIndex: inputScenes.indexOf(originalScene) }, "Re-render: Using pre-defined videos.");
-        finalVideos = await Promise.all(
-          scene.videos.map(videoUrl =>
-            this.videoSearch.getVideoByUrl(videoUrl).catch(error => {
-              logger.error({ videoId, sceneIndex: inputScenes.indexOf(originalScene), videoUrl, error }, "Pre-defined video not found.");
-              throw new Error(`Failed to find pre-defined video: ${videoUrl}.`);
-            }),
-          ),
-        );
+        
+        // Tenta usar vídeos pré-definidos, mas faz fallback para busca nova se não encontrar
+        try {
+          const videoResults = await Promise.all(
+            scene.videos.map(async (videoUrl) => {
+              try {
+                return await this.videoSearch.getVideoByUrl(videoUrl);
+              } catch (error) {
+                logger.warn({ 
+                  videoId, 
+                  sceneIndex: inputScenes.indexOf(originalScene), 
+                  videoUrl, 
+                  error 
+                }, "Pre-defined video not found, will search for new video.");
+                return null; // Retorna null para indicar que precisa buscar novo vídeo
+              }
+            })
+          );
+          
+          // Se algum vídeo não foi encontrado, remove os nulls e busca novos vídeos
+          const validVideos = videoResults.filter((v): v is Video => v !== null);
+          const missingCount = videoResults.length - validVideos.length;
+          
+          if (missingCount > 0) {
+            logger.info({ 
+              videoId, 
+              sceneIndex: inputScenes.indexOf(originalScene),
+              validVideos: validVideos.length,
+              missingCount 
+            }, "Some pre-defined videos not found, searching for replacements.");
+            
+            // Busca vídeos para substituir os que não foram encontrados
+            const searchTerms = scene.searchTerms.filter(term => term.length >= 4).join(" ") || scene.searchTerms.join(" ");
+            const replacementVideos = await this.videoSearch.findVideos(
+              searchTerms,
+              10,
+              excludeVideoIds,
+              orientation,
+              missingCount
+            );
+            
+            // Combina vídeos válidos com os de substituição
+            finalVideos = [...validVideos, ...replacementVideos];
+            
+            // Atualiza as URLs dos vídeos na cena
+            scene.videos = finalVideos.map(v => v.url);
+            finalVideos.forEach(video => video && excludeVideoIds.push(video.id));
+          } else {
+            // Todos os vídeos foram encontrados
+            finalVideos = validVideos;
+          }
+        } catch (error) {
+          logger.error({ 
+            videoId, 
+            sceneIndex: inputScenes.indexOf(originalScene), 
+            error 
+          }, "Error processing pre-defined videos, falling back to new search.");
+          
+          // Fallback completo para busca nova
+          const searchTerms = scene.searchTerms.filter(term => term.length >= 4).join(" ") || scene.searchTerms.join(" ");
+          finalVideos = await this.videoSearch.findVideos(
+            searchTerms,
+            10,
+            excludeVideoIds,
+            orientation,
+            this.processTextForTTS(scene.text).length
+          );
+          scene.videos = finalVideos.map(v => v.url);
+          finalVideos.forEach(video => video && excludeVideoIds.push(video.id));
+        }
       } else {
         logger.debug({ videoId, sceneIndex: inputScenes.indexOf(originalScene) }, "Creation: Searching for new videos.");
         const searchTerms =
@@ -307,7 +377,6 @@ export class ShortCreator {
           orientation,
           this.processTextForTTS(scene.text).length,
         );
-        // **CORREÇÃO DEFINITIVA: Salva as URLs na CÓPIA da cena.**
         scene.videos = finalVideos.map(v => v.url);
         finalVideos.forEach(video => video && excludeVideoIds.push(video.id));
       }
@@ -318,25 +387,88 @@ export class ShortCreator {
           `Could not find enough videos for scene ${inputScenes.indexOf(originalScene)}. Found ${finalVideos.length}, needed ${textParts.length}.`,
         );
       }
+
+      scenesWithVideos.push({ scene, videos: finalVideos });
       
-      const sceneAudioData = await this.generateAudioForScene(videoId, scene, textParts, config);
-      
+      // Coletar todas as URLs de vídeo para pré-download
+      finalVideos.forEach(video => {
+        if (video.url && !allVideoUrls.includes(video.url)) {
+          allVideoUrls.push(video.url);
+        }
+      });
+    }
+
+    await this.statusManager.setProgress(videoId, 25, "Starting video downloads and TTS generation...");
+
+    // FASE 2: Iniciar downloads de vídeos em paralelo com geração de TTS
+    logger.info({ videoId, videoCount: allVideoUrls.length }, "Starting parallel video preload");
+    const videoDownloadPromise = this.videoCacheManager.preloadVideos(allVideoUrls);
+
+    // FASE 3: Processar áudio para cada cena (em paralelo com downloads)
+    const audioProcessingPromises = scenesWithVideos.map(async ({ scene }) => {
+      const textParts = this.processTextForTTS(scene.text);
+      return {
+        scene,
+        audioData: await this.generateAudioForScene(videoId, scene, textParts, config)
+      };
+    });
+
+    // Aguardar tanto os downloads quanto o processamento de áudio
+    const [cachedVideos, audioResults] = await Promise.all([
+      videoDownloadPromise,
+      Promise.all(audioProcessingPromises)
+    ]);
+
+    await this.statusManager.setProgress(videoId, 70, "Finalizing scene data...");
+
+    // FASE 4: Combinar tudo e substituir URLs pelos proxies locais
+    for (let sceneIndex = 0; sceneIndex < scenesWithVideos.length; sceneIndex++) {
+      const { scene, videos: finalVideos } = scenesWithVideos[sceneIndex];
+      const { audioData: sceneAudioData } = audioResults[sceneIndex];
+      const textParts = this.processTextForTTS(scene.text);
+
       const sceneParts: Scene[] = [];
       for(let i = 0; i < textParts.length; i++) {
         const video = finalVideos[i];
-        if (!video || !video.url) throw new Error(`No video for part ${i} of scene ${inputScenes.indexOf(originalScene)}`);
+        if (!video || !video.url) throw new Error(`No video for part ${i} of scene ${sceneIndex}`);
         
         // Validate audio duration
         const audioDuration = sceneAudioData[i].duration;
         if (!audioDuration || audioDuration <= 0 || isNaN(audioDuration)) {
           logger.error({ 
-            videoId, 
-            sceneIndex: inputScenes.indexOf(originalScene), 
+        videoId, 
+        sceneIndex, 
             partIndex: i, 
             audioDuration,
             text: textParts[i]
           }, "Invalid audio duration detected");
-          throw new Error(`Invalid audio duration for part ${i} of scene ${inputScenes.indexOf(originalScene)}: ${audioDuration}`);
+          throw new Error(`Invalid audio duration for part ${i} of scene ${sceneIndex}: ${audioDuration}`);
+        }
+
+        // Substituir URL do vídeo pelo proxy local se disponível
+        const originalVideoUrl = video.url;
+        const cachedVideo = cachedVideos.get(originalVideoUrl);
+        
+        let finalVideoUrl = originalVideoUrl;
+        if (cachedVideo) {
+          finalVideoUrl = cachedVideo.proxyUrl;
+          logger.debug({ 
+            originalUrl: originalVideoUrl, 
+            proxyUrl: finalVideoUrl,
+            size: cachedVideo.size 
+          }, "Using cached video");
+        } else {
+          // Check if it's a localhost URL that failed
+          const isLocalhostUrl = originalVideoUrl.includes('localhost');
+          if (isLocalhostUrl) {
+            logger.warn({ 
+              originalUrl: originalVideoUrl 
+            }, "Video not cached (localhost server not running), using original URL - rendering may fail");
+          } else {
+            logger.warn({ 
+              originalUrl: originalVideoUrl 
+            }, "Video not cached, using original URL");
+          }
         }
         
         sceneParts.push({
@@ -346,18 +478,27 @@ export class ShortCreator {
           duration: audioDuration,
           orientation,
           captions: sceneAudioData[i].captions,
-          videos: [video.url],
+          videos: [finalVideoUrl], // Usar URL do proxy local se disponível
           audio: { url: sceneAudioData[i].url, duration: audioDuration }
         });
       }
+      
       remotionDataNested.push(sceneParts);
-      // Adiciona a cena atualizada (com as URLs dos vídeos) à nova lista.
       newScriptScenes.push(scene);
     }
 
     // Calcula a duração total e encontra a música
     const totalDuration = remotionDataNested.flat().reduce((acc: number, s: any) => acc + s.duration, 0);
     const music = this.findMusic(totalDuration, config.music);
+
+    // Log estatísticas do cache
+    const cacheStats = this.videoCacheManager.getCacheStats();
+    logger.info({ 
+      videoId, 
+      totalVideos: allVideoUrls.length,
+      cachedVideos: cachedVideos.size,
+      cacheStats 
+    }, "Video processing completed with cache statistics");
 
     // Cria o objeto remotionData com a estrutura correta desde o início
     const remotionData = {
@@ -394,10 +535,24 @@ export class ShortCreator {
           logger.warn({ text, path: cachedAudioPath }, "Cached TTS file is empty, regenerating");
           fs.removeSync(cachedAudioPath);
         } else {
+          // Aguarda o arquivo estar completamente pronto antes de calcular duração
+          await this.waitForFileReady(cachedAudioPath);
           const duration = await this.remotion.getMediaDuration(cachedAudioPath);
           if (duration > 0) {
-            logger.debug({ text, hash: configHash }, "TTS audio found in cache.");
-            return { audioPath: cachedAudioPath, duration, subtitles: [] };
+            logger.debug({ text, hash: configHash }, "TTS audio found in cache, generating fallback subtitles.");
+            
+            // Gerar legendas simples baseadas no texto quando usando cache
+            const words = text.split(/\s+/);
+            const durationMs = duration * 1000;
+            const durationPerWord = words.length > 0 ? durationMs / words.length : 0;
+            
+            const fallbackSubtitles = words.map((word, index) => ({
+              text: word,
+              start: index * durationPerWord,
+              end: (index + 1) * durationPerWord
+            }));
+            
+            return { audioPath: cachedAudioPath, duration, subtitles: fallbackSubtitles };
           }
         }
       } catch(e) {
@@ -417,6 +572,9 @@ export class ShortCreator {
 
     const result = await this.localTTS.generateSpeech(text, tempWavPath, config.voice, config.language, config.referenceAudioPath);
     
+    // Aguarda o arquivo estar completamente pronto para uso
+    await this.waitForFileReady(result.audioPath);
+    
     // Validate the generated file before caching
     if (!fs.existsSync(result.audioPath)) {
       throw new Error(`Generated TTS file not found: ${result.audioPath}`);
@@ -427,14 +585,34 @@ export class ShortCreator {
       throw new Error(`Generated TTS file is empty: ${result.audioPath}`);
     }
     
-    // Verify duration is valid
-    if (!result.duration || result.duration <= 0 || isNaN(result.duration)) {
-      throw new Error(`Generated TTS has invalid duration: ${result.duration}`);
+    // Recalcular duração usando nosso método robusto que aguarda o arquivo estar pronto
+    let finalDuration: number;
+    try {
+      finalDuration = await this.remotion.getMediaDuration(result.audioPath);
+    } catch (durationError) {
+      logger.error({ audioPath: result.audioPath, error: durationError }, "Failed to calculate duration for generated TTS");
+      throw new Error(`Failed to calculate duration for generated TTS: ${durationError instanceof Error ? durationError.message : 'Unknown error'}`);
     }
+    
+    // Verify duration is valid
+    if (!finalDuration || finalDuration <= 0 || isNaN(finalDuration)) {
+      throw new Error(`Generated TTS has invalid duration: ${finalDuration}`);
+    }
+    
+    logger.debug("TTS generation completed successfully", {
+      audioPath: result.audioPath,
+      originalDuration: result.duration,
+      recalculatedDuration: finalDuration,
+      fileSize: stats.size,
+      subtitlesCount: result.subtitles.length
+    });
+    
+    // Use a duração recalculada que foi validada
+    const finalResult = { ...result, duration: finalDuration };
     
     fs.copyFileSync(result.audioPath, cachedAudioPath);
 
-    return { ...result, audioPath: cachedAudioPath };
+    return { ...finalResult, audioPath: cachedAudioPath };
   }
 
   private async generateAudioForScene(
@@ -454,34 +632,35 @@ export class ShortCreator {
           logger.error({ videoId, sceneAudio }, "Pre-existing audio has invalid duration");
           throw new Error(`Pre-existing audio has invalid duration: ${sceneAudio.duration}`);
         }
+
+        // Use existing captions if available, otherwise generate empty captions
+        const existingCaptions = sceneAudio.captions || [];
         
-        // Se já existe um áudio único, precisamos dividi-lo ou usá-lo para a primeira parte.
-        // Por simplicidade, vamos atribuí-lo à primeira parte e gerar para as demais.
-        
-        // Ajusta o timing das legendas pré-existentes para aparecerem 1 segundo antes
-        const adjustedCaptions = (scene.captions || []).map((caption: any) => ({
-          ...caption,
-          startMs: Math.max(0, (caption.startMs || caption.start || 0) - 1000),
-          endMs: Math.max(100, (caption.endMs || caption.end || 100) - 1000)
+        // Ajusta as legendas para começar no frame correto de cada cena
+        // Para a primeira cena, legendas começam no frame 2 (após o hook)
+        // Para demais cenas, legendas começam no frame 1 da cena
+        const adjustedCaptions = existingCaptions.map((caption: any) => ({
+          text: caption.text,
+          startMs: caption.startMs || caption.start || 0,
+          endMs: caption.endMs || caption.end || 0
         }));
-        
+
         audioResults.push({
-            url: sceneAudio.url,
-            duration: sceneAudio.duration,
-            captions: adjustedCaptions
+          url: this.ensureAbsoluteUrl(sceneAudio.url),
+          duration: sceneAudio.duration,
+          captions: adjustedCaptions,
         });
-        // Preenche o resto com silêncio ou gera novos áudios. Gerar novos é mais seguro.
-        for (let i = 1; i < textParts.length; i++) {
-            const audioResult = await this.generateSingleAudioPart(textParts[i], config);
-            audioResults.push(audioResult);
-        }
     } else {
-        // Gera áudio para cada parte do texto
-        for (const part of textParts) {
-            const audioResult = await this.generateSingleAudioPart(part, config);
-            audioResults.push(audioResult);
+        // Generate new audio for each text part
+        for (let j = 0; j < textParts.length; j++) {
+          const text = textParts[j];
+          logger.debug({ videoId, sceneIndex: j, partIndex: j, text }, "Generating TTS for text part");
+          
+          const audioResult = await this.generateSingleAudioPart(text, config);
+          audioResults.push(audioResult);
         }
     }
+
     return audioResults;
   }
 
@@ -489,21 +668,21 @@ export class ShortCreator {
     text: string,
     config: RenderConfig
   ): Promise<{ url: string, duration: number, captions: Caption[] }> {
-    
     const audioResult = await this.getCachedOrGenerateTTS(text, config);
-    
-    const audioPath = this.ensureAbsoluteUrl(`/temp/${path.basename(audioResult.audioPath)}`);
-    
-    // Ajusta o timing das legendas para aparecerem 1 segundo antes
-    const captions = audioResult.subtitles.map((s: any) => ({ 
-      text: s.text, 
-      startMs: Math.max(0, s.start - 1000), // Adianta 1s, mas não permite valores negativos
-      endMs: Math.max(100, s.end - 1000)    // Adianta 1s, mas garante duração mínima
+    const audioPath = audioResult.audioPath;
+    const audioUrl = this.ensureAbsoluteUrl(`/temp/${path.basename(audioPath)}`);
+
+    // Converte as legendas para o formato esperado, sem ajustar timing aqui
+    // O timing será ajustado nos componentes de vídeo baseado na cena
+    const captions = audioResult.subtitles.map((s: any) => ({
+      text: s.text,
+      startMs: s.start,
+      endMs: s.end
     }));
     
     if (audioResult.duration <= 0) throw new Error(`Invalid audio duration for text: "${text}".`);
 
-    return { url: audioPath, duration: audioResult.duration, captions };
+    return { url: audioUrl, duration: audioResult.duration, captions };
   }
 
   private splitTextIntoScenes(text: string): string[] {
@@ -518,12 +697,31 @@ export class ShortCreator {
     return path.join(this.globalConfig.videosDirPath, `${videoId}.mp4`);
   }
 
-  public deleteVideo(videoId: string): void {
+  public getCachedVideoPath(filename: string): string | null {
+    return this.videoCacheManager.getCachedVideoPath(filename);
+  }
+
+  public getCacheStats(): { count: number; totalSize: number; totalSizeFormatted: string } {
+    return this.videoCacheManager.getCacheStats();
+  }
+
+  public async cleanupVideoCache(maxAgeHours: number = 24): Promise<void> {
+    return this.videoCacheManager.cleanupOldCache(maxAgeHours);
+  }
+
+  public async deleteVideo(videoId: string): Promise<void> {
     const videosDir = path.join(this.globalConfig.videosDirPath);
+    
+    // Lista de todos os arquivos relacionados ao vídeo que devem ser apagados
     const filesToDelete = [
+      // Arquivos principais no diretório de vídeos
       path.join(videosDir, `${videoId}.mp4`),
       path.join(videosDir, `${videoId}.script.json`),
-      path.join(videosDir, `${videoId}.json`)
+      path.join(videosDir, `${videoId}.json`),
+      path.join(videosDir, `${videoId}.render.json`),
+      // Arquivos legados no diretório data (se existirem)
+      path.join(this.globalConfig.dataDirPath, `${videoId}.json`),
+      path.join(this.globalConfig.dataDirPath, `${videoId}.script.json`)
     ];
 
     let deletedCount = 0;
@@ -532,17 +730,31 @@ export class ShortCreator {
         try {
           fs.removeSync(filePath);
           deletedCount++;
-          logger.info({ videoId, filePath }, "Deleted video file");
+          logger.info({ videoId, filePath }, "Deleted video file and metadata");
         } catch (error) {
-          logger.error({ videoId, filePath, error }, "Error deleting video file");
+          logger.error({ videoId, filePath, error }, "Error deleting video file or metadata");
         }
       }
+    }
+
+    // Remove o arquivo de status usando o VideoStatusManager
+    try {
+      await this.statusManager.deleteStatus(videoId);
+    } catch (error) {
+      logger.error({ videoId, error }, "Error deleting video status");
     }
 
     // Remove da memória também
     this.creationQueue = this.creationQueue.filter(item => item.id !== videoId);
     
-    logger.info({ videoId, deletedCount }, "Video deletion completed");
+    // Remove da fila de renderização se estiver lá
+    const renderIndex = this.renderQueue.indexOf(videoId);
+    if (renderIndex > -1) {
+      this.renderQueue.splice(renderIndex, 1);
+      logger.info({ videoId }, "Removed video from render queue");
+    }
+    
+    logger.info({ videoId, deletedCount }, "Video deletion completed - all files and metadata removed");
   }
 
   public clearAllVideos(): void {
@@ -644,7 +856,7 @@ export class ShortCreator {
       const totalDurationSecs = scenes.reduce((acc: number, scene: any) => acc + scene.duration, 0);
       
       await this.remotion.renderMedia(
-        videoId,
+      videoId,
         { ...videoData, config: { ...config, durationInSec: totalDurationSecs } },
         (progress: number) => {
           logger.info(`Rendering progress: ${Math.round(progress * 100)}%`);
@@ -717,8 +929,8 @@ export class ShortCreator {
               await this.statusManager.setError(id, 'Video file not found');
             }
           }
-
-          return {
+    
+    return {
             id: id,
             createdAt: data.createdAt,
             status: finalStatus,
@@ -820,6 +1032,10 @@ export class ShortCreator {
 
   private async renderFromRenderJson(videoId: string): Promise<void> {
     logger.info({ videoId }, "Starting pure render from .render.json");
+    
+    // Registrar tempo de início da renderização
+    this.renderStartTimes.set(videoId, Date.now());
+    
     await this.statusManager.setStatus(videoId, "processing", "Rendering video...", 0, "Initializing");
     
     const renderJsonPath = path.join(this.globalConfig.videosDirPath, `${videoId}.render.json`);
@@ -859,8 +1075,17 @@ export class ShortCreator {
       });
       
       await this.statusManager.setStatus(videoId, "ready", "Video rendered successfully", 100, "Completed");
+      
+      // Limpar dados de tracking
+      this.renderStartTimes.delete(videoId);
+      this.lastProgressUpdate.delete(videoId);
     } catch (error: any) {
       await this.statusManager.setError(videoId, error.message);
+      
+      // Limpar dados de tracking mesmo em caso de erro
+      this.renderStartTimes.delete(videoId);
+      this.lastProgressUpdate.delete(videoId);
+      
       throw error;
     }
   }
@@ -869,14 +1094,65 @@ export class ShortCreator {
     const lastUpdate = this.lastProgressUpdate.get(videoId) || 0;
     const now = Date.now();
     
-    // Only update if progress changed by 5% or more, or if it's been more than 2 seconds
-    const progressChanged = Math.abs(progress - lastUpdate) >= 5;
-    const timeElapsed = now - lastUpdate > 2000;
+    // Lógica mais inteligente para updates de progresso
+    const shouldUpdate = this.shouldUpdateProgress(progress, lastUpdate, now);
     
-    if (progressChanged || timeElapsed || progress === 100) {
+    if (shouldUpdate || progress === 100) {
       this.lastProgressUpdate.set(videoId, progress);
       await this.statusManager.setProgress(videoId, progress, stage);
+      
+      // Adicionar estimativa de tempo restante
+      const estimatedTimeRemaining = this.estimateTimeRemaining(progress, videoId);
+      if (estimatedTimeRemaining > 0) {
+        await this.statusManager.setProgress(videoId, progress, stage, estimatedTimeRemaining);
+      }
     }
+  }
+
+  private shouldUpdateProgress(currentProgress: number, lastReportedProgress: number, currentTime: number): boolean {
+    const progressDiff = Math.abs(currentProgress - lastReportedProgress);
+    const lastUpdateTime = this.progressUpdateTimes.get(`${currentProgress}`) || 0;
+    const timeSinceLastUpdate = currentTime - lastUpdateTime;
+    
+    // Nos estágios finais (90%+), seja mais responsivo
+    if (currentProgress >= 90) {
+      const shouldUpdate = progressDiff >= 1 || timeSinceLastUpdate > 500; // Update a cada 1% ou 500ms
+      if (shouldUpdate) {
+        this.progressUpdateTimes.set(`${currentProgress}`, currentTime);
+      }
+      return shouldUpdate;
+    }
+    
+    // Entre 80-90%, update a cada 2% ou 1 segundo
+    if (currentProgress >= 80) {
+      const shouldUpdate = progressDiff >= 2 || timeSinceLastUpdate > 1000;
+      if (shouldUpdate) {
+        this.progressUpdateTimes.set(`${currentProgress}`, currentTime);
+      }
+      return shouldUpdate;
+    }
+    
+    // Antes de 80%, update a cada 5% ou 2 segundos
+    const shouldUpdate = progressDiff >= 5 || timeSinceLastUpdate > 2000;
+    if (shouldUpdate) {
+      this.progressUpdateTimes.set(`${currentProgress}`, currentTime);
+    }
+    return shouldUpdate;
+  }
+
+  private estimateTimeRemaining(currentProgress: number, videoId: string): number {
+    const startTime = this.renderStartTimes.get(videoId);
+    if (!startTime || currentProgress <= 0) return 0;
+    
+    const elapsed = (Date.now() - startTime) / 1000; // em segundos
+    const progressRatio = currentProgress / 100;
+    
+    if (progressRatio > 0) {
+      const estimatedTotal = elapsed / progressRatio;
+      return Math.max(0, estimatedTotal - elapsed);
+    }
+    
+    return 0;
   }
 
   // =================================================================
@@ -887,12 +1163,24 @@ export class ShortCreator {
       const audioResult = await this.getCachedOrGenerateTTS(text, config, forceRegenerate);
       const audioUrl = this.ensureAbsoluteUrl(`/temp/${path.basename(audioResult.audioPath)}`);
 
-      // Ajusta o timing das legendas para aparecerem 1 segundo antes
-      const adjustedSubtitles = audioResult.subtitles.map((s: any) => ({
-        text: s.text,
-        start: Math.max(0, s.start - 1000), // Adianta 1s, mas não permite valores negativos
-        end: Math.max(100, s.end - 1000)    // Adianta 1s, mas garante duração mínima
-      }));
+      // Ajusta apenas as legendas que conflitariam com o hook (primeiros 1000ms)
+      const adjustedSubtitles = audioResult.subtitles.map((s: any) => {
+        // Se a legenda começa antes de 1 segundo, empurra para depois do hook
+        if (s.start < 1000) {
+      return {
+            text: s.text,
+            start: Math.max(1000, s.start + 1000), // Move para depois do hook
+            end: Math.max(1100, s.end + 1000)      // Mantém a duração relativa
+          };
+        }
+        
+        // Se não conflita com o hook, mantém o timing original
+      return {
+          text: s.text,
+          start: s.start,
+          end: s.end
+        };
+      });
 
       const renderJsonPath = path.join(this.globalConfig.videosDirPath, `${videoId}.render.json`);
       if(fs.existsSync(renderJsonPath)) {
@@ -940,5 +1228,61 @@ export class ShortCreator {
     }, "Music selected successfully");
     
     return adjustedMusic;
+  }
+
+  private async waitForFileReady(filePath: string): Promise<void> {
+    const maxWaitTime = 10000; // 10 segundos máximo
+    const checkInterval = 50; // Verifica a cada 50ms
+    const startTime = Date.now();
+    let lastSize = 0;
+    let stableSizeCount = 0;
+
+    while (Date.now() - startTime < maxWaitTime) {
+      try {
+        // Verifica se o arquivo existe e tem tamanho
+        const stats = fs.statSync(filePath);
+        
+        if (stats.size === 0) {
+          // Arquivo vazio, continua esperando
+          await new Promise(resolve => setTimeout(resolve, checkInterval));
+          continue;
+        }
+
+        // Verifica se o tamanho do arquivo está estável
+        if (stats.size === lastSize) {
+          stableSizeCount++;
+          // Se o tamanho ficou estável por pelo menos 3 verificações (150ms)
+          if (stableSizeCount >= 3) {
+            // Tenta ler o arquivo para verificar se está acessível
+            try {
+              const fd = fs.openSync(filePath, 'r');
+              fs.closeSync(fd);
+              
+              logger.debug("File is ready and accessible", { 
+                filePath, 
+                fileSize: stats.size,
+                waitTime: Date.now() - startTime 
+              });
+              return;
+            } catch (readError) {
+              // Arquivo ainda não está totalmente acessível
+              await new Promise(resolve => setTimeout(resolve, checkInterval));
+              continue;
+            }
+          }
+        } else {
+          // Tamanho mudou, resetar contador
+          lastSize = stats.size;
+          stableSizeCount = 0;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+    } catch (error) {
+        // Arquivo ainda não existe ou não está acessível
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+  }
+}
+
+    throw new Error(`Timeout waiting for file to be ready: ${filePath}`);
   }
 }

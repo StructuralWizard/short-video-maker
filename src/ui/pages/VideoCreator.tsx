@@ -255,18 +255,15 @@ const VideoCreator: React.FC = () => {
               <TextField
                 fullWidth
                 type="number"
-                label="End Screen Padding (ms)"
-                value={config.paddingBack}
-                onChange={(e) =>
-                  handleConfigChange("paddingBack", parseInt(e.target.value))
-                }
+                label="End Screen Fade Out (automatic)"
+                value={3000}
+                disabled
                 InputProps={{
                   endAdornment: (
                     <InputAdornment position="end">ms</InputAdornment>
                   ),
                 }}
-                helperText="Duration to keep playing after narration ends"
-                required
+                helperText="Automatic 3-second fade out for music and video"
               />
             </Grid>
 

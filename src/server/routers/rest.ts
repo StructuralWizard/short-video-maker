@@ -216,9 +216,9 @@ export class APIRouter {
       try {
         const videos = await this.shortCreator.getAllVideos();
         res.json({ videos });
-      } catch (error) {
+        } catch (error) {
         logger.error({ error }, "Error fetching videos");
-        res.status(500).json({
+          res.status(500).json({
           error: "Failed to fetch videos",
           details: error instanceof Error ? error.message : "Unknown error",
         });
@@ -226,10 +226,10 @@ export class APIRouter {
     });
 
     // Endpoint para deletar vídeo (/api/short-video/:id)
-    this.router.delete("/short-video/:id", (req, res) => {
+    this.router.delete("/short-video/:id", async (req, res) => {
       const { id } = req.params;
       try {
-        this.shortCreator.deleteVideo(id);
+        await this.shortCreator.deleteVideo(id);
         res.status(200).json({ success: true });
       } catch (error) {
         logger.error({ error, id }, "Error deleting video");
@@ -337,6 +337,43 @@ export class APIRouter {
       fs.createReadStream(audioPath).pipe(res);
     });
 
+    this.router.get("/cached-video/:filename", (req, res) => {
+      const { filename } = req.params;
+      const videoPath = this.shortCreator.getCachedVideoPath(filename);
+
+      if (!videoPath || !fs.existsSync(videoPath)) {
+        logger.error({ filename, videoPath }, "Cached video file not found");
+        return res.status(404).json({ error: "Cached video file not found" });
+      }
+
+      const stat = fs.statSync(videoPath);
+      const fileSize = stat.size;
+      const range = req.headers.range;
+
+      if (range) {
+        const parts = range.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        const chunksize = (end - start) + 1;
+        const file = fs.createReadStream(videoPath, { start, end });
+        const head = {
+          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': chunksize,
+          'Content-Type': 'video/mp4',
+        };
+        res.writeHead(206, head);
+        file.pipe(res);
+      } else {
+        const head = {
+          'Content-Length': fileSize,
+          'Content-Type': 'video/mp4',
+        };
+        res.writeHead(200, head);
+        fs.createReadStream(videoPath).pipe(res);
+      }
+    });
+
     this.router.post("/video-data/:id", (req, res) => {
       const { id } = req.params;
       const videoData = req.body;
@@ -345,7 +382,7 @@ export class APIRouter {
         res.status(200).json({ message: "Video data saved successfully" });
       } catch (error) {
         logger.error({ error, id }, "Error saving video data");
-        res.status(500).json({
+          res.status(500).json({
           error: "Failed to save video data",
           details: error instanceof Error ? error.message : "Unknown error",
         });
@@ -373,17 +410,17 @@ export class APIRouter {
         }
       } catch (error) {
         logger.error({ error, id }, "Error getting script");
-        res.status(500).json({
+          res.status(500).json({
           error: "Failed to get script",
           details: error instanceof Error ? error.message : "Unknown error",
         });
       }
     });
 
-    this.router.delete("/videos/:id", (req, res) => {
+    this.router.delete("/videos/:id", async (req, res) => {
       const { id } = req.params;
       try {
-        this.shortCreator.deleteVideo(id);
+        await this.shortCreator.deleteVideo(id);
         res.status(200).json({ message: "Video deleted successfully" });
       } catch (error) {
         logger.error({ error, id }, "Error deleting video");
@@ -417,7 +454,7 @@ export class APIRouter {
         res.status(200).json({ videos });
       } catch (error) {
         logger.error({ error }, "Error searching videos");
-        res.status(500).json({
+          res.status(500).json({
           error: "Failed to search videos",
           details: error instanceof Error ? error.message : "Unknown error",
         });
@@ -506,11 +543,42 @@ export class APIRouter {
         });
       } catch (error) {
         logger.error({ error }, "Error refreshing video status");
-        res.status(500).json({
+            res.status(500).json({
           error: "Failed to refresh video status",
           details: error instanceof Error ? error.message : "Unknown error",
         });
       }
+    });
+
+    this.router.get("/cache/stats", (req: ExpressRequest, res: ExpressResponse) => {
+      try {
+        const stats = this.shortCreator.getCacheStats();
+        res.status(200).json(stats);
+      } catch (error) {
+        logger.error({ error }, "Error getting cache stats");
+          res.status(500).json({
+          error: "Failed to get cache stats",
+          details: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    });
+
+    this.router.post("/cache/cleanup", async (req: ExpressRequest, res: ExpressResponse) => {
+      try {
+        const { maxAgeHours = 24 } = req.body;
+        await this.shortCreator.cleanupVideoCache(maxAgeHours);
+        const newStats = this.shortCreator.getCacheStats();
+        res.status(200).json({
+          message: "Cache cleanup completed",
+          stats: newStats
+        });
+      } catch (error) {
+        logger.error({ error }, "Error cleaning up cache");
+          res.status(500).json({
+          error: "Failed to cleanup cache",
+          details: error instanceof Error ? error.message : "Unknown error",
+          });
+        }
     });
   }
 }

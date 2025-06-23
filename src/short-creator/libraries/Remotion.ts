@@ -7,7 +7,6 @@ import fs from "fs-extra";
 import https from "https";
 import { URL } from "url";
 import http from "http";
-import { getAudioDurationInSeconds } from "@remotion/media-utils";
 
 import { Config } from "../../config";
 import { shortVideoSchema, getOrientationConfig } from "../../shared/utils";
@@ -35,12 +34,13 @@ export class Remotion {
         port: parsedUrl.port || '80',
         path: parsedUrl.pathname + parsedUrl.search,
         method: 'GET',
+        timeout: 300000, // 5 minutos para download individual
         headers: {
           'Accept': 'video/*'
         }
       };
 
-      http.get(options, (response) => {
+      const req = http.get(options, (response) => {
         if (response.statusCode !== 200) {
           fs.unlink(outputPath, () => {});
           reject(new Error(`Failed to download video: HTTP ${response.statusCode}`));
@@ -52,10 +52,20 @@ export class Remotion {
           file.close();
           resolve(outputPath);
         });
-      }).on('error', (err) => {
+      });
+
+      req.on('timeout', () => {
+        req.destroy();
+        fs.unlink(outputPath, () => {});
+        reject(new Error('Download timeout: Request took too long to complete'));
+      });
+
+      req.on('error', (err) => {
         fs.unlink(outputPath, () => {});
         reject(new Error(`Failed to download video: ${err.message}`));
       });
+
+      req.setTimeout(300000); // 5 minutos para download individual
     });
   }
 
@@ -99,17 +109,16 @@ export class Remotion {
 
   public async getMediaDuration(filePath: string): Promise<number> {
     try {
-      // Check if file exists and is not empty
+      // Check if file exists and wait for it to be completely written
       if (!fs.existsSync(filePath)) {
         throw new Error(`File does not exist: ${filePath}`);
       }
       
-      const stats = fs.statSync(filePath);
-      if (stats.size === 0) {
-        throw new Error(`File is empty: ${filePath}`);
-      }
+      // Aguarda o arquivo estar completamente pronto
+      await this.waitForFileReady(filePath);
       
-      const durationInSeconds = await getAudioDurationInSeconds(filePath);
+      // Use FFmpeg para calcular duração no Node.js em vez do método do Remotion
+      const durationInSeconds = await this.getAudioDurationWithFFmpeg(filePath);
       
       // Validate duration
       if (!durationInSeconds || isNaN(durationInSeconds) || durationInSeconds <= 0) {
@@ -123,77 +132,183 @@ export class Remotion {
     }
   }
 
-  public async renderMedia(
-    id: string,
-    data: ShortVideoData,
-    onProgress: (progress: number) => void,
-    orientation: OrientationEnum = OrientationEnum.portrait
-  ) {
-    const { component } = getOrientationConfig(orientation);
-
-    logger.info({ videoID: id, component }, "Starting Remotion render process");
-
-    const composition = await selectComposition({
-      serveUrl: this.bundled,
-      id: component,
-      inputProps: data,
+  private async getAudioDurationWithFFmpeg(filePath: string): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const ffmpeg = require('fluent-ffmpeg');
+      
+      ffmpeg.ffprobe(filePath, (err: any, metadata: any) => {
+        if (err) {
+          logger.error({ filePath, error: err }, "FFprobe failed to get audio duration");
+          reject(err);
+          return;
+        }
+        
+        const duration = metadata.format.duration;
+        if (typeof duration !== 'number') {
+          const error = new Error('Could not get audio duration from metadata');
+          logger.error({ filePath, metadata: metadata.format }, "Invalid duration in metadata");
+          reject(error);
+          return;
+        }
+        
+        logger.debug({ filePath, duration }, "Successfully calculated audio duration with FFmpeg");
+        resolve(duration);
+      });
     });
+  }
 
-    logger.info({ 
-      videoID: id, 
-      component, 
-      durationInFrames: composition.durationInFrames,
-      fps: composition.fps,
-      width: composition.width,
-      height: composition.height
-    }, "Composition selected for rendering");
+  private async waitForFileReady(filePath: string): Promise<void> {
+    const maxWaitTime = 10000; // 10 segundos máximo
+    const checkInterval = 50; // Verifica a cada 50ms
+    const startTime = Date.now();
+    let lastSize = 0;
+    let stableSizeCount = 0;
 
-    const outputLocation = path.join(this.config.videosDirPath, `${id}.mp4`);
+    while (Date.now() - startTime < maxWaitTime) {
+      try {
+        // Verifica se o arquivo existe e tem tamanho
+        const stats = fs.statSync(filePath);
+        
+        if (stats.size === 0) {
+          // Arquivo vazio, continua esperando
+          await new Promise(resolve => setTimeout(resolve, checkInterval));
+          continue;
+        }
+
+        // Verifica se o tamanho do arquivo está estável
+        if (stats.size === lastSize) {
+          stableSizeCount++;
+          // Se o tamanho ficou estável por pelo menos 3 verificações (150ms)
+          if (stableSizeCount >= 3) {
+            // Tenta ler o arquivo para verificar se está acessível
+            try {
+              const fd = fs.openSync(filePath, 'r');
+              fs.closeSync(fd);
+              
+              logger.debug("Audio file is ready for duration calculation", { 
+                filePath, 
+                fileSize: stats.size,
+                waitTime: Date.now() - startTime 
+              });
+              return;
+            } catch (readError) {
+              // Arquivo ainda não está totalmente acessível
+              await new Promise(resolve => setTimeout(resolve, checkInterval));
+              continue;
+            }
+          }
+        } else {
+          // Tamanho mudou, resetar contador
+          lastSize = stats.size;
+          stableSizeCount = 0;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+      } catch (error) {
+        // Arquivo ainda não existe ou não está acessível
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+      }
+    }
+
+    throw new Error(`Timeout waiting for audio file to be ready: ${filePath}`);
+  }
+
+  async renderMedia(videoId: string, data: any, onProgress?: (progress: number, stage?: string) => void): Promise<void> {
+    logger.info({ videoId }, "Starting Remotion render");
+    
+    const outputPath = path.join(this.config.videosDirPath, `${videoId}.mp4`);
+    
+    // Ensure output directory exists
+    await fs.ensureDir(path.dirname(outputPath));
+
+    const compositionId = data.config.orientation === "landscape" ? "LandscapeVideo" : "PortraitVideo";
+    const fps = 30;
+    const durationInFrames = Math.ceil(data.config.durationInSec * fps);
+
+    logger.info({
+      videoId,
+      composition: compositionId,
+      durationInFrames,
+      durationInSec: data.config.durationInSec,
+      outputPath
+    }, "Render configuration");
 
     try {
-      let lastProgress = 0;
+      const composition = await selectComposition({
+        serveUrl: this.bundled,
+        id: compositionId,
+        inputProps: data,
+      });
+
       await renderMedia({
-        codec: "h264",
         composition,
         serveUrl: this.bundled,
-        outputLocation,
+        codec: "h264",
+        outputLocation: outputPath,
         inputProps: data,
-        onProgress: ({ progress }) => {
-          const progressPercent = Math.round(progress * 100);
-          // Log apenas quando o progresso muda significativamente (a cada 10%)
-          if (progressPercent >= lastProgress + 10 || progressPercent === 100) {
-            logger.info({ 
-              videoID: id, 
-              progress: progressPercent,
-              stage: progressPercent < 20 ? "Initializing" : 
-                     progressPercent < 50 ? "Processing frames" :
-                     progressPercent < 80 ? "Encoding video" : "Finalizing"
-            }, `Render progress: ${progressPercent}%`);
-            lastProgress = progressPercent;
+        imageFormat: "jpeg",
+        onProgress: ({ progress, renderedFrames, encodedFrames, encodedDoneIn, renderedDoneIn }) => {
+          // Calcular estágio mais preciso baseado nos dados do Remotion
+          let stage = "Initializing";
+          let detailedProgress = progress;
+          
+          if (renderedDoneIn !== null && encodedDoneIn === null) {
+            // Frames renderizados, mas ainda não codificados
+            stage = "Processing frames";
+            detailedProgress = Math.min(progress, 0.7); // Máximo 70% durante renderização
+          } else if (renderedDoneIn !== null && encodedDoneIn === null && progress > 0.7) {
+            // Começando codificação
+            stage = "Encoding video";
+            detailedProgress = 0.7 + (progress - 0.7) * 0.25; // 70-95% para encoding
+          } else if (encodedDoneIn !== null || progress > 0.95) {
+            // Finalizando
+            stage = "Finalizing";
+            detailedProgress = Math.max(0.95, progress); // Mínimo 95% na finalização
           }
-          // Chama onProgress com menos frequência para reduzir I/O
-          if (progressPercent >= lastProgress + 5 || progressPercent === 100) {
-            onProgress(progress);
+          
+          // Adicionar informações mais detalhadas baseadas no progresso
+          if (progress < 0.1) {
+            stage = "Initializing";
+          } else if (progress < 0.2) {
+            stage = "Processing frames";
+          } else if (progress < 0.8) {
+            stage = renderedFrames && encodedFrames 
+              ? `Processing frames (${renderedFrames}/${durationInFrames})`
+              : "Processing frames";
+          } else if (progress < 0.95) {
+            stage = "Encoding video";
+          } else {
+            stage = "Finalizing";
           }
+          
+          if (onProgress) {
+            onProgress(detailedProgress, stage);
+          }
+          
+          logger.debug({
+            videoId,
+            progress: Math.round(detailedProgress * 100),
+            stage,
+            renderedFrames,
+            encodedFrames,
+            durationInFrames
+          }, "Render progress update");
         },
-        concurrency: 10,
-        offthreadVideoCacheSizeInBytes: 1024 * 1024 * 1024 * 8, // 8GB de cache
-        chromiumOptions: {
-          disableWebSecurity: true,
-          ignoreCertificateErrors: true
-        },
-        timeoutInMilliseconds: 300000 // 5 minutos para o processo todo
       });
+
+      logger.info({ videoId, outputPath }, "Video rendered successfully with Remotion");
       
+      // Verificar se o arquivo foi criado e tem tamanho válido
+      const stats = await fs.stat(outputPath);
       logger.info({ 
-        component, 
-        videoID: id,
-        outputLocation,
-        fileSize: fs.existsSync(outputLocation) ? fs.statSync(outputLocation).size : 0
+        videoID: videoId,
+        outputLocation: outputPath,
+        fileSize: stats.size 
       }, "Video rendered successfully with Remotion");
-    } catch (err) {
-      logger.error({ videoID: id, error: err }, "Remotion render failed");
-      throw err;
+      
+    } catch (error) {
+      logger.error({ videoId, error }, "Remotion render failed");
+      throw error;
     }
   }
 
@@ -230,7 +345,7 @@ export class Remotion {
           disableWebSecurity: true,
           ignoreCertificateErrors: true
         },
-        timeoutInMilliseconds: 300000 // 5 minutos para o processo todo
+        timeoutInMilliseconds: 1800000 // 30 minutos para o processo todo
       });
       
       logger.debug(

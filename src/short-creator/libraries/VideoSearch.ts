@@ -34,12 +34,12 @@ export class VideoSearch {
     logger.info({ searchTerms, duration, excludeVideoIds, orientation, count }, "🔍 Starting video search for multiple videos");
 
     return await this.localImageApi.findVideos(
-      [searchTerms],
-      duration,
-      excludeVideoIds,
-      orientation,
-      count
-    );
+        [searchTerms],
+        duration,
+        excludeVideoIds,
+        orientation,
+        count
+      );
   }
 
   public async findRandomVideo(

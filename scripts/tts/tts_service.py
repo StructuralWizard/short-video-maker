@@ -9,7 +9,7 @@ import threading
 import logging
 
 # Configurações
-MODEL_NAME = "tts_models/multilingual/multi-dataset/xtts_v2"
+MODEL_NAME = "tts_models/pt/cv/vits"  # Modelo português mais simples
 REFERENCE_AUDIO_DIR = Path(__file__).parent.parent.parent / "reference_audio"
 OUTPUT_DIR = Path(__file__).parent.parent.parent / "data" / "temp"
 
@@ -34,31 +34,49 @@ def load_model():
     if tts_model is None:
         logger.info("Carregando modelo TTS...")
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        tts_model = TTS(model_name=MODEL_NAME).to(device)
-        logger.info(f"Modelo TTS carregado com sucesso no dispositivo: {device}")
+        try:
+            tts_model = TTS(model_name=MODEL_NAME).to(device)
+            logger.info(f"Modelo TTS carregado com sucesso no dispositivo: {device}")
+        except Exception as e:
+            logger.error(f"Erro ao carregar modelo {MODEL_NAME}: {e}")
+            # Fallback para modelo mais simples
+            try:
+                MODEL_NAME_FALLBACK = "tts_models/en/ljspeech/tacotron2-DDC"
+                logger.info(f"Tentando modelo fallback: {MODEL_NAME_FALLBACK}")
+                tts_model = TTS(model_name=MODEL_NAME_FALLBACK).to(device)
+                logger.info(f"Modelo fallback carregado com sucesso no dispositivo: {device}")
+            except Exception as e2:
+                logger.error(f"Erro ao carregar modelo fallback: {e2}")
+                raise e2
     return tts_model
 
 def generate_speech(text, reference_audio_filename, output_path, language="pt"):
     """Gera áudio usando o modelo TTS"""
     try:
-        # Verifica se o arquivo de referência existe no diretório de referência
-        ref_path = REFERENCE_AUDIO_DIR / reference_audio_filename
-        if not ref_path.exists():
-            raise FileNotFoundError(f"Arquivo de referência não encontrado: {ref_path}")
-        
         # Remove aspas do texto
         text = text.replace('"', '').replace("'", "")
         
         # Gera o áudio
         logger.info(f"Gerando áudio para: {text}")
-        logger.info(f"Usando arquivo de referência: {ref_path}")
         
         with model_lock:
-            wav = tts_model.tts(
-                text=text,
-                speaker_wav=str(ref_path),
-                language=language
-            )
+            # Se o modelo suporta referência de áudio, usa
+            if hasattr(tts_model, 'tts') and 'speaker_wav' in tts_model.tts.__code__.co_varnames:
+                ref_path = REFERENCE_AUDIO_DIR / reference_audio_filename
+                if ref_path.exists():
+                    logger.info(f"Usando arquivo de referência: {ref_path}")
+                    wav = tts_model.tts(
+                        text=text,
+                        speaker_wav=str(ref_path),
+                        language=language
+                    )
+                else:
+                    logger.warning(f"Arquivo de referência não encontrado: {ref_path}, usando TTS simples")
+                    wav = tts_model.tts(text=text)
+            else:
+                # Modelo simples sem referência
+                logger.info("Usando TTS simples sem referência de áudio")
+                wav = tts_model.tts(text=text)
         
         # Salva o áudio
         sf.write(output_path, wav, 24000)

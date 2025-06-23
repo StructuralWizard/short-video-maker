@@ -17,6 +17,9 @@ import {
   HourglassEmpty,
   PlayArrow,
   Schedule,
+  MovieFilter,
+  VolumeUp,
+  Subtitles,
 } from '@mui/icons-material';
 import axios from 'axios';
 
@@ -58,6 +61,17 @@ const getStatusIcon = (status: string) => {
   }
 };
 
+const getStageIcon = (stage?: string) => {
+  switch (stage) {
+    case 'Initializing': return <Schedule />;
+    case 'Processing frames': return <MovieFilter />;
+    case 'Encoding video': return <VolumeUp />;
+    case 'Finalizing': return <Subtitles />;
+    case 'Completed': return <CheckCircle />;
+    default: return <PlayArrow />;
+  }
+};
+
 const formatDuration = (seconds: number) => {
   if (seconds < 60) return `${Math.round(seconds)}s`;
   const minutes = Math.floor(seconds / 60);
@@ -78,6 +92,7 @@ export const VideoStatus: React.FC<VideoStatusProps> = ({
   const [status, setStatus] = useState<VideoStatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastFetchTime, setLastFetchTime] = useState<number>(0);
 
   const fetchStatus = async () => {
     try {
@@ -85,6 +100,7 @@ export const VideoStatus: React.FC<VideoStatusProps> = ({
       const newStatus = response.data;
       setStatus(newStatus);
       setError(null);
+      setLastFetchTime(Date.now());
       onStatusChange?.(newStatus);
     } catch (err) {
       setError('Failed to fetch video status');
@@ -94,14 +110,51 @@ export const VideoStatus: React.FC<VideoStatusProps> = ({
     }
   };
 
+  // Função para calcular intervalo de refresh dinâmico
+  const getDynamicRefreshInterval = (currentStatus: VideoStatusData | null): number => {
+    if (!currentStatus) return refreshInterval;
+    
+    // Se o status for final (ready/failed), para o refresh
+    if (currentStatus.status === 'ready' || currentStatus.status === 'failed') {
+      return 0; // Não faz mais refresh
+    }
+    
+    // Se o progresso estiver próximo de 100%, refresh mais frequente
+    if (currentStatus.progress && currentStatus.progress >= 90) {
+      return 1000; // 1 segundo quando próximo do fim
+    }
+    
+    // Se estiver processando, refresh normal
+    if (currentStatus.status === 'processing') {
+      return refreshInterval;
+    }
+    
+    // Para status pending, refresh menos frequente
+    return refreshInterval * 2; // 4 segundos para pending
+  };
+
   useEffect(() => {
     fetchStatus();
 
     if (autoRefresh) {
-      const interval = setInterval(fetchStatus, refreshInterval);
-      return () => clearInterval(interval);
+      const setupInterval = () => {
+        const interval = getDynamicRefreshInterval(status);
+        
+        if (interval > 0) {
+          return setInterval(fetchStatus, interval);
+        }
+        return null;
+      };
+
+      const intervalId = setupInterval();
+      
+      return () => {
+        if (intervalId) {
+          clearInterval(intervalId);
+        }
+      };
     }
-  }, [videoId, autoRefresh, refreshInterval]);
+  }, [videoId, autoRefresh, refreshInterval, status?.status, status?.progress]);
 
   if (loading) {
     return (
@@ -127,15 +180,61 @@ export const VideoStatus: React.FC<VideoStatusProps> = ({
     );
   }
 
-  const getStageDescription = (stage?: string) => {
+  const getStageDescription = (stage?: string, progress?: number) => {
+    const progressText = progress ? ` (${progress}%)` : '';
+    
     switch (stage) {
-      case 'Initializing': return 'Preparando ambiente de renderização...';
-      case 'Processing frames': return 'Processando frames do vídeo...';
-      case 'Encoding video': return 'Codificando vídeo final...';
-      case 'Finalizing': return 'Finalizando renderização...';
-      case 'Completed': return 'Renderização concluída!';
-      default: return 'Processando...';
+      case 'Initializing': 
+        return `Preparando ambiente de renderização${progressText}...`;
+      case 'Processing frames': 
+        return `Processando frames do vídeo${progressText}...`;
+      case 'Encoding video': 
+        return `Codificando vídeo final${progressText}...`;
+      case 'Finalizing': 
+        return progress && progress >= 95 
+          ? `Finalizando renderização${progressText}... (quase pronto!)`
+          : `Finalizando renderização${progressText}...`;
+      case 'Completed': 
+        return 'Renderização concluída com sucesso! 🎉';
+      default: 
+        return `Processando${progressText}...`;
     }
+  };
+
+  const getDetailedStatusMessage = (status: VideoStatusData) => {
+    if (status.status === 'ready') {
+      return 'Seu vídeo está pronto para visualização e download!';
+    }
+    
+    if (status.status === 'processing') {
+      if (status.progress && status.progress >= 95) {
+        return 'Últimos ajustes sendo aplicados...';
+      }
+      if (status.progress && status.progress >= 80) {
+        return 'Renderização quase concluída...';
+      }
+      if (status.progress && status.progress >= 50) {
+        return 'Progresso na metade, continuando...';
+      }
+      return 'Processamento em andamento...';
+    }
+    
+    if (status.status === 'pending') {
+      return 'Aguardando início do processamento...';
+    }
+    
+    if (status.status === 'failed') {
+      return 'Ocorreu um erro durante o processamento.';
+    }
+    
+    return status.message || 'Status desconhecido';
+  };
+
+  // Calcular tempo decorrido
+  const getElapsedTime = () => {
+    if (!status.startedAt) return null;
+    const elapsed = (Date.now() - new Date(status.startedAt).getTime()) / 1000;
+    return formatDuration(elapsed);
   };
 
   return (
@@ -155,16 +254,17 @@ export const VideoStatus: React.FC<VideoStatusProps> = ({
               />
             </Box>
             
-            {status.message && (
-              <Typography variant="body2" color="text.secondary" mb={1}>
-                {status.message}
-              </Typography>
-            )}
+            <Typography variant="body2" color="text.secondary" mb={1}>
+              {getDetailedStatusMessage(status)}
+            </Typography>
 
             {status.stage && (
-              <Typography variant="body2" color="text.secondary">
-                {getStageDescription(status.stage)}
-              </Typography>
+              <Box display="flex" alignItems="center" gap={1}>
+                {getStageIcon(status.stage)}
+                <Typography variant="body2" color="text.secondary">
+                  {getStageDescription(status.stage, status.progress)}
+                </Typography>
+              </Box>
             )}
           </Grid>
 
@@ -175,14 +275,21 @@ export const VideoStatus: React.FC<VideoStatusProps> = ({
                   <Typography variant="body2" color="text.secondary">
                     Progresso
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" color="text.secondary" fontWeight="bold">
                     {status.progress}%
                   </Typography>
                 </Box>
                 <LinearProgress
                   variant="determinate"
                   value={status.progress}
-                  sx={{ height: 8, borderRadius: 4 }}
+                  sx={{ 
+                    height: 8, 
+                    borderRadius: 4,
+                    '& .MuiLinearProgress-bar': {
+                      borderRadius: 4,
+                      backgroundColor: status.progress >= 95 ? '#4caf50' : undefined
+                    }
+                  }}
                 />
               </Box>
             )}
@@ -190,6 +297,12 @@ export const VideoStatus: React.FC<VideoStatusProps> = ({
             {status.estimatedTimeRemaining && (
               <Typography variant="body2" color="text.secondary" mt={1}>
                 Tempo estimado: {formatDuration(status.estimatedTimeRemaining)}
+              </Typography>
+            )}
+
+            {getElapsedTime() && (
+              <Typography variant="body2" color="text.secondary" mt={1}>
+                Tempo decorrido: {getElapsedTime()}
               </Typography>
             )}
           </Grid>
@@ -229,6 +342,13 @@ export const VideoStatus: React.FC<VideoStatusProps> = ({
             </Typography>
           </Alert>
         )}
+
+        {/* Indicador de última atualização */}
+        <Box sx={{ mt: 1, textAlign: 'right' }}>
+          <Typography variant="caption" color="text.secondary">
+            Última atualização: {new Date(lastFetchTime).toLocaleTimeString()}
+          </Typography>
+        </Box>
       </CardContent>
     </Card>
   );

@@ -73,16 +73,28 @@ export class LocalTTS {
 
         logger.info(`🎵 Gerando áudio para frase ${i + 1}/${sentences.length}: "${sentenceForTTS}"`);
 
-        // Gerar áudio para esta frase
-        const chunkAudioPath = await this.generateSingleChunk(
-          sentenceForTTS,
-          referenceAudioPath,
-          language,
-          i
-        );
+        let chunkAudioPath: string;
+        let chunkDuration: number;
 
-        // Obter duração do chunk
-        const chunkDuration = await this.ffmpeg.getAudioDuration(chunkAudioPath);
+        try {
+          // Tentar gerar áudio para esta frase
+          chunkAudioPath = await this.generateSingleChunk(
+            sentenceForTTS,
+            referenceAudioPath,
+            language,
+            i
+          );
+
+          // Obter duração do chunk
+          chunkDuration = await this.ffmpeg.getAudioDuration(chunkAudioPath);
+        } catch (error) {
+          logger.warn(`Falha ao gerar TTS para frase ${i + 1}, criando áudio silencioso`, { error });
+          
+          // Fallback: criar áudio silencioso baseado no tamanho do texto
+          const estimatedDuration = Math.max(2, sentenceForTTS.length * 0.1); // ~0.1s por caractere, mínimo 2s
+          chunkAudioPath = await this.createSilenceFile(estimatedDuration, `fallback_${i}_${Date.now()}.wav`);
+          chunkDuration = estimatedDuration;
+        }
         
         // Adicionar ao array de chunks
         audioChunks.push(chunkAudioPath);
@@ -123,7 +135,8 @@ export class LocalTTS {
         outputPath, 
         totalDuration,
         chunks: audioChunks.length,
-        sentences: sentences.length
+        sentences: sentences.length,
+        subtitlesCount: allSubtitles.length
       });
 
       return {
@@ -162,7 +175,19 @@ export class LocalTTS {
     chunkIndex: number = 0
   ): Promise<string> {
     const refPath = referenceAudioPath || this.config.referenceAudioPath;
-    const refFileName = path.basename(refPath);
+    
+    // Processar o nome do arquivo de referência
+    let refFileName = "default"; // Fallback padrão
+    
+    if (refPath) {
+      // Se refPath contém separadores de caminho, extrair apenas o basename sem extensão
+      if (refPath.includes('/') || refPath.includes('\\')) {
+        refFileName = path.basename(refPath, path.extname(refPath));
+      } else {
+        // Se é apenas um nome, usar como está (sem extensão se tiver)
+        refFileName = refPath.replace(/\.(wav|mp3|m4a)$/i, '');
+      }
+    }
     
     // Criar nome único para o chunk
     const chunkId = `chunk_${chunkIndex}_${Date.now()}`;
@@ -181,8 +206,8 @@ export class LocalTTS {
     logger.debug("TTS request data", {
       text,
       language,
-      refPath,
-      refFileName,
+      originalRefPath: refPath,
+      processedRefFileName: refFileName,
       requestData
     });
 
@@ -223,9 +248,23 @@ export class LocalTTS {
       maxBodyLength: Infinity,
     });
 
+    if (downloadResponse.status !== 200) {
+      throw new Error(`Failed to download audio: ${downloadResponse.status}`);
+    }
+
     // Salva o arquivo de áudio
-    await fs.writeFile(chunkPath, downloadResponse.data);
+    await fs.writeFile(chunkPath, Buffer.from(downloadResponse.data));
     
+    // Aguarda o arquivo estar completamente acessível
+    await this.waitForFileReady(chunkPath);
+    
+    logger.debug("✅ Chunk audio downloaded and saved", { 
+      chunkPath,
+      chunkIndex,
+      text,
+      fileSize: (await fs.stat(chunkPath)).size
+    });
+
     return chunkPath;
   }
 
@@ -300,8 +339,10 @@ export class LocalTTS {
     }
   }
 
-  private async createSilenceFile(): Promise<string> {
-    const silencePath = path.join(this.config.tempDirPath, `silence_1s_${Date.now()}.wav`);
+  private async createSilenceFile(duration: number = 1, filename?: string): Promise<string> {
+    const silencePath = filename ? 
+      path.join(this.config.tempDirPath, filename) : 
+      path.join(this.config.tempDirPath, `silence_${duration}s_${Date.now()}.wav`);
     
     await new Promise<void>((resolve, reject) => {
       ffmpeg()
@@ -310,10 +351,10 @@ export class LocalTTS {
         .audioCodec('pcm_s16le')
         .audioChannels(2)
         .audioFrequency(24000)
-        .duration(1)
+        .duration(duration)
         .output(silencePath)
         .on('end', () => {
-          logger.debug("Silence file created", { silencePath });
+          logger.debug("Silence file created", { silencePath, duration });
           resolve();
         })
         .on('error', (err: any) => {
@@ -324,5 +365,55 @@ export class LocalTTS {
     });
 
     return silencePath;
+  }
+
+  private async waitForFileReady(filePath: string): Promise<void> {
+    const maxWaitTime = 10000; // 10 segundos máximo
+    const checkInterval = 50; // Verifica a cada 50ms
+    const startTime = Date.now();
+    let lastSize = 0;
+    let stableSizeCount = 0;
+
+    while (Date.now() - startTime < maxWaitTime) {
+      try {
+        // Verifica se o arquivo existe e tem tamanho
+        const stats = await fs.stat(filePath);
+        
+        if (stats.size === 0) {
+          // Arquivo vazio, continua esperando
+          await new Promise(resolve => setTimeout(resolve, checkInterval));
+          continue;
+        }
+
+        // Verifica se o tamanho do arquivo está estável
+        if (stats.size === lastSize) {
+          stableSizeCount++;
+          // Se o tamanho ficou estável por pelo menos 3 verificações (150ms)
+          if (stableSizeCount >= 3) {
+            // Tenta abrir o arquivo para verificar se está acessível
+            const fileHandle = await fs.open(filePath, 'r');
+            await fileHandle.close();
+            
+            logger.debug("File is ready and accessible", { 
+              filePath, 
+              fileSize: stats.size,
+              waitTime: Date.now() - startTime 
+            });
+            return;
+          }
+        } else {
+          // Tamanho mudou, resetar contador
+          lastSize = stats.size;
+          stableSizeCount = 0;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+      } catch (error) {
+        // Arquivo ainda não existe ou não está acessível
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+      }
+    }
+
+    throw new Error(`Timeout waiting for file to be ready: ${filePath}`);
   }
 } 

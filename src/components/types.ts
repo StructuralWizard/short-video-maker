@@ -1,5 +1,5 @@
 export enum AvailableComponentsEnum {
-  PortraitVideo = "ShortVideo",
+  PortraitVideo = "PortraitVideo",
   LandscapeVideo = "LandscapeVideo",
 }
 export type OrientationConfig = {

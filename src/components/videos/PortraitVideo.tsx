@@ -105,25 +105,46 @@ export const PortraitVideo: FC<Props> = ({
 
   const [musicVolume, musicMuted] = calculateVolume(config.musicVolume);
 
-  // Calculate total duration including padding
-  const totalDurationInFrames = Math.round(
-    scenes.reduce((acc, curr) => acc + curr.audio.duration, 0) * fps
-  ) + (config.paddingBack ? Math.round((config.paddingBack / 1000) * fps) : 0);
+  // Calculate total duration including automatic 3-second fade out
+  const fadeOutDuration = 3; // 3 segundos de fade out
+  const narrationDuration = scenes.reduce((acc, curr) => acc + curr.audio.duration, 0);
+  const totalDurationInFrames = Math.round((narrationDuration + fadeOutDuration) * fps);
 
   // Ensure music starts from 0 if the start time would make it end before the video
   const startFrom = Math.min(music.start * fps, totalDurationInFrames - 1);
+  
+  // Calculate fade out timing
+  const fadeOutStartFrame = Math.round(narrationDuration * fps);
+  const fadeOutEndFrame = totalDurationInFrames;
 
-  const fadeOutDuration = 3; // segundos
-  const fadeOutStartFrame = totalDurationInFrames - fadeOutDuration * fps;
-
-  const finalVolume = (frame: number) => {
-    if (frame >= fadeOutStartFrame) {
-      // Interpola o volume de musicVolume até 0 nos últimos 2 segundos
-      return (
-        musicVolume * (totalDurationInFrames - frame) / (fadeOutDuration * fps)
-      );
+  // Music volume with fade out
+  const getMusicVolume = (currentFrame: number) => {
+    if (currentFrame >= fadeOutStartFrame && currentFrame < fadeOutEndFrame) {
+      // Fade out linear de 100% para 0% nos últimos 3 segundos
+      const fadeProgress = (currentFrame - fadeOutStartFrame) / (fadeOutEndFrame - fadeOutStartFrame);
+      return musicVolume * (1 - fadeProgress);
     }
     return musicVolume;
+  };
+
+  // Video opacity with fade out
+  const getVideoOpacity = (currentFrame: number) => {
+    if (currentFrame >= fadeOutStartFrame && currentFrame < fadeOutEndFrame) {
+      // Fade out linear de 100% para 0% nos últimos 3 segundos
+      const fadeProgress = (currentFrame - fadeOutStartFrame) / (fadeOutEndFrame - fadeOutStartFrame);
+      return 1 - fadeProgress;
+    }
+    return 1;
+  };
+
+  // Background overlay for fade to black effect
+  const getBackgroundOpacity = (currentFrame: number) => {
+    if (currentFrame >= fadeOutStartFrame && currentFrame < fadeOutEndFrame) {
+      // Fade in black overlay nos últimos 3 segundos
+      const fadeProgress = (currentFrame - fadeOutStartFrame) / (fadeOutEndFrame - fadeOutStartFrame);
+      return fadeProgress;
+    }
+    return 0;
   };
 
   // Helper to split hook into blocks with font size tiers and keep short words together
@@ -216,8 +237,7 @@ export const PortraitVideo: FC<Props> = ({
         loop
         src={music.url}
         startFrom={startFrom}
-        endAt={music.end * fps}
-        volume={finalVolume(frame)}
+        volume={(f) => getMusicVolume(f)}
         muted={musicMuted}
       />
 
@@ -289,6 +309,21 @@ export const PortraitVideo: FC<Props> = ({
         />
       )}
 
+      {/* Fade to black overlay */}
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          backgroundColor: "black",
+          opacity: getBackgroundOpacity(frame),
+          zIndex: 2000,
+          pointerEvents: "none",
+        }}
+      />
+
       {scenes.map((scene, i) => {
         const { captions, audio, videos } = scene;
         const pages = createCaptionPages({
@@ -312,8 +347,10 @@ export const PortraitVideo: FC<Props> = ({
         
         const sceneDuration = scene.audio?.duration || 0;
         let durationInFrames = Math.max((isNaN(sceneDuration) ? 1 : sceneDuration), 0.1) * fps;
-        if (config.paddingBack && i === scenes.length - 1) {
-          durationInFrames += (config.paddingBack / 1000) * fps;
+        
+        // Para a última cena, adiciona o tempo de fade out
+        if (i === scenes.length - 1) {
+          durationInFrames += fadeOutDuration * fps;
         }
 
         // Ensure minimum duration to prevent 0 duration errors
@@ -361,7 +398,8 @@ export const PortraitVideo: FC<Props> = ({
                 style={{
                   width: '100%',
                   height: '100%',
-                  objectFit: 'cover'
+                  objectFit: 'cover',
+                  opacity: getVideoOpacity(frame)
                 }}
               />
             </div>
@@ -377,23 +415,37 @@ export const PortraitVideo: FC<Props> = ({
               const validPageEndMs = isNaN(pageEndMs) ? Math.max(validPageStartMs + 100, 100) : Math.max(pageEndMs, validPageStartMs + 100);
               const validPageDurationMs = Math.max(validPageEndMs - validPageStartMs, 0.001);
               
-              const fromFrame = Math.round((validPageStartMs / 1000) * fps);
+              // CORRIGIDO: Usar frames diretamente em vez de milissegundos
+              let fromFrame = Math.round((validPageStartMs / 1000) * fps);
+              
+              if (i === 0) {
+                // Primeira cena: legendas começam no frame 2 (após hook)
+                fromFrame = Math.max(fromFrame, 2);
+              } else {
+                // Demais cenas: legendas começam no frame 1 da cena
+                fromFrame = Math.max(fromFrame, 1);
+              }
+              
+              // Duração em frames baseada no timing original da página
               const durationFrames = Math.max(1, Math.round((validPageDurationMs / 1000) * fps));
               
               // Final safety check - ensure fromFrame is finite
               if (!isFinite(fromFrame)) {
-                console.error(`[PortraitVideo] Scene ${i}, Page ${j}: Invalid fromFrame: ${fromFrame}, pageStartMs: ${pageStartMs}, validPageStartMs: ${validPageStartMs}`);
+                console.error(`[PortraitVideo] Scene ${i}, Page ${j}: Invalid fromFrame: ${fromFrame}, validPageStartMs: ${validPageStartMs}`);
                 return null; // Skip this page if we can't calculate valid timing
               }
               
               console.log(`[PortraitVideo] Scene ${i}, Page ${j}:`, {
-                pageStartMs,
-                pageEndMs,
+                originalStartMs: pageStartMs,
+                originalEndMs: pageEndMs,
                 validPageStartMs,
                 validPageEndMs,
                 fromFrame,
                 durationFrames,
-                fps
+                fps,
+                isFirstScene: i === 0,
+                isFirstPage: j === 0,
+                targetFrame: i === 0 ? 2 : 1
               });
               
               return (
