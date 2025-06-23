@@ -151,71 +151,91 @@ export const PortraitVideo: FC<Props> = ({
   function splitHookIntoBlocks(hook: string) {
     if (!hook) return [];
     
-    const words = hook.split(/\s+/);
+    // Primeiro, processar blocos destacados que podem conter múltiplas palavras
+    const processedHook = hook.replace(/\*([^*]+)\*/g, (match, content) => {
+      // Se o conteúdo dentro dos asteriscos tem espaços, dividir em palavras
+      const words = content.trim().split(/\s+/);
+      if (words.length > 1) {
+        // Múltiplas palavras: cada uma vira um destaque individual
+        return words.map((word: string) => `*${word}*`).join(' ');
+      }
+      // Palavra única: manter como está
+      return match;
+    });
+    
+    const words = processedHook.split(/\s+/);
     const blocks: { text: string; fontSize: string; isHighlighted?: boolean }[] = [];
     let current = '';
     let i = 0;
     
     while (i < words.length) {
       let word = words[i];
-      // Novo: regex para detectar *palavra* com pontuação após o asterisco
+      // Regex para detectar *palavra* com pontuação após o asterisco
       const match = word.match(/^\*(.+?)\*(\W*)$/);
       const isHighlighted = !!match;
       let cleanWord = word;
       if (isHighlighted) {
         cleanWord = match[1] + (match[2] || '');
       }
-      const len = [...cleanWord].length;
-      
-      // If word is short (<=3 chars), try to combine with next word
-      if (len <= 3 && i + 1 < words.length) {
-        const nextWord = words[i + 1];
-        const nextMatch = nextWord.match(/^\*(.+?)\*(\W*)$/);
-        const nextIsHighlighted = !!nextMatch;
-        const nextWordClean = nextIsHighlighted ? nextMatch[1] + (nextMatch[2] || '') : nextWord;
-        if (isHighlighted || nextIsHighlighted || [...nextWordClean].length <= 3) {
-          cleanWord = cleanWord + ' ' + nextWordClean;
-          if (isHighlighted || nextIsHighlighted) {
-            if (current) {
-              blocks.push({ text: current.trim(), fontSize: getFontSize([...current.trim()].length) });
-              current = '';
-            }
-            blocks.push({ 
-              text: cleanWord, 
-              fontSize: getFontSize([...cleanWord].length),
-              isHighlighted: true 
-            });
-            i += 2;
-            continue;
-          }
-          i++;
-        }
-      }
-      
-      const wordLen = [...cleanWord].length;
-      let fontSize = '13em';
-      if (wordLen > 12) fontSize = '5em';
-      else if (wordLen > 9) fontSize = '8em';
-      else if (wordLen > 7) fontSize = '11em';
       
       if (isHighlighted) {
+        // Para palavras destacadas, calcular tamanho individual da palavra
         if (current) {
           blocks.push({ text: current.trim(), fontSize: getFontSize([...current.trim()].length) });
           current = '';
         }
-        blocks.push({ text: cleanWord, fontSize, isHighlighted: true });
-      } else if (wordLen > 7) {
-        if (current) {
-          blocks.push({ text: current.trim(), fontSize: getFontSize([...current.trim()].length) });
-          current = '';
-        }
-        blocks.push({ text: cleanWord, fontSize });
+        
+        // Calcular tamanho baseado apenas na palavra destacada (sem pontuação)
+        const highlightedWordOnly = match[1];
+        const wordLen = [...highlightedWordOnly].length;
+        let fontSize = '13em';
+        if (wordLen > 12) fontSize = '5em';
+        else if (wordLen > 9) fontSize = '8em';
+        else if (wordLen > 7) fontSize = '11em';
+        
+        blocks.push({ 
+          text: cleanWord, 
+          fontSize, 
+          isHighlighted: true 
+        });
       } else {
-        if ((current + ' ' + cleanWord).trim().length > 7) {
-          if (current) blocks.push({ text: current.trim(), fontSize: getFontSize([...current.trim()].length) });
-          current = cleanWord;
+        const len = [...cleanWord].length;
+        
+        // If word is short (<=3 chars), try to combine with next word
+        if (len <= 3 && i + 1 < words.length) {
+          const nextWord = words[i + 1];
+          const nextMatch = nextWord.match(/^\*(.+?)\*(\W*)$/);
+          const nextIsHighlighted = !!nextMatch;
+          const nextWordClean = nextIsHighlighted ? nextMatch[1] + (nextMatch[2] || '') : nextWord;
+          
+          // Não combinar palavras se a próxima for destacada
+          if (!nextIsHighlighted && [...nextWordClean].length <= 3) {
+            cleanWord = cleanWord + ' ' + nextWordClean;
+            i++;
+          }
+        }
+        
+        const wordLen = [...cleanWord].length;
+        
+        if (wordLen > 7) {
+          if (current) {
+            blocks.push({ text: current.trim(), fontSize: getFontSize([...current.trim()].length) });
+            current = '';
+          }
+          
+          let fontSize = '13em';
+          if (wordLen > 12) fontSize = '5em';
+          else if (wordLen > 9) fontSize = '8em';
+          else if (wordLen > 7) fontSize = '11em';
+          
+          blocks.push({ text: cleanWord, fontSize });
         } else {
-          current += (current ? ' ' : '') + cleanWord;
+          if ((current + ' ' + cleanWord).trim().length > 7) {
+            if (current) blocks.push({ text: current.trim(), fontSize: getFontSize([...current.trim()].length) });
+            current = cleanWord;
+          } else {
+            current += (current ? ' ' : '') + cleanWord;
+          }
         }
       }
       i++;
