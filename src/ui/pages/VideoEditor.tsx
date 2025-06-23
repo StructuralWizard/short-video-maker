@@ -92,6 +92,15 @@ const VideoEditor: React.FC = () => {
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
   const getPreviewUrl = (url: string, isSearchResult: boolean = false): string => {
+    // Se a URL já é local (começa com /), usa diretamente
+    if (url.startsWith('/')) {
+      if (isSearchResult) {
+        return `${url}?nocache=true`;
+      }
+      return url;
+    }
+    
+    // Para URLs externas, usa o proxy
     const path = url.replace(/https?:\/\/[^/]+/, '');
     const baseUrl = `/api/proxy${path}`;
     if (isSearchResult) {

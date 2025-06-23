@@ -70,38 +70,23 @@ const VideoList: React.FC = () => {
 
   useEffect(() => {
     fetchVideos();
+  }, []); // Remove a dependência [videos] para evitar loop infinito
+
+  // Separate useEffect para polling baseado no status dos vídeos
+  useEffect(() => {
+    const hasProcessingVideos = videos.some(video => video.status === 'processing');
+    const pollingInterval = hasProcessingVideos ? 2000 : 5000; // 2s se processando, 5s caso contrário
     
-    // Polling para atualizar o status dos vídeos
-    // Mais frequente se há vídeos processando, menos frequente caso contrário
-    const getPollingInterval = () => {
-      const hasProcessingVideos = videos.some(video => video.status === 'processing');
-      return hasProcessingVideos ? 2000 : 5000; // 2s se processando, 5s caso contrário
-    };
+    if (videos.length === 0) return; // Não faz polling se não há vídeos
     
-    const setupPolling = () => {
-      const interval = setInterval(() => {
-        fetchVideos();
-      }, getPollingInterval());
-      
-      return interval;
-    };
-    
-    let interval = setupPolling();
-    
-    // Redefine o intervalo quando a lista de vídeos muda
-    const intervalCleanup = () => {
-      clearInterval(interval);
-      interval = setupPolling();
-    };
-    
-    // Timeout para reconfigurar o polling após mudanças
-    const timeout = setTimeout(intervalCleanup, 100);
+    const interval = setInterval(() => {
+      fetchVideos();
+    }, pollingInterval);
     
     return () => {
       clearInterval(interval);
-      clearTimeout(timeout);
     };
-  }, [videos]); // Dependência nos vídeos para ajustar a frequência
+  }, [videos.map(v => v.status).join(',')]); // Só atualiza quando o status muda // Dependência nos vídeos para ajustar a frequência
 
   const handleCreateNew = () => {
     navigate('/create');
