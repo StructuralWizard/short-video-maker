@@ -25,9 +25,9 @@
       "captionPosition": "center",
       "paddingBack": 1000,
       "language": "pt",
-      "referenceAudioPath": "Noel.mp3",
-      "overlay": "jornada_landscape",
+      "referenceAudioPath": "Noel",
+      "overlay": "jornada",
       "hook": "Amor *Honra* e Unidade",
-      "orientation": "landscape"
+      "orientation": "portrait"
     }
   }

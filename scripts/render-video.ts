@@ -30,7 +30,7 @@ async function render() {
     const ffmpeg = await FFMpeg.init();
     
     logger.info("Initializing LocalImageAPI...");
-    const localImageApi = new LocalImageAPI();
+    const localImageApi = new LocalImageAPI(config);
     
     logger.info("Initializing MusicManager...");
     const musicManager = new MusicManager(config);
@@ -46,22 +46,17 @@ async function render() {
 
     logger.info("Creating ShortCreator instance...");
     const shortCreator = new ShortCreator(
+      (remotion as any).bundled,
       config,
       remotion,
       ffmpeg,
       localImageApi,
-      musicManager,
       localTTS,
-      statusManager,
-      undefined,
-      undefined,
-      videoProcessor,
-      config.concurrency
+      statusManager
     );
 
     logger.info({ videoId }, "Calling renderVideoFromData...");
-    // Chama um método dedicado para renderizar usando o JSON existente
-    await shortCreator.renderVideoFromData(videoId);
+    await shortCreator.renderVideoFromData(videoId, undefined);
 
     logger.info({ videoId }, "Render worker finished successfully.");
     process.exit(0);

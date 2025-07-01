@@ -247,6 +247,13 @@ export class Remotion {
         outputLocation: outputPath,
         inputProps: data,
         imageFormat: "jpeg",
+        concurrency: 1, // Forçar processamento sequencial para evitar conflitos
+        offthreadVideoCacheSizeInBytes: this.config.videoCacheSizeInBytes, // Usar valor da configuração
+        chromiumOptions: {
+          disableWebSecurity: true,
+          ignoreCertificateErrors: true
+        },
+        timeoutInMilliseconds: 1800000, // 30 minutos para o processo todo
         onProgress: ({ progress, renderedFrames, encodedFrames, encodedDoneIn, renderedDoneIn }) => {
           // Calcular estágio mais preciso baseado nos dados do Remotion
           let stage = "Initializing";
@@ -339,8 +346,8 @@ export class Remotion {
         onProgress: ({ progress }) => {
           logger.debug(`Rendering ${id} ${Math.floor(progress * 100)}% complete`);
         },
-        concurrency: 10,
-        offthreadVideoCacheSizeInBytes: 1024 * 1024 * 1024 * 8, // 8GB de cache
+        concurrency: 1, // Forçar processamento sequencial para evitar conflitos
+        offthreadVideoCacheSizeInBytes: this.config.videoCacheSizeInBytes, // Usar valor da configuração
         chromiumOptions: {
           disableWebSecurity: true,
           ignoreCertificateErrors: true

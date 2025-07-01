@@ -1,9 +1,10 @@
 import { OrientationEnum, Video } from "../../types/shorts";
 import { VideoSearchError, VideoProvider } from "./VideoProvider";
 import { logger } from "../../logger";
+import { Config } from "../../config";
 
 export class LocalImageAPI implements VideoProvider {
-  constructor(private port: number = 3123) {}
+  constructor(private config: Config, private port: number = 3123) {}
 
   async findVideo(
     searchTerms: string[],
@@ -34,7 +35,7 @@ export class LocalImageAPI implements VideoProvider {
     try {
         logger.info({ query: currentQuery }, "Attempting video search with query");
         
-        const response = await fetch(`http://localhost:8000/v1/videos?query=${encodeURIComponent(currentQuery)}&per_page=20&orientation=${orientation === OrientationEnum.portrait ? "portrait" : "landscape"}`);
+        const response = await fetch(`${this.config.videoServerUrl}/v1/videos?query=${encodeURIComponent(currentQuery)}&per_page=20&orientation=${orientation === OrientationEnum.portrait ? "portrait" : "landscape"}`);
 
       if (!response.ok) {
           logger.warn({ query: currentQuery, status: response.status }, "API request failed.");
@@ -64,7 +65,7 @@ export class LocalImageAPI implements VideoProvider {
           const video = availableVideos[randomIndex];
               selectedVideos.push({
                 id: video.id.toString(),
-                url: `http://localhost:8000${video.file_path}`,
+                url: `${this.config.videoServerUrl}${video.file_path}`,
                 duration: video.duration,
                 width: video.width,
                 height: video.height,
@@ -87,14 +88,14 @@ export class LocalImageAPI implements VideoProvider {
     // ÚLTIMO RECURSO: Tenta uma busca em branco
     try {
       logger.info("Falling back to an empty search as a last resort.");
-      const response = await fetch(`http://localhost:8000/v1/videos?query=&per_page=20&orientation=${orientation === OrientationEnum.portrait ? "portrait" : "landscape"}`);
+      const response = await fetch(`${this.config.videoServerUrl}/v1/videos?query=&per_page=20&orientation=${orientation === OrientationEnum.portrait ? "portrait" : "landscape"}`);
       if (response.ok) {
         const data = await response.json();
         if (data && data.length > 0) {
           const video = data[Math.floor(Math.random() * data.length)];
           return [{
             id: video.id.toString(),
-            url: `http://localhost:8000${video.file_path}`,
+            url: `${this.config.videoServerUrl}${video.file_path}`,
             duration: video.duration,
             width: video.width,
             height: video.height,
@@ -124,7 +125,7 @@ export class LocalImageAPI implements VideoProvider {
 
   async getVideoById(id: string): Promise<Video> {
     try {
-      const response = await fetch(`http://localhost:8000/v1/videos?query=${id}&per_page=1`);
+      const response = await fetch(`${this.config.videoServerUrl}/v1/videos?query=${id}&per_page=1`);
       if (!response.ok) {
         throw new VideoSearchError(`LocalImageAPI request for id ${id} failed`);
       }
@@ -137,7 +138,7 @@ export class LocalImageAPI implements VideoProvider {
       const video = data[0];
       return {
         id: video.id.toString(),
-        url: `http://localhost:8000${video.file_path}`,
+        url: `${this.config.videoServerUrl}${video.file_path}`,
         duration: video.duration,
         width: video.width,
         height: video.height,
@@ -161,13 +162,13 @@ export class LocalImageAPI implements VideoProvider {
       
       // Faz uma consulta real à API usando o ID extraído
       try {
-        const response = await fetch(`http://localhost:8000/v1/videos/${id}`);
+        const response = await fetch(`${this.config.videoServerUrl}/v1/videos/${id}`);
         
         if (response.ok) {
           const videoData = await response.json();
           return {
             id: videoData.id.toString(),
-            url: `http://localhost:8000${videoData.file_path}`,
+            url: `${this.config.videoServerUrl}${videoData.file_path}`,
             duration: videoData.duration,
             width: videoData.width,
             height: videoData.height,
@@ -179,7 +180,7 @@ export class LocalImageAPI implements VideoProvider {
       
       // Se a consulta direta falhar, tenta buscar por query
       try {
-        const searchResponse = await fetch(`http://localhost:8000/v1/videos?query=${id}&per_page=1`);
+        const searchResponse = await fetch(`${this.config.videoServerUrl}/v1/videos?query=${id}&per_page=1`);
         
         if (searchResponse.ok) {
           const searchData = await searchResponse.json();
@@ -187,7 +188,7 @@ export class LocalImageAPI implements VideoProvider {
             const video = searchData[0];
             return {
               id: video.id.toString(),
-              url: `http://localhost:8000${video.file_path}`,
+              url: `${this.config.videoServerUrl}${video.file_path}`,
               duration: video.duration,
               width: video.width,
               height: video.height,

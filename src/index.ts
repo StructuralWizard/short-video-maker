@@ -28,7 +28,7 @@ async function main() {
     // Inicializar componentes
     const remotion = new Remotion(bundled, config);
     const ffmpeg = new FFMpeg(config);
-    const localImageApi = new LocalImageAPI(config.port);
+    const localImageApi = new LocalImageAPI(config, config.port);
     const localTTS = await LocalTTS.init(config); // Usando LocalTTS real
     const statusManager = new VideoStatusManager(config);
 

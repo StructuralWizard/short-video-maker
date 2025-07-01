@@ -108,26 +108,71 @@ export class ShortCreator {
   private preprocessVideoDataForRemotionRendering(videoData: any): any {
     const processedData = JSON.parse(JSON.stringify(videoData)); // Deep clone
     
+    logger.debug({ videoId: 'preprocessing' }, "Starting video data preprocessing for Remotion");
+    
     // Processar URLs de áudio nas cenas
     if (processedData.scenes) {
-      processedData.scenes.forEach((scene: any) => {
+      processedData.scenes.forEach((scene: any, sceneIndex: number) => {
         if (scene.audio && scene.audio.url) {
+          const originalUrl = scene.audio.url;
+          
+          // Validar se o arquivo de áudio existe para URLs locais
+          if (originalUrl.startsWith('/temp/')) {
+            const localPath = path.join(this.globalConfig.tempDirPath, path.basename(originalUrl));
+            if (!fs.existsSync(localPath)) {
+              logger.error({ 
+                sceneIndex, 
+                originalUrl, 
+                localPath,
+                exists: false
+              }, "Audio file not found during preprocessing");
+              throw new Error(`Audio file not found: ${localPath}`);
+            } else {
+              logger.debug({ 
+                sceneIndex, 
+                originalUrl, 
+                localPath,
+                exists: true,
+                fileSize: fs.statSync(localPath).size
+              }, "Audio file validated during preprocessing");
+            }
+          }
+          
           // Se a URL não é absoluta, convertê-la
-          if (!scene.audio.url.startsWith('http')) {
-            scene.audio.url = this.resolveUrlForRemotionContext(scene.audio.url);
+          if (!originalUrl.startsWith('http')) {
+            scene.audio.url = this.resolveUrlForRemotionContext(originalUrl);
             logger.debug({ 
-              originalUrl: scene.audio.url, 
+              sceneIndex,
+              originalUrl, 
               processedUrl: scene.audio.url 
             }, "Preprocessed audio URL for Remotion");
           }
+          
+          // Validar duração do áudio
+          if (!scene.audio.duration || scene.audio.duration <= 0 || isNaN(scene.audio.duration)) {
+            logger.error({ 
+              sceneIndex, 
+              audioDuration: scene.audio.duration 
+            }, "Invalid audio duration during preprocessing");
+            throw new Error(`Invalid audio duration for scene ${sceneIndex}: ${scene.audio.duration}`);
+          }
+        } else {
+          logger.warn({ sceneIndex }, "Scene missing audio data during preprocessing");
         }
         
         // Processar URLs de vídeo nas cenas
         if (scene.videos) {
-          scene.videos = scene.videos.map((videoUrl: string) => {
+          scene.videos = scene.videos.map((videoUrl: string, videoIndex: number) => {
+            if (!videoUrl) {
+              logger.error({ sceneIndex, videoIndex }, "Empty video URL during preprocessing");
+              throw new Error(`Empty video URL for scene ${sceneIndex}, video ${videoIndex}`);
+            }
+            
             if (!videoUrl.startsWith('http') && videoUrl.startsWith('/')) {
               const processedUrl = this.resolveUrlForRemotionContext(videoUrl);
               logger.debug({ 
+                sceneIndex,
+                videoIndex,
                 originalUrl: videoUrl, 
                 processedUrl 
               }, "Preprocessed video URL for Remotion");
@@ -135,20 +180,38 @@ export class ShortCreator {
             }
             return videoUrl;
           });
+        } else {
+          logger.warn({ sceneIndex }, "Scene missing videos during preprocessing");
         }
       });
     }
     
     // Processar URL da música
     if (processedData.music && processedData.music.url) {
-      if (!processedData.music.url.startsWith('http')) {
-        processedData.music.url = this.resolveUrlForRemotionContext(processedData.music.url);
+      const originalMusicUrl = processedData.music.url;
+      if (!originalMusicUrl.startsWith('http')) {
+        processedData.music.url = this.resolveUrlForRemotionContext(originalMusicUrl);
         logger.debug({ 
-          originalUrl: processedData.music.url, 
+          originalUrl: originalMusicUrl, 
           processedUrl: processedData.music.url 
         }, "Preprocessed music URL for Remotion");
       }
     }
+    
+    // Validar estrutura final dos dados
+    if (!processedData.scenes || processedData.scenes.length === 0) {
+      throw new Error("No scenes found in video data");
+    }
+    
+    if (!processedData.config) {
+      throw new Error("No config found in video data");
+    }
+    
+    logger.info({ 
+      sceneCount: processedData.scenes.length,
+      orientation: processedData.config.orientation,
+      duration: processedData.config.durationInSec
+    }, "Video data preprocessing completed successfully");
     
     return processedData;
   }
@@ -430,7 +493,39 @@ export class ShortCreator {
       const sceneParts: Scene[] = [];
       for(let i = 0; i < textParts.length; i++) {
         const video = finalVideos[i];
-        if (!video || !video.url) throw new Error(`No video for part ${i} of scene ${sceneIndex}`);
+        
+        // Validação melhorada para detectar vídeos null
+        if (!video || !video.url) {
+          logger.error({ 
+            videoId, 
+            sceneIndex, 
+            partIndex: i,
+            textPart: textParts[i],
+            finalVideosLength: finalVideos.length,
+            textPartsLength: textParts.length,
+            availableVideos: finalVideos.map((v, idx) => `${idx}: ${v?.url || 'NULL'}`).join(', ')
+          }, "Empty video URL detected during scene processing");
+          
+          // Tentar usar outro vídeo da mesma cena como fallback
+          const fallbackVideo = finalVideos.find(v => v && v.url);
+          if (fallbackVideo) {
+            logger.warn({ 
+              videoId, 
+              sceneIndex, 
+              partIndex: i,
+              fallbackUrl: fallbackVideo.url 
+            }, "Using fallback video for null video URL");
+            finalVideos[i] = fallbackVideo;
+          } else {
+            throw new Error(`No video available for part ${i} of scene ${sceneIndex}. Available videos: ${finalVideos.length}, text parts: ${textParts.length}`);
+          }
+        }
+        
+        // Continue with validation after fix
+        const validatedVideo = finalVideos[i];
+        if (!validatedVideo || !validatedVideo.url) {
+          throw new Error(`No video for part ${i} of scene ${sceneIndex}`);
+        }
         
         // Validate audio duration
         const audioDuration = sceneAudioData[i].duration;
@@ -446,7 +541,7 @@ export class ShortCreator {
         }
 
         // Substituir URL do vídeo pelo proxy local se disponível
-        const originalVideoUrl = video.url;
+        const originalVideoUrl = validatedVideo.url;
         const cachedVideo = cachedVideos.get(originalVideoUrl);
         
         let finalVideoUrl = originalVideoUrl;
@@ -942,18 +1037,54 @@ export class ShortCreator {
         logger.info({ videoId }, "Deleted existing video file for clean re-render.");
       }
 
-      // 2. Reseta o status para "processing"
+      // 2. Limpar cache de vídeos antigos (arquivos com mais de 1 hora)
+      try {
+        await this.videoCacheManager.cleanupOldCache(1); // Remove arquivos com mais de 1 hora
+        logger.info({ videoId }, "Cleaned up old video cache entries");
+      } catch (error) {
+        logger.warn({ videoId, error }, "Failed to cleanup video cache, continuing...");
+      }
+
+      // 3. Verificar e limpar arquivos temporários órfãos
+      try {
+        const tempDir = this.globalConfig.tempDirPath;
+        if (fs.existsSync(tempDir)) {
+          const tempFiles = fs.readdirSync(tempDir);
+          const oldFiles = tempFiles.filter(file => {
+            const filePath = path.join(tempDir, file);
+            const stats = fs.statSync(filePath);
+            const ageHours = (Date.now() - stats.mtime.getTime()) / (1000 * 60 * 60);
+            return ageHours > 2; // Arquivos com mais de 2 horas
+          });
+          
+          for (const file of oldFiles) {
+            try {
+              fs.removeSync(path.join(tempDir, file));
+            } catch (cleanupError) {
+              logger.warn({ videoId, file, error: cleanupError }, "Failed to cleanup temp file");
+            }
+          }
+          
+          if (oldFiles.length > 0) {
+            logger.info({ videoId, cleanedFiles: oldFiles.length }, "Cleaned up old temporary files");
+          }
+        }
+      } catch (error) {
+        logger.warn({ videoId, error }, "Failed to cleanup temp files, continuing...");
+      }
+
+      // 4. Reseta o status para "processing"
       await this.statusManager.setStatus(videoId, "processing", "Starting re-render...");
 
-      // 3. Usa pipeline específico para re-render que preserva assets existentes
+      // 5. Usa pipeline específico para re-render que preserva assets existentes
       const { remotionData, updatedScriptScenes } = await this.processReRenderScenes(videoId, scenes, config);
 
-      // 4. Salva os dados reprocessados e seguros no .render.json para a renderização.
+      // 6. Salva os dados reprocessados e seguros no .render.json para a renderização.
       const renderJsonPath = path.join(this.globalConfig.videosDirPath, `${videoId}.render.json`);
       fs.writeJsonSync(renderJsonPath, remotionData, { spaces: 2 });
       logger.info({ videoId }, ".render.json updated with reprocessed data.");
 
-      // 5. Salva as edições de texto do usuário no .script.json para persistência.
+      // 7. Salva as edições de texto do usuário no .script.json para persistência.
       const scriptPath = path.join(this.globalConfig.videosDirPath, `${videoId}.script.json`);
       if (fs.existsSync(scriptPath)) {
         const scriptData = fs.readJsonSync(scriptPath);
@@ -962,7 +1093,7 @@ export class ShortCreator {
         fs.writeJsonSync(scriptPath, scriptData, { spaces: 2 });
       }
 
-      // 6. Adiciona o vídeo à fila de renderização pura.
+      // 8. Adiciona o vídeo à fila de renderização pura.
       if (!this.renderQueue.includes(videoId)) {
         this.renderQueue.push(videoId);
       }
@@ -1172,7 +1303,54 @@ export class ShortCreator {
     
     const rawRenderData = fs.readJsonSync(renderJsonPath);
 
+    // Validar arquivos necessários antes de preprocessar
+    await this.statusManager.setProgress(videoId, 5, "Validating assets...");
+    if (rawRenderData.scenes) {
+      for (let i = 0; i < rawRenderData.scenes.length; i++) {
+        const scene = rawRenderData.scenes[i];
+        
+        // Validar arquivo de áudio
+        if (scene.audio && scene.audio.url) {
+          const audioUrl = scene.audio.url;
+          if (audioUrl.startsWith('/temp/')) {
+            const audioFilename = path.basename(audioUrl);
+            const audioPath = path.join(this.globalConfig.tempDirPath, audioFilename);
+            
+            if (!fs.existsSync(audioPath)) {
+              logger.error({ 
+                videoId, 
+                sceneIndex: i, 
+                audioUrl, 
+                audioPath 
+              }, "Audio file not found before rendering");
+              throw new Error(`Audio file not found for scene ${i}: ${audioPath}`);
+            }
+            
+            // Verificar se o arquivo tem tamanho válido
+            const audioStats = fs.statSync(audioPath);
+            if (audioStats.size === 0) {
+              logger.error({ 
+                videoId, 
+                sceneIndex: i, 
+                audioPath, 
+                fileSize: audioStats.size 
+              }, "Audio file is empty");
+              throw new Error(`Audio file is empty for scene ${i}: ${audioPath}`);
+            }
+            
+            logger.debug({ 
+              videoId, 
+              sceneIndex: i, 
+              audioPath, 
+              fileSize: audioStats.size 
+            }, "Audio file validated successfully");
+          }
+        }
+      }
+    }
+
     // Pré-processar os dados para garantir URLs absolutas
+    await this.statusManager.setProgress(videoId, 10, "Processing data...");
     const renderData = this.preprocessVideoDataForRemotionRendering(rawRenderData);
 
     // Debug logs para verificar os dados

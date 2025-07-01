@@ -110,7 +110,15 @@ const VideoEditor: React.FC = () => {
       return localPath;
     }
     
-    // Para URLs externas reais, usa o proxy
+    // Se é uma URL do nosso servidor de vídeo configurado, usa diretamente
+    if (url.includes('ninoserver1.bonito-halosaur.ts.net:8090')) {
+      if (isSearchResult) {
+        return `${url}?nocache=true`;
+      }
+      return url;
+    }
+    
+    // Para URLs externas reais (como Pexels), usa o proxy
     const path = url.replace(/https?:\/\/[^/]+/, '');
     const baseUrl = `/api/proxy${path}`;
     if (isSearchResult) {

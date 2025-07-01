@@ -25,7 +25,7 @@ export default {
     allowedHosts: ['*', 'ninomac.bonito-halosaur.ts.net'],
     proxy: {
       '/api/proxy': {
-        target: 'http://localhost:8000',
+        target: 'http://ninoserver1.bonito-halosaur.ts.net:8090',
         changeOrigin: true,
         rewrite: (path: string) => path.replace(/^\/api\/proxy/, ''),
       },

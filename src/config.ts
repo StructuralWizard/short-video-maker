@@ -20,6 +20,8 @@ const envSchema = z.object({
   CONCURRENCY: z.string().optional(),
   VIDEO_CACHE_SIZE_IN_BYTES: z.string().optional(),
   REFERENCE_AUDIO_PATH: z.string().optional(),
+  VIDEO_SERVER_URL: z.string().optional(),
+  TTS_SERVER_URL: z.string().optional(),
 });
 
 // Parse and validate environment variables
@@ -52,6 +54,8 @@ export interface Config {
       serveUrl: string;
     };
   };
+  videoServerUrl: string;
+  ttsServerUrl: string;
 }
 
 export class Config {
@@ -76,6 +80,8 @@ export class Config {
       serveUrl: string;
     };
   };
+  public videoServerUrl: string;
+  public ttsServerUrl: string;
 
   constructor() {
     this.dataDirPath = env.DATA_DIR_PATH || defaultDataDirPath;
@@ -88,7 +94,7 @@ export class Config {
     this.concurrency = 1; // Forçar processamento sequencial
     this.videoCacheSizeInBytes = env.VIDEO_CACHE_SIZE_IN_BYTES 
       ? parseInt(env.VIDEO_CACHE_SIZE_IN_BYTES) 
-      : 34_359_738_368; // 32GB em bytes (32 * 1024 * 1024 * 1024)
+      : 2_147_483_648; // 2GB em bytes (2 * 1024 * 1024 * 1024) - Reduzido de 32GB para evitar problemas de memória
     this.referenceAudioPath = env.REFERENCE_AUDIO_PATH || path.join(process.cwd(), "NinoSample.wav");
 
     // Initialize paths
@@ -105,6 +111,8 @@ export class Config {
         serveUrl: "http://localhost:3122"
       }
     };
+    this.videoServerUrl = process.env.VIDEO_SERVER_URL || "http://localhost:8000";
+    this.ttsServerUrl = process.env.TTS_SERVER_URL || "http://localhost:5003";
 
     // Create directories
     fs.ensureDirSync(this.dataDirPath);
