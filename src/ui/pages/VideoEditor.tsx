@@ -86,6 +86,14 @@ const VideoEditor: React.FC = () => {
   const [rendering, setRendering] = useState(false);
   const [saving, setSaving] = useState<boolean>(false);
   const [referenceAudioPath, setReferenceAudioPath] = useState<string>("");
+  
+  // Opções de voz disponíveis
+  const voiceOptions = [
+    { value: 'Paulo', label: 'Paulo (Padrão)' },
+    { value: 'Noel', label: 'Noel' },
+    { value: 'Scarlett', label: 'Scarlett' },
+    { value: 'NinoCoelho', label: 'NinoCoelho' }
+  ];
   const [generatingAudio, setGeneratingAudio] = useState<{ [key: number]: boolean }>({});
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentPlayingUrl, setCurrentPlayingUrl] = useState<string | null>(null);
@@ -162,6 +170,9 @@ const VideoEditor: React.FC = () => {
       
       if (data.config && data.config.referenceAudioPath) {
         setReferenceAudioPath(data.config.referenceAudioPath);
+      } else {
+        // Definir voz padrão se não houver configuração
+        setReferenceAudioPath('Paulo');
       }
     } catch (err) {
       const errorMessage = `Failed to load video data for ID: ${id}`;
@@ -278,6 +289,7 @@ const VideoEditor: React.FC = () => {
   };
 
   const formatDuration = (seconds: number) => {
+    if (!seconds || isNaN(seconds)) return "0:00";
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -364,7 +376,7 @@ const VideoEditor: React.FC = () => {
     try {
       const response = await axios.post('/api/generate-tts', {
         text: scene.text.trim(),
-        voice: 'af_heart',
+        voice: referenceAudioPath || 'Paulo', // Usar a voz selecionada
         language: 'pt',
         referenceAudioPath: referenceAudioPath || undefined
       });
@@ -465,19 +477,24 @@ const VideoEditor: React.FC = () => {
               Total Duration
             </Typography>
             <Typography variant="body1">
-              {formatDuration(videoData.scenes.reduce((acc, scene) => acc + scene.duration, 0))}
+              {formatDuration(videoData.scenes.reduce((acc, scene) => acc + (scene.duration || 0), 0))}
             </Typography>
           </Grid>
           <Grid item xs={12}>
-            <TextField
-              fullWidth
-              label="Reference Audio Path"
-              variant="outlined"
-              value={referenceAudioPath}
-              onChange={(e) => setReferenceAudioPath(e.target.value)}
-              placeholder="e.g., /path/to/your/audio.wav"
-              size="small"
-            />
+            <FormControl fullWidth size="small">
+              <InputLabel>Voz</InputLabel>
+              <Select
+                value={referenceAudioPath}
+                onChange={(e) => setReferenceAudioPath(e.target.value)}
+                label="Voz"
+              >
+                {voiceOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Grid>
         </Grid>
       </Paper>
@@ -494,7 +511,7 @@ const VideoEditor: React.FC = () => {
                 Scene {sceneIndex + 1}
               </Typography>
               <Chip 
-                label={`${formatDuration(scene.duration)}`} 
+                label={`${formatDuration(scene.duration || 0)}`} 
                 size="small"
               />
             </Box>

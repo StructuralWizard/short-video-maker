@@ -1,5 +1,11 @@
 #!/bin/bash
 
+echo "Parando servidor..."
+
+# Parar processo Python TTS
+echo "Parando serviço TTS..."
+pkill -f "tts_service.py" && echo "✅ Serviço TTS parado" || echo "❌ Serviço TTS não estava rodando"
+
 # Verifica se o arquivo PID existe
 if [ ! -f .server.pid ]; then
     echo "❌ Arquivo .server.pid não encontrado. O servidor pode não estar rodando."

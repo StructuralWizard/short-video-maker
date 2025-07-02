@@ -16,7 +16,7 @@ export class LocalTTS {
   private ffmpeg: FFMpeg;
 
   constructor(private config: Config, ffmpeg: FFMpeg, outputDir: string = "output/audio") {
-    this.serviceUrl = config.ttsServerUrl || "http://localhost:5003";
+    this.serviceUrl = "http://localhost:5003";
     this.outputDir = outputDir;
     this.ffmpeg = ffmpeg;
   }

@@ -39,7 +39,7 @@ interface GeneratedAudio {
 
 const TTSGenerator: React.FC = () => {
   const [text, setText] = useState('');
-  const [voice, setVoice] = useState('af_heart');
+  const [voice, setVoice] = useState('Paulo');
   const [language, setLanguage] = useState('pt');
   const [referenceAudioPath, setReferenceAudioPath] = useState('');
   const [loading, setLoading] = useState(false);
@@ -206,12 +206,10 @@ const TTSGenerator: React.FC = () => {
                 onChange={(e) => setVoice(e.target.value)}
                 disabled={loading}
               >
-                <MenuItem value="af_heart">Heart (Feminina)</MenuItem>
-                <MenuItem value="af_alloy">Alloy (Feminina)</MenuItem>
-                <MenuItem value="af_nova">Nova (Feminina)</MenuItem>
-                <MenuItem value="am_echo">Echo (Masculina)</MenuItem>
-                <MenuItem value="am_onyx">Onyx (Masculina)</MenuItem>
-                <MenuItem value="am_liam">Liam (Masculina)</MenuItem>
+                <MenuItem value="Paulo">Paulo</MenuItem>
+                <MenuItem value="Noel">Noel</MenuItem>
+                <MenuItem value="Scarlett">Scarlett</MenuItem>
+                <MenuItem value="NinoCoelho">NinoCoelho</MenuItem>
               </Select>
             </FormControl>
           </Grid>

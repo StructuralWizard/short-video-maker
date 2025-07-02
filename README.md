@@ -1,506 +1,298 @@
-# Description
+# 🎬 Short Video Maker v2.0
 
-An open source automated video creation tool for generating short-form video content. Short Video Maker combines text-to-speech, automatic captions, background videos, and music to create engaging short videos from simple text inputs.
+> **Criador profissional de vídeos curtos com IA** - Uma plataforma completa para criar vídeos para TikTok, Instagram Reels e YouTube Shorts
 
-This project is meant to provide a free alternative to heavy GPU-power hungry video generation (and a free alternative to expensive, third-party API calls). It doesn't generate a video from scratch based on an image or an image prompt.
+![Short Video Maker](https://img.shields.io/badge/version-2.0.0-blue.svg)
+![Node.js](https://img.shields.io/badge/node.js-18+-green.svg)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
-The repository was open-sourced by the [AI Agents A-Z Youtube Channel](https://www.youtube.com/channel/UCloXqLhp_KGhHBe1kwaL2Tg). We encourage you to check out the channel for more AI-related content and tutorials.
+## ✨ Novidades da Versão 2.0
 
-The server exposes an [MCP](https://github.com/modelcontextprotocol) and a REST server.
+### 🎨 **Interface Completamente Renovada**
+- **Design moderno** com tema escuro e gradientes
+- **Dashboard intuitivo** com estatísticas em tempo real
+- **Sidebar navegação** com acesso rápido a todas as funcionalidades
+- **Componentes modernos** com Material-UI e animações fluidas
 
-While the MCP server can be used with an AI Agent (like n8n) the REST endpoints provide more flexibility for video generation.
+### 🤖 **IA para Geração de Scripts**
+- **Gerador automático** de roteiros com prompts personalizáveis
+- **Biblioteca de prompts** pré-definidos para diferentes nichos
+- **Sistema de salvamento** de prompts personalizados
+- **Integração perfeita** com o Video Studio
 
-You can find example n8n workflows created with the REST/MCP server [in this repository](https://github.com/gyoridavid/ai_agents_az/tree/main/episode_7).
+### 🔧 **Funcionalidades Avançadas**
+- **Busca e substituição** inteligente de vídeos de fundo
+- **Regeneração de áudio** para cenas específicas
+- **Sistema de cache** otimizado para vídeos
+- **Processamento em background** com filas inteligentes
 
+### 📚 **Documentação Completa**
+- **API Reference** integrada na interface
+- **Servidor MCP** expandido com 7+ tools
+- **Guias de uso** detalhados
+- **Exemplos práticos** de implementação
 
-# TOC
+## 🚀 Funcionalidades Principais
 
-## Getting started
+### 📺 **Video Studio**
+- **Criação guiada** em 3 etapas: Roteiro → Configurações → Revisão
+- **Editor visual** de cenas com preview em tempo real
+- **Configurações avançadas** de voz, música e legendas
+- **Sistema de templates** para reutilização
 
-- [Requirements](#general-requirements)
-- [How to run the server](#getting-started-1)
-- [Web UI](#web-ui)
-- [Tutorial](#tutorial-with-n8n)
-- [Examples](#examples)
+### 🎙️ **TTS Studio Avançado**
+- **Múltiplas vozes** disponíveis (masculinas e femininas)
+- **Suporte a idiomas** (Português e Inglês)
+- **Áudio de referência** para clonagem de voz
+- **Biblioteca de áudios** gerados com reprodução integrada
 
-## Usage
+### 📊 **Dashboard Inteligente**
+- **Estatísticas em tempo real** de todos os vídeos
+- **Progresso de renderização** com indicadores visuais
+- **Ações rápidas** para criação e gerenciamento
+- **Vídeos recentes** com acesso direto
 
-- [Environment variables](#environment-variables)
-- [REST API](#rest-api)
-- [Configuration options](#configuration-options)
-- [MCP](#mcp-server)
+### 🎬 **Biblioteca de Vídeos**
+- **Visualização em grid** com filtros avançados
+- **Busca inteligente** por conteúdo e status
+- **Ações em massa** para gerenciamento
+- **Preview integrado** dos vídeos
 
-## Info
-- [Features](#features)
-- [How it works](#how-it-works)
-- [Limitations](#limitations)
-- [Concepts](#concepts)
-- [Troubleshooting](#troubleshooting)
-- [Deploying in the cloud](#deploying-to-the-cloud)
-- [FAQ](#faq)
-- [Dependencies](#dependencies-for-the-video-generation)
-- [Contributing](#how-to-contribute)
-- [License](#license)
-- [Acknowledgements](#acknowledgments)
+## 🛠️ Instalação e Configuração
 
-# Tutorial with n8n
+### Pré-requisitos
+- **Node.js** 18+ 
+- **FFmpeg** instalado no sistema
+- **Python** 3.8+ (para TTS local)
 
-[![Automated faceless video generation (n8n + MCP) with captions, background music, local and 100% free](https://img.youtube.com/vi/jzsQpn-AciM/0.jpg)](https://www.youtube.com/watch?v=jzsQpn-AciM)
-
-
-# Examples
-
-<table>
-  <tr>
-    <td>
-      <video src="https://github.com/user-attachments/assets/1b488e7d-1b40-439d-8767-6ab51dbc0922" width="480" height="270"></video>
-    </td>
-    <td>
-      <video src="https://github.com/user-attachments/assets/bb7ce80f-e6e1-44e5-ba4e-9b13d917f55b" width="270" height="480"></video>
-    </td>
-<td>
-  </tr>
-</table>
-
-# Features
-
-- Generate complete short videos from text prompts
-- Text-to-speech conversion
-- Automatic caption generation and styling
-- Background video search and selection via Pexels
-- Background music with genre/mood selection
-- Serve as both REST API and Model Context Protocol (MCP) server
-
-# How It Works
-
-Shorts Creator takes simple text inputs and search terms, then:
-
-1. Converts text to speech using Kokoro TTS
-2. Generates accurate captions via Whisper
-3. Finds relevant background videos from Pexels
-4. Composes all elements with Remotion
-5. Renders a professional-looking short video with perfectly timed captions
-
-# Limitations
-
-- The project only capable generating videos with English voiceover (kokoro-js doesn't support other languages at the moment)
-- The background videos are sourced from Pexels
-
-# General Requirements
-
-- internet
-- free pexels api key
-- ≥ 3 gb free RAM, my recommendation is 4gb RAM
-- ≥ 2 vCPU
-- ≥ 5gb disc space
-
-# NPM
-
-While Docker is the recommended way to run the project, you can run it with npm or npx.
-On top of the general requirements, the following are necessary to run the server.
-
-## Supported platforms
-
-- Ubuntu ≥ 22.04 (libc 2.5 for Whisper.cpp)
-    - Required packages: `git wget cmake ffmpeg curl make libsdl2-dev libnss3 libdbus-1-3 libatk1.0-0 libgbm-dev libasound2 libxrandr2 libxkbcommon-dev libxfixes3 libxcomposite1 libxdamage1 libatk-bridge2.0-0 libpango-1.0-0 libcairo2 libcups2`
-- Mac OS
-    - ffmpeg (`brew install ffmpeg`)
-    - node.js (tested on 22+)
-
-Windows is **NOT** supported at the moment (whisper.cpp installation fails occasionally).
-
-# Concepts
-
-## Scene
-
-Each video is assembled from multiple scenes. These scenes consists of 
-
-1. Text: Narration, the text the TTS will read and create captions from.
-2. Search terms: The keywords the server should use to find videos from Pexels API. If none can be found, joker terms are being used (`nature`, `globe`, `space`, `ocean`)
-
-# Getting started
-
-## Docker (recommended)
-
-There are three docker images, for three different use cases. Generally speaking, most of the time you want to spin up the `tiny` one.
-
-### Tiny
-
-- Uses the `tiny.en` whisper.cpp model
-- Uses the `q4` quantized  kokoro model
-- `CONCURRENCY=1` to overcome OOM errors coming from Remotion with limited resources
-- `VIDEO_CACHE_SIZE_IN_BYTES=104857600` (100mb) to overcome OOM errors coming from Remotion with limited resources
-
-```jsx
-docker run -it --rm --name short-video-maker -p 3123:3123 -e LOG_LEVEL=debug -e PEXELS_API_KEY= gyoridavid/short-video-maker:latest-tiny
-```
-
-### Normal
-
-- Uses the `base.en` whisper.cpp model
-- Uses the `fp32`  kokoro model
-- `CONCURRENCY=1` to overcome OOM errors coming from Remotion with limited resources
-- `VIDEO_CACHE_SIZE_IN_BYTES=104857600` (100mb) to overcome OOM errors coming from Remotion with limited resources
-
-```jsx
-docker run -it --rm --name short-video-maker -p 3123:3123 -e LOG_LEVEL=debug -e PEXELS_API_KEY= gyoridavid/short-video-maker:latest
-```
-
-### Cuda
-
-If you own an Nvidia GPU and you want use a larger whisper model with GPU acceleration, you can use the CUDA optimised Docker image.
-
-- Uses the `medium.en` whisper.cpp model (with GPU acceleration)
-- Uses `fp32` kokoro model
-- `CONCURRENCY=1` to overcome OOM errors coming from Remotion with limited resources
-- `VIDEO_CACHE_SIZE_IN_BYTES=104857600` (100mb) to overcome OOM errors coming from Remotion with limited resources
-
-```jsx
-docker run -it --rm --name short-video-maker -p 3123:3123 -e LOG_LEVEL=debug -e PEXELS_API_KEY= --gpus=all gyoridavid/short-video-maker:latest-cuda
-```
-
-## Docker compose
-
-You might use Docker Compose to run n8n or other services, and you want to combine them. Make sure you add the shared network to the service configuration.
+### Instalação Rápida
 
 ```bash
-version: "3"
+# Clone o repositório
+git clone https://github.com/seu-usuario/short-video-maker.git
+cd short-video-maker
 
-services:
-  short-video-maker:
-    image: gyoridavid/short-video-maker:latest-tiny
-    environment:
-      - LOG_LEVEL=debug
-      - PEXELS_API_KEY=
-    ports:
-      - "3123:3123"
-    volumes:
-	    - ./videos:/app/data/videos # expose the generated videos
+# Instale as dependências
+npm install
 
+# Configure as dependências Python para TTS
+pip install -r requirements.txt
+
+# Inicie o servidor de desenvolvimento
+npm run dev
 ```
 
-If you are using the [Self-hosted AI starter kit](https://github.com/n8n-io/self-hosted-ai-starter-kit) you want to add `networks: ['demo']` to the `short-video-maker` service so you can reach it with http://short-video-maker:3123 in n8n.
-
-# Web UI
-
-@mushitori made a Web UI to generate the videos from your browser.
-
-<table>
-  <tr>
-    <td>
-      <img width="1088" alt="Screenshot 2025-05-12 at 1 45 11 PM" src="https://github.com/user-attachments/assets/2ab64aea-f639-41b0-bd19-2fcf73bb1a3d" />
-    </td>
-    <td>
-      <img width="1075" alt="Screenshot 2025-05-12 at 1 45 44 PM" src="https://github.com/user-attachments/assets/0ff568fe-ddcb-4dad-ae62-2640290aef1e" />
-    </td>
-    <td>
-      <img width="1083" alt="Screenshot 2025-05-12 at 1 45 51 PM" src="https://github.com/user-attachments/assets/d3c1c826-3cb3-4313-b17c-605ff612fb63" />
-    </td>
-    <td>
-      <img width="1070" alt="Screenshot 2025-05-12 at 1 46 42 PM" src="https://github.com/user-attachments/assets/18edb1a0-9fc2-48b3-8896-e919e7dc57ff" />
-    </td>
-  </tr>
-</table>
-
-You can load it on http://localhost:3123
-
-# Environment variables
-
-## 🟢 Configuration
-
-| key | description | default |
-| --- | --- | --- |
-| PEXELS_API_KEY | [your (free) Pexels API key](https://www.pexels.com/api/) |  |
-| LOG_LEVEL | pino log level | info |
-| WHISPER_VERBOSE | whether the output of whisper.cpp should be forwarded to stdout | false |
-| PORT | the port the server will listen on | 3123 |
-
-## ⚙️ System configuration
-
-| key | description | default |
-| --- | --- | --- |
-| KOKORO_MODEL_PRECISION | The size of the Kokoro model to use. Valid options are `fp32`, `fp16`, `q8`, `q4`, `q4f16` | depends, see the descriptions of the docker images above ^^ |
-| CONCURRENCY | [concurrency refers to how many browser tabs are opened in parallel during a render. Each Chrome tab renders web content and then screenshots it.](https://www.remotion.dev/docs/terminology/concurrency). Tweaking this value helps with running the project with limited resources. | depends, see the descriptions of the docker images above ^^ |
-| VIDEO_CACHE_SIZE_IN_BYTES | Cache for [<OffthreadVideo>](https://remotion.dev/docs/offthreadvideo) frames in Remotion. Tweaking this value helps with running the project with limited resources. | depends, see the descriptions of the docker images above ^^ |
-
-## ⚠️ Danger zone
-
-| key | description | default |
-| --- | --- | --- |
-| WHISPER_MODEL | Which whisper.cpp model to use. Valid options are `tiny`, `tiny.en`, `base`, `base.en`, `small`, `small.en`, `medium`, `medium.en`, `large-v1`, `large-v2`, `large-v3`, `large-v3-turbo` | Depends, see the descriptions of the docker images above. For npm, the default option is `medium.en` |
-| DATA_DIR_PATH | the data directory of the project | `~/.ai-agents-az-video-generator` with npm, `/app/data` in the Docker images |
-| DOCKER | whether the project is running in a Docker container | `true` for the docker images, otherwise `false` |
-| DEV | guess! :) | `false` |
-
-# Configuration options
-
-| key | description | default |
-| --- | --- | --- |
-| paddingBack | The end screen, for how long the video should keep playing after the narration has finished (in milliseconds). | 0 |
-| music | The mood of the background music. Get the available options from the GET `/api/music-tags` endpoint. | random |
-| captionPosition | The position where the captions should be rendered. Possible options: `top`, `center`, `bottom`. Default value | `bottom` |
-| captionBackgroundColor | The background color of the active caption item. | `blue` |
-| voice | The Kokoro voice. | `af_heart` |
-| orientation | The video orientation. Possible options are `portrait` and `landscape` | `portrait` |
-| musicVolume | Set the volume of the background music. Possible options are `low` `medium` `high` and `muted` | `high` |
-
-# Usage
-
-## MCP server
-
-## Server URLs
-
-`/mcp/sse`
-
-`/mcp/messages`
-
-## Available tools
-
-- `create-short-video` Creates a short video - the LLM will figure out the right configuration. If you want to use specific configuration, you need to specify those in you prompt.
-- `get-video-status` Somewhat useless, it's meant for checking the status of the video, but since the AI agents aren't really good with the concept of time, you'll probably will end up using the REST API for that anyway.
-
-# REST API
-
-### GET `/health`
-
-Healthcheck endpoint
+### Configuração Avançada
 
 ```bash
-curl --location 'localhost:3123/health'
+# Build completo para produção
+npm run build
+
+# Iniciar em produção
+npm start
+
+# Executar apenas o servidor
+npm run dev:server
+
+# Executar apenas a interface
+npm run dev:ui
 ```
 
-```bash
+## 🎯 Como Usar
+
+### 1. **Criação com IA**
+1. Acesse **IA Scripts** no menu lateral
+2. Digite um tópico (ex: "marketing digital")
+3. Escolha um prompt pré-definido ou crie um personalizado
+4. Clique em **"Gerar Script"**
+5. Use o script gerado no Video Studio
+
+### 2. **Video Studio**
+1. Vá para **Video Studio**
+2. **Etapa 1**: Adicione cenas com texto e palavras-chave
+3. **Etapa 2**: Configure voz, orientação e música
+4. **Etapa 3**: Revise e clique em **"Criar Vídeo"**
+
+### 3. **Gerenciamento**
+- **Dashboard**: Monitore todos os vídeos
+- **Biblioteca**: Organize e busque vídeos
+- **TTS Studio**: Gere áudios personalizados
+- **Configurações**: Personalize padrões
+
+## 🔌 API Reference
+
+### Principais Endpoints
+
+#### **Criação de Vídeos**
+```http
+POST /api/render
+Content-Type: application/json
+
 {
-    "status": "ok"
-}
-```
-
-### POST `/api/short-video`
-
-```bash
-curl --location 'localhost:3123/api/short-video' \
---header 'Content-Type: application/json' \
---data '{
-    "scenes": [
-      {
-        "text": "Hello world!",
-        "searchTerms": ["river"]
-      }
-    ],
-    "config": {
-      "paddingBack": 1500,
-      "music": "chill"
+  "scenes": [
+    {
+      "text": "Texto da cena",
+      "searchTerms": ["palavra1", "palavra2"]
     }
-}'
-```
-
-```bash
-{
-    "videoId": "cma9sjly700020jo25vwzfnv9"
+  ],
+  "config": {
+    "voice": "Paulo",
+    "orientation": "portrait",
+    "language": "pt"
+  }
 }
 ```
 
-### GET `/api/short-video/{id}/status`
-
-```bash
-curl --location 'localhost:3123/api/short-video/cm9ekme790000hysi5h4odlt1/status'
+#### **Status do Vídeo**
+```http
+GET /api/status/:videoId
 ```
 
-```bash
+#### **Geração de TTS**
+```http
+POST /api/generate-tts
+Content-Type: application/json
+
 {
-    "status": "ready"
+  "text": "Texto para converter",
+  "voice": "Paulo",
+  "language": "pt"
 }
 ```
 
-### GET `/api/short-video/{id}`
+#### **Busca de Vídeos**
+```http
+POST /api/search-background-videos
+Content-Type: application/json
 
-```bash
-curl --location 'localhost:3123/api/short-video/cm9ekme790000hysi5h4odlt1'
-```
-
-Response: the binary data of the video.
-
-### GET `/api/short-videos`
-
-```bash
-curl --location 'localhost:3123/api/short-videos'
-```
-
-```bash
 {
-    "videos": [
-        {
-            "id": "cma9wcwfc0000brsi60ur4lib",
-            "status": "processing"
-        }
-    ]
+  "query": "natureza",
+  "count": 5,
+  "orientation": "portrait"
 }
 ```
 
-### DELETE `/api/short-video/{id}`
+### Novos Endpoints v2.0
 
-```bash
-curl --location --request DELETE 'localhost:3123/api/short-video/cma9wcwfc0000brsi60ur4lib'
+- `POST /api/replace-scene-video` - Substituir vídeo de uma cena
+- `POST /api/regenerate-scene-audio` - Regenerar áudio de cena
+- `GET /api/voices` - Listar vozes disponíveis
+- `GET /api/music-tags` - Listar tags de música
+- `GET /api/dashboard/stats` - Estatísticas do dashboard
+
+## 🤖 Model Context Protocol (MCP)
+
+### Servidor MCP Expandido
+
+O servidor MCP v2.0 inclui 7 tools principais:
+
+- **`create-short-video`** - Criar vídeos
+- **`get-video-status`** - Verificar status
+- **`list-videos`** - Listar todos os vídeos
+- **`delete-video`** - Deletar vídeos
+- **`search-videos`** - Buscar vídeos de fundo
+- **`generate-tts`** - Gerar áudio TTS
+- **`get-system-info`** - Informações do sistema
+
+### Conexão MCP
+```
+Endpoint SSE: http://localhost:3000/mcp/sse
+Health Check: http://localhost:3000/mcp/health
 ```
 
-```bash
-{
-    "success": true
-}
+## 🎨 Personalização
+
+### Temas e Estilos
+- **Modo escuro** por padrão com opção de claro
+- **Cores personalizáveis** via tema do Material-UI
+- **Gradientes modernos** em toda a interface
+- **Animações fluidas** com transitions CSS
+
+### Configurações
+- **Vozes padrão** configuráveis
+- **Orientação preferida** (retrato/paisagem)
+- **Qualidade de vídeo** ajustável
+- **Salvamento automático** opcional
+
+## 📈 Monitoramento e Analytics
+
+### Dashboard Analytics
+- **Total de vídeos** criados
+- **Status em tempo real** (processando, concluídos, falharam)
+- **Vídeos de hoje** 
+- **Progresso de renderização** com indicadores visuais
+
+### Sistema de Cache
+- **Cache inteligente** de vídeos de fundo
+- **Limpeza automática** de arquivos antigos
+- **Estatísticas de uso** do cache
+- **Otimização de performance**
+
+## 🔧 Desenvolvimento
+
+### Estrutura do Projeto
+```
+src/
+├── ui/                    # Interface React
+│   ├── components/        # Componentes reutilizáveis
+│   ├── pages/            # Páginas principais
+│   └── styles/           # Estilos globais
+├── server/               # Backend Express
+│   ├── routers/          # Rotas da API
+│   └── routes/           # Endpoints específicos
+├── short-creator/        # Core do processamento
+│   ├── libraries/        # Integrações (FFmpeg, TTS, etc)
+│   └── utils/           # Utilitários
+└── types/               # Definições TypeScript
 ```
 
-### GET `/api/voices`
+### Scripts Disponíveis
+- `npm run dev` - Desenvolvimento completo
+- `npm run build` - Build de produção
+- `npm test` - Executar testes
+- `npm run ui:dev` - Apenas interface
+- `npm run dev:server` - Apenas backend
 
-```bash
-curl --location 'localhost:3123/api/voices'
+## 🚦 Configurações de Produção
+
+### Docker
+```dockerfile
+# Use a imagem oficial
+docker pull gyoridavid/short-video-maker:latest
+
+# Execute o container
+docker run -p 3000:3000 gyoridavid/short-video-maker:latest
 ```
 
-```bash
-[
-    "af_heart",
-    "af_alloy",
-    "af_aoede",
-    "af_bella",
-    "af_jessica",
-    "af_kore",
-    "af_nicole",
-    "af_nova",
-    "af_river",
-    "af_sarah",
-    "af_sky",
-    "am_adam",
-    "am_echo",
-    "am_eric",
-    "am_fenrir",
-    "am_liam",
-    "am_michael",
-    "am_onyx",
-    "am_puck",
-    "am_santa",
-    "bf_emma",
-    "bf_isabella",
-    "bm_george",
-    "bm_lewis",
-    "bf_alice",
-    "bf_lily",
-    "bm_daniel",
-    "bm_fable"
-]
+### Variáveis de Ambiente
+```env
+PORT=3000
+REMOTION_HOST=0.0.0.0
+NODE_ENV=production
 ```
 
-### GET `/api/music-tags`
+## 🤝 Contribuindo
 
-```bash
-curl --location 'localhost:3123/api/music-tags'
-```
+1. **Fork** o projeto
+2. **Crie** uma branch para sua feature (`git checkout -b feature/nova-funcionalidade`)
+3. **Commit** suas mudanças (`git commit -am 'Adiciona nova funcionalidade'`)
+4. **Push** para a branch (`git push origin feature/nova-funcionalidade`)
+5. **Abra** um Pull Request
 
-```bash
-[
-    "sad",
-    "melancholic",
-    "happy",
-    "euphoric/high",
-    "excited",
-    "chill",
-    "uneasy",
-    "angry",
-    "dark",
-    "hopeful",
-    "contemplative",
-    "funny/quirky"
-]
-```
+## 📄 Licença
 
-# Troubleshooting
+Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
 
-## Docker
+## 🙏 Agradecimentos
 
-The server needs at least 3gb free memory. Make sure to allocate enough RAM to Docker.
+- **Remotion** - Framework de vídeo programático
+- **Material-UI** - Componentes React modernos
+- **FFmpeg** - Processamento de vídeo
+- **Model Context Protocol** - Integração com IA
 
-If you are running the server from Windows and via wsl2, you need to set the resource limits from the [wsl utility 2](https://learn.microsoft.com/en-us/windows/wsl/wsl-config#configure-global-options-with-wslconfig) - otherwise set it from Docker Desktop. (Ubuntu is not restricting the resources unless specified with the run command).
+---
 
-## NPM
+**Desenvolvido com ❤️ para criadores de conteúdo**
 
-Make sure all the necessary packages are installed.
-
-# n8n
-
-Setting up the MCP (or REST) server depends on how you run n8n and the server. Please follow the examples from the matrix below.
-
-|  | n8n is running locally, using `n8n start` | n8n is running locally using Docker | n8n is running in the cloud |
-| --- | --- | --- | --- |
-| `short-video-maker` is running in Docker, locally | `http://localhost:3123` | It depends. You can technically use `http://host.docker.internal:3123` as it points to the host, but you could configure to use the same network and use the service name to communicate like `http://short-video-maker:3123` | won't work - deploy `short-video-maker` to the cloud |
-| `short-video-maker` is running with npm/npx | `http://localhost:3123` | `http://host.docker.internal:3123` | won't work - deploy `short-video-maker` to the cloud |
-| `short-video-maker` is running in the cloud | You should use your IP address `http://{YOUR_IP}:3123` | You should use your IP address `http://{YOUR_IP}:3123` | You should use your IP address `http://{YOUR_IP}:3123` |
-
-# Deploying to the cloud
-
-While each VPS provider is different, and it's impossible to provide configuration to all of them, here are some tips.
-
-- Use Ubuntu ≥ 22.04
-- Have ≥ 4gb RAM, ≥ 2vCPUs and ≥5gb storage
-- Run the server directly with Node.js:
-  ```bash
-  npm run build
-  npm start
-  ```
-- Put the environment variables to the `.bashrc` file (or similar)
-
-# FAQ
-
-## Can I use other languages? (French, German etc.)
-
-Unfortunately, it's not possible at the moment. Kokoro-js only supports English.
-
-## Can I pass in images and videos and can it stitch it together
-
-No
-
-## Should I run the project with `npm` or `docker`?
-
-Docker is the recommended way to run the project.
-
-## How much GPU is being used for the video generation?
-
-Honestly, not a lot - only whisper.cpp can be accelerated.
-
-Remotion is CPU-heavy, and [Kokoro-js](https://github.com/hexgrad/kokoro) runs on the CPU.
-
-## Is there a UI that I can use to generate the videos
-
-No (t yet)
-
-## Can I select different source for the videos than Pexels, or provide my own video
-
-No
-
-## Can the project generate videos from images?
-
-No
-
-## Dependencies for the video generation
-
-| Dependency                                             | Version  | License                                                                           | Purpose                         |
-| ------------------------------------------------------ | -------- | --------------------------------------------------------------------------------- | ------------------------------- |
-| [Remotion](https://remotion.dev/)                      | ^4.0.286 | [Remotion License](https://github.com/remotion-dev/remotion/blob/main/LICENSE.md) | Video composition and rendering |
-| [Whisper CPP](https://github.com/ggml-org/whisper.cpp) | v1.5.5   | MIT                                                                               | Speech-to-text for captions     |
-| [FFmpeg](https://ffmpeg.org/)                          | ^2.1.3   | LGPL/GPL                                                                          | Audio/video manipulation        |
-| [Kokoro.js](https://www.npmjs.com/package/kokoro-js)   | ^1.2.0   | MIT                                                                               | Text-to-speech generation       |
-| [Pexels API](https://www.pexels.com/api/)              | N/A      | [Pexels Terms](https://www.pexels.com/license/)                                   | Background videos               |
-
-## How to contribute?
-
-PRs are welcome.
-See the [CONTRIBUTING.md](CONTRIBUTING.md) file for instructions on setting up a local development environment.
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
-
-## Acknowledgments
-
-- ❤️ [Remotion](https://remotion.dev/) for programmatic video generation
-- ❤️ [Whisper](https://github.com/ggml-org/whisper.cpp) for speech-to-text
-- ❤️ [Pexels](https://www.pexels.com/) for video content
-- ❤️ [FFmpeg](https://ffmpeg.org/) for audio/video processing
-- ❤️ [Kokoro](https://github.com/hexgrad/kokoro) for TTS
+[![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/seu-usuario/short-video-maker)
+[![Discord](https://img.shields.io/badge/Discord-7289DA?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/seu-servidor) 

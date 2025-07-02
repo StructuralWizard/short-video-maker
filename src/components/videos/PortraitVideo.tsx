@@ -107,7 +107,10 @@ export const PortraitVideo: FC<Props> = ({
 
   // Calculate total duration including automatic 3-second fade out
   const fadeOutDuration = 3; // 3 segundos de fade out
-  const narrationDuration = scenes.reduce((acc, curr) => acc + curr.audio.duration, 0);
+  const narrationDuration = scenes.reduce((acc, curr) => {
+    const duration = curr.audio?.duration || 0;
+    return acc + (isNaN(duration) ? 0 : duration);
+  }, 0);
   const totalDurationInFrames = Math.round((narrationDuration + fadeOutDuration) * fps);
 
   // Ensure music starts from 0 if the start time would make it end before the video
@@ -357,7 +360,7 @@ export const PortraitVideo: FC<Props> = ({
         const startFrame =
           scenes.slice(0, i).reduce((acc, curr) => {
             const duration = curr.audio?.duration || 0;
-            const validDuration = isNaN(duration) ? 0 : duration;
+            const validDuration = isNaN(duration) ? 0 : Math.max(0, duration);
             console.log(`[PortraitVideo] Scene ${i} - reducing scene ${scenes.indexOf(curr)}: duration=${duration}, validDuration=${validDuration}, acc=${acc}`);
             return acc + validDuration;
           }, 0) * fps;

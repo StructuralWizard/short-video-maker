@@ -1839,7 +1839,7 @@ export class ShortCreator {
     // Garantir propriedades essenciais do config
     processedData.config = {
       orientation: processedData.config.orientation || "portrait",
-      voice: processedData.config.voice || "af_heart",
+              voice: processedData.config.voice || "Paulo",
       language: processedData.config.language || "pt",
       ...processedData.config
     };
@@ -1929,7 +1929,7 @@ export class ShortCreator {
         logger.warn({ videoId }, "[EDIT-RENDER] No config found, using defaults");
         editedData.config = {
           orientation: "portrait",
-          voice: "af_heart",
+          voice: "Paulo",
           language: "pt"
         };
       }
@@ -1937,7 +1937,7 @@ export class ShortCreator {
       // Garantir que config tem propriedades essenciais
       editedData.config = {
         orientation: editedData.config.orientation || "portrait",
-        voice: editedData.config.voice || "af_heart", 
+        voice: editedData.config.voice || "Paulo", 
         language: editedData.config.language || "pt",
         ...editedData.config
       };
