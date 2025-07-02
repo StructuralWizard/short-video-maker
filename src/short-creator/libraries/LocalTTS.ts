@@ -29,14 +29,14 @@ export class LocalTTS {
   async generateSpeech(
     text: string,
     outputPath: string,
-    emotion: string = "neutral",
+    voice: string = "Paulo",
     language: string = "pt",
     referenceAudioPath?: string
   ): Promise<{ audioPath: string, subtitles: any[], duration: number }> {
     logger.info("🚀 Iniciando geração de áudio com TTS", {
       text,
       outputPath,
-      emotion,
+      voice,
       language,
       referenceAudioPath,
     });
@@ -80,7 +80,7 @@ export class LocalTTS {
           // Tentar gerar áudio para esta frase
           chunkAudioPath = await this.generateSingleChunk(
             sentenceForTTS,
-            referenceAudioPath,
+            voice,
             language,
             i
           );
@@ -150,7 +150,7 @@ export class LocalTTS {
         error,
         text,
         outputPath,
-        emotion,
+        voice,
         language,
         referenceAudioPath,
         errorMessage: axiosError.message,
@@ -170,24 +170,18 @@ export class LocalTTS {
 
   private async generateSingleChunk(
     text: string,
-    referenceAudioPath?: string,
+    voice: string,
     language: string = "pt",
     chunkIndex: number = 0
   ): Promise<string> {
-    const refPath = referenceAudioPath || this.config.referenceAudioPath;
+    // Usar a voz como nome do arquivo de referência
+    let refFileName = voice || "Paulo"; // Default para Paulo se não especificado
     
-    // Processar o nome do arquivo de referência
-    let refFileName = "default"; // Fallback padrão
-    
-    if (refPath) {
-      // Se refPath contém separadores de caminho, extrair apenas o basename sem extensão
-      if (refPath.includes('/') || refPath.includes('\\')) {
-        refFileName = path.basename(refPath, path.extname(refPath));
-      } else {
-        // Se é apenas um nome, usar como está (sem extensão se tiver)
-        refFileName = refPath.replace(/\.(wav|mp3|m4a)$/i, '');
-      }
-    }
+    logger.debug("Using voice as reference audio", { 
+      voice, 
+      refFileName,
+      text: text.substring(0, 50) + "..." 
+    });
     
     // Criar nome único para o chunk
     const chunkId = `chunk_${chunkIndex}_${Date.now()}`;
@@ -206,7 +200,7 @@ export class LocalTTS {
     logger.debug("TTS request data", {
       text,
       language,
-      originalRefPath: refPath,
+      voice,
       processedRefFileName: refFileName,
       requestData
     });

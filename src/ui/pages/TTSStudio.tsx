@@ -68,12 +68,6 @@ const TTSStudio: React.FC = () => {
     setSuccess(null);
 
     try {
-      console.log('🎵 Enviando requisição TTS:', { 
-        text: text.trim(), 
-        voice, 
-        language 
-      });
-      
       const response = await axios.post('/api/generate-tts', {
         text: text.trim(),
         voice,
