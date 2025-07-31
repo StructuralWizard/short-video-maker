@@ -126,6 +126,7 @@ export interface Video {
   width: number;
   height: number;
   duration: number;
+  thumbnail?: string; // Preview image URL for better thumbnails
   status?: "pending" | "processing" | "completed" | "failed";
   sceneInput?: SceneInput[];
   config?: RenderConfig;

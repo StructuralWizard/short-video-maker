@@ -76,9 +76,14 @@ cd short-video-maker
 npm install --legacy-peer-deps
 npm install --save-dev cross-env --legacy-peer-deps
 
+# Adicione a pasta com as vozes de origem
+\short-video-maker\reference_audio
 
 # Configure as dependências Python para TTS
-pip install -r requirements.txt
+cd "\short-video-maker\scripts\tts" && pip install -r requirements.txt
+
+# Inicie o servidor de TTS
+cd "\short-video-maker\scripts\tts" && python tts_service.py
 
 # Inicie o servidor de desenvolvimento
 npm run dev

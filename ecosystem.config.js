@@ -14,10 +14,10 @@ module.exports = {
     env: {
       NODE_ENV: "production",
       PORT: 3123,
-      PATH: '/Users/nino/.pyenv/versions/3.10.17/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin',
-      PYTHONPATH: '/Users/nino/.pyenv/versions/3.10.17/lib/python3.10/site-packages',
-      PYTHONHOME: '/Users/nino/.pyenv/versions/3.10.17',
-      LD_LIBRARY_PATH: '/Users/nino/.pyenv/versions/3.10.17/lib'
+      PATH: process.env.PATH,
+      PYTHONPATH: process.env.PYTHONPATH,
+      PYTHONHOME: process.env.PYTHONHOME,
+      LD_LIBRARY_PATH: process.env.LD_LIBRARY_PATH
     },
     env_development: {
       NODE_ENV: "development"

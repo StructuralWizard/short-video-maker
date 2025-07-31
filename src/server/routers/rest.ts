@@ -842,9 +842,14 @@ export class APIRouter {
           const response = await result.response;
           const text = response.text();
           logger.info(`Gemini response received: ${text.length} characters`);
+          logger.info(`Gemini response: ${JSON.stringify(response)}`);
           return text;
         } catch (error) {
-          logger.error('Gemini API error:', error);
+          logger.error('Gemini API error details:', {
+            error: error,
+            message: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined
+          });
           throw new Error(`Gemini API failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       }

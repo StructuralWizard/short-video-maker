@@ -42,6 +42,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SaveIcon from '@mui/icons-material/Save';
 import GraphicEqIcon from '@mui/icons-material/GraphicEq';
 import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
+import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
 import { nanoid } from 'nanoid';
 
 interface Scene {
@@ -69,6 +70,7 @@ interface VideoSearchResult {
   duration: number;
   width: number;
   height: number;
+  thumbnail?: string; // Add thumbnail support
 }
 
 const VideoEditor: React.FC = () => {
@@ -99,6 +101,132 @@ const VideoEditor: React.FC = () => {
   const [currentPlayingUrl, setCurrentPlayingUrl] = useState<string | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
+  // Component for better video preview with thumbnail and play overlay
+  const VideoPreview: React.FC<{ 
+    video: VideoSearchResult; 
+    onClick: () => void; 
+    showPlayButton?: boolean;
+  }> = ({ video, onClick, showPlayButton = true }) => {
+    const [isVideoLoaded, setIsVideoLoaded] = useState(false);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const videoRef = useRef<HTMLVideoElement>(null);
+
+    const handleVideoPlay = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (videoRef.current) {
+        if (isPlaying) {
+          videoRef.current.pause();
+          setIsPlaying(false);
+        } else {
+          videoRef.current.play();
+          setIsPlaying(true);
+        }
+      }
+    };
+
+    return (
+      <Card sx={{ 
+        width: '100%', 
+        height: 84, 
+        backgroundColor: '#000',
+        position: 'relative',
+        cursor: 'pointer',
+        overflow: 'hidden'
+      }}
+      onClick={onClick}
+      >
+        {video.thumbnail ? (
+          <>
+            {/* Thumbnail image */}
+            <Box
+              component="img"
+              src={video.thumbnail}
+              alt={`Video ${video.id} thumbnail`}
+              sx={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: isVideoLoaded ? 'none' : 'block'
+              }}
+              onError={() => {
+                // If thumbnail fails to load, show video instead
+                setIsVideoLoaded(true);
+              }}
+            />
+            {/* Video element (hidden initially, shown when thumbnail is clicked or fails) */}
+            <video
+              ref={videoRef}
+              src={getPreviewUrl(video.url, true)}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: isVideoLoaded ? 'block' : 'none',
+                background: '#000'
+              }}
+              muted
+              onLoadedData={() => setIsVideoLoaded(true)}
+              onEnded={() => setIsPlaying(false)}
+              onError={() => console.error("Video preview error for:", video.id)}
+            />
+            {/* Play button overlay */}
+            {showPlayButton && (
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 40,
+                  height: 40,
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    transform: 'translate(-50%, -50%) scale(1.1)',
+                  }
+                }}
+                onClick={handleVideoPlay}
+              >
+                <PlayCircleOutlineIcon sx={{ color: 'white', fontSize: 24 }} />
+              </Box>
+            )}
+            {/* Duration badge */}
+            <Box
+              sx={{
+                position: 'absolute',
+                bottom: 4,
+                right: 4,
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                color: 'white',
+                padding: '2px 6px',
+                borderRadius: 1,
+                fontSize: '0.75rem',
+                fontWeight: 500
+              }}
+            >
+              {formatDuration(video.duration)}
+            </Box>
+          </>
+        ) : (
+          // Fallback to video element if no thumbnail
+          <video
+            src={getPreviewUrl(video.url, true)}
+            style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }}
+            muted
+            autoPlay
+            loop
+            onError={() => console.error("Video preview error for:", video.id)}
+          />
+        )}
+      </Card>
+    );
+  };
+
   const getPreviewUrl = (url: string, isSearchResult: boolean = false): string => {
     // Se a URL já é local (começa com /), usa diretamente
     if (url.startsWith('/')) {
@@ -126,12 +254,15 @@ const VideoEditor: React.FC = () => {
       return url;
     }
     
-    // Para URLs externas reais (como Pexels), usa o proxy
+    // Para URLs externas (como Pexels), use a URL direta para previews de pesquisa
+    // Isso evita problemas de proxy em desenvolvimento
+    if (isSearchResult) {
+      return url; // Use direct URL to avoid proxy issues for search results
+    }
+    
+    // Para URLs externas reais (como Pexels), usa o proxy apenas para uso não-preview
     const path = url.replace(/https?:\/\/[^/]+/, '');
     const baseUrl = `/api/proxy${path}`;
-    if (isSearchResult) {
-      return `${baseUrl}?nocache=true`;
-    }
     return baseUrl;
   };
 
@@ -606,25 +737,40 @@ const VideoEditor: React.FC = () => {
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>Search and Replace Video</DialogTitle>
+        <DialogTitle>
+          <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Typography variant="h6">Search and Replace Video</Typography>
+            <Typography variant="caption" color="text.secondary">
+              Scene {currentSceneIndex + 1} • Video {currentVideoIndex + 1}
+            </Typography>
+          </Box>
+        </DialogTitle>
         <DialogContent>
-          <TextField
-            fullWidth
-            variant="outlined"
-            placeholder="Search for videos..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSearchVideos()}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton onClick={handleSearchVideos} edge="end">
-                    {searching ? <CircularProgress size={20} /> : <SearchIcon />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
+          <Box sx={{ mb: 2 }}>
+            <TextField
+              fullWidth
+              variant="outlined"
+              placeholder="Search for videos (e.g., nature, ocean, city, animals...)"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSearchVideos()}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton 
+                      onClick={handleSearchVideos} 
+                      edge="end"
+                      disabled={searching || !searchTerm.trim()}
+                      color="primary"
+                    >
+                      {searching ? <CircularProgress size={20} /> : <SearchIcon />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+              helperText="Click on a video thumbnail below to replace the current video, or use the play button to preview"
+            />
+          </Box>
           <List sx={{ mt: 2 }}>
             {searching ? (
               <Box display="flex" justifyContent="center" py={3}><CircularProgress /></Box>
@@ -635,38 +781,62 @@ const VideoEditor: React.FC = () => {
                   button 
                   onClick={() => handleReplaceVideo(video)}
                   divider
+                  sx={{
+                    '&:hover': {
+                      backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                    }
+                  }}
                 >
-                  <Grid container alignItems="center">
+                  <Grid container alignItems="center" spacing={2}>
                     <Grid item xs={8}>
                       <ListItemText 
                         primary={`Video ${index + 1}`}
-                        secondary={`Duration: ${formatDuration(video.duration)}`}
+                        secondary={
+                          <Box>
+                            <Typography variant="body2" color="text.secondary">
+                              Duration: {formatDuration(video.duration)}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {video.width}x{video.height} • ID: {video.id}
+                            </Typography>
+                          </Box>
+                        }
                       />
                     </Grid>
                     <Grid item xs={4}>
-                      <Card sx={{ width: '100%', height: 84, backgroundColor: '#000' }}>
-                        <video
-                          src={getPreviewUrl(video.url, true)}
-                          height="84"
-                          style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }}
-                          muted
-                          autoPlay
-                          loop
-                        />
-                      </Card>
+                      <VideoPreview 
+                        video={video}
+                        onClick={() => handleReplaceVideo(video)}
+                        showPlayButton={true}
+                      />
                     </Grid>
                   </Grid>
                 </ListItem>
               ))
             ) : (
-              <Typography align="center" color="text.secondary" sx={{ py: 3 }}>
-                No search results.
-              </Typography>
+              <Box textAlign="center" py={4}>
+                <Typography variant="body1" color="text.secondary" gutterBottom>
+                  No videos found for your search.
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Try different keywords or check your internet connection.
+                </Typography>
+              </Box>
             )}
           </List>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setSearchDialogOpen(false)}>Close</Button>
+          <Button onClick={() => setSearchDialogOpen(false)} variant="outlined">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSearchVideos} 
+            variant="contained" 
+            disabled={searching || !searchTerm.trim()}
+            startIcon={searching ? <CircularProgress size={16} /> : <SearchIcon />}
+          >
+            {searching ? 'Searching...' : 'Search'}
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
