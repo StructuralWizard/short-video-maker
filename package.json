@@ -7,7 +7,7 @@
   "homepage": "https://github.com/gyoridavid/short-video-maker",
   "scripts": {
     "build": "rimraf dist && tsc --project tsconfig.build.json && vite build && vite build --config vite.remotion.config.ts",
-    "dev": "REMOTION_HOST=0.0.0.0 concurrently \"npm:dev:server\" \"npm:dev:ui\"",
+    "dev": "cross-env REMOTION_HOST=0.0.0.0 concurrently \"npm:dev:server\" \"npm:dev:ui\"",
     "dev:server": "tsx watch src/index.ts",
     "dev:ui": "vite",
     "start": "node dist/index.js",
@@ -100,6 +100,7 @@
     "@vitejs/plugin-react": "^4.4.1",
     "autoprefixer": "^10.4.16",
     "concurrently": "^9.1.2",
+    "cross-env": "^10.0.0",
     "eslint": "^9.24.0",
     "postcss": "^8.4.31",
     "prettier": "^3.5.3",

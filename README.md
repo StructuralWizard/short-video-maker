@@ -1,4 +1,4 @@
-# 🎬 Short Video Maker v2.0
+# Short Video Maker v2.0
 
 > **Criador profissional de vídeos curtos com IA** - Uma plataforma completa para criar vídeos para TikTok, Instagram Reels e YouTube Shorts
 
@@ -6,59 +6,59 @@
 ![Node.js](https://img.shields.io/badge/node.js-18+-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
-## ✨ Novidades da Versão 2.0
+## Novidades da Versão 2.0
 
-### 🎨 **Interface Completamente Renovada**
+### **Interface Completamente Renovada**
 - **Design moderno** com tema escuro e gradientes
 - **Dashboard intuitivo** com estatísticas em tempo real
 - **Sidebar navegação** com acesso rápido a todas as funcionalidades
 - **Componentes modernos** com Material-UI e animações fluidas
 
-### 🤖 **IA para Geração de Scripts**
+### **IA para Geração de Scripts**
 - **Gerador automático** de roteiros com prompts personalizáveis
 - **Biblioteca de prompts** pré-definidos para diferentes nichos
 - **Sistema de salvamento** de prompts personalizados
 - **Integração perfeita** com o Video Studio
 
-### 🔧 **Funcionalidades Avançadas**
+### **Funcionalidades Avançadas**
 - **Busca e substituição** inteligente de vídeos de fundo
 - **Regeneração de áudio** para cenas específicas
 - **Sistema de cache** otimizado para vídeos
 - **Processamento em background** com filas inteligentes
 
-### 📚 **Documentação Completa**
+### **Documentação Completa**
 - **API Reference** integrada na interface
 - **Servidor MCP** expandido com 7+ tools
 - **Guias de uso** detalhados
 - **Exemplos práticos** de implementação
 
-## 🚀 Funcionalidades Principais
+## Funcionalidades Principais
 
-### 📺 **Video Studio**
+### **Video Studio**
 - **Criação guiada** em 3 etapas: Roteiro → Configurações → Revisão
 - **Editor visual** de cenas com preview em tempo real
 - **Configurações avançadas** de voz, música e legendas
 - **Sistema de templates** para reutilização
 
-### 🎙️ **TTS Studio Avançado**
+### **TTS Studio Avançado**
 - **Múltiplas vozes** disponíveis (masculinas e femininas)
 - **Suporte a idiomas** (Português e Inglês)
 - **Áudio de referência** para clonagem de voz
 - **Biblioteca de áudios** gerados com reprodução integrada
 
-### 📊 **Dashboard Inteligente**
+### **Dashboard Inteligente**
 - **Estatísticas em tempo real** de todos os vídeos
 - **Progresso de renderização** com indicadores visuais
 - **Ações rápidas** para criação e gerenciamento
 - **Vídeos recentes** com acesso direto
 
-### 🎬 **Biblioteca de Vídeos**
+### **Biblioteca de Vídeos**
 - **Visualização em grid** com filtros avançados
 - **Busca inteligente** por conteúdo e status
 - **Ações em massa** para gerenciamento
 - **Preview integrado** dos vídeos
 
-## 🛠️ Instalação e Configuração
+## Instalação e Configuração
 
 ### Pré-requisitos
 - **Node.js** 18+ 
@@ -73,7 +73,9 @@ git clone https://github.com/seu-usuario/short-video-maker.git
 cd short-video-maker
 
 # Instale as dependências
-npm install
+npm install --legacy-peer-deps
+npm install --save-dev cross-env --legacy-peer-deps
+
 
 # Configure as dependências Python para TTS
 pip install -r requirements.txt
@@ -98,7 +100,7 @@ npm run dev:server
 npm run dev:ui
 ```
 
-## 🎯 Como Usar
+## Como Usar
 
 ### 1. **Criação com IA**
 1. Acesse **IA Scripts** no menu lateral
@@ -119,7 +121,7 @@ npm run dev:ui
 - **TTS Studio**: Gere áudios personalizados
 - **Configurações**: Personalize padrões
 
-## 🔌 API Reference
+## API Reference
 
 ### Principais Endpoints
 
@@ -180,7 +182,7 @@ Content-Type: application/json
 - `GET /api/music-tags` - Listar tags de música
 - `GET /api/dashboard/stats` - Estatísticas do dashboard
 
-## 🤖 Model Context Protocol (MCP)
+## Model Context Protocol (MCP)
 
 ### Servidor MCP Expandido
 
@@ -200,7 +202,7 @@ Endpoint SSE: http://localhost:3000/mcp/sse
 Health Check: http://localhost:3000/mcp/health
 ```
 
-## 🎨 Personalização
+## Personalização
 
 ### Temas e Estilos
 - **Modo escuro** por padrão com opção de claro
@@ -214,7 +216,7 @@ Health Check: http://localhost:3000/mcp/health
 - **Qualidade de vídeo** ajustável
 - **Salvamento automático** opcional
 
-## 📈 Monitoramento e Analytics
+## Monitoramento e Analytics
 
 ### Dashboard Analytics
 - **Total de vídeos** criados
@@ -228,7 +230,7 @@ Health Check: http://localhost:3000/mcp/health
 - **Estatísticas de uso** do cache
 - **Otimização de performance**
 
-## 🔧 Desenvolvimento
+## Desenvolvimento
 
 ### Estrutura do Projeto
 ```
@@ -253,7 +255,7 @@ src/
 - `npm run ui:dev` - Apenas interface
 - `npm run dev:server` - Apenas backend
 
-## 🚦 Configurações de Produção
+## Configurações de Produção
 
 ### Docker
 ```dockerfile
@@ -271,7 +273,7 @@ REMOTION_HOST=0.0.0.0
 NODE_ENV=production
 ```
 
-## 🤝 Contribuindo
+## Contribuindo
 
 1. **Fork** o projeto
 2. **Crie** uma branch para sua feature (`git checkout -b feature/nova-funcionalidade`)
@@ -279,11 +281,11 @@ NODE_ENV=production
 4. **Push** para a branch (`git push origin feature/nova-funcionalidade`)
 5. **Abra** um Pull Request
 
-## 📄 Licença
+## Licença
 
 Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
 
-## 🙏 Agradecimentos
+## Agradecimentos
 
 - **Remotion** - Framework de vídeo programático
 - **Material-UI** - Componentes React modernos
@@ -295,4 +297,4 @@ Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para ma
 **Desenvolvido com ❤️ para criadores de conteúdo**
 
 [![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/seu-usuario/short-video-maker)
-[![Discord](https://img.shields.io/badge/Discord-7289DA?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/seu-servidor) 
+[![Discord](https://img.shields.io/badge/Discord-7289DA?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/seu-servidor)
