@@ -1,0 +1,246 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "videoStudio": "Video Studio",
+    "aiScripts": "AI Scripts",
+    "library": "Library",
+    "ttsStudio": "TTS Studio",
+    "settings": "Settings",
+    "apiDocs": "API Docs",
+    "description": {
+      "dashboard": "Overview and statistics",
+      "videoStudio": "Create new videos",
+      "aiScripts": "AI script generator",
+      "library": "Manage videos",
+      "ttsStudio": "Audio generation",
+      "settings": "System settings",
+      "apiDocs": "API documentation"
+    }
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Welcome back! Here's your video creation overview",
+    "quickActions": "Quick Actions",
+    "createNewVideo": "Create New Video",
+    "generateAIScript": "Generate AI Script",
+    "goToLibrary": "Go to Library",
+    "stats": {
+      "totalVideos": "Total Videos",
+      "completedVideos": "Completed",
+      "processingVideos": "Processing",
+      "failedVideos": "Failed"
+    },
+    "recentVideos": "Recent Videos",
+    "noVideos": "No videos created yet",
+    "status": {
+      "ready": "Completed",
+      "processing": "Processing",
+      "failed": "Failed",
+      "pending": "Pending",
+      "unknown": "Unknown"
+    },
+    "timeAgo": {
+      "now": "Just now",
+      "minutesAgo": "{{count}}m ago",
+      "hoursAgo": "{{count}}h ago",
+      "daysAgo": "{{count}}d ago"
+    }
+  },
+  "videoStudio": {
+    "title": "Video Studio",
+    "subtitle": "Create amazing videos in 3 simple steps",
+    "steps": {
+      "script": "Script & Scenes",
+      "settings": "Settings",
+      "review": "Review & Creation"
+    },
+    "scenes": {
+      "title": "Video Scenes",
+      "addScene": "Add Scene",
+      "generateAI": "Generate with AI",
+      "sceneText": "Scene text",
+      "searchTerms": "Search terms",
+      "searchTermsHelper": "Keywords to search for related videos, separated by comma",
+      "sceneNumber": "Scene {{number}}"
+    },
+    "config": {
+      "audioSettings": "Audio Settings",
+      "voice": "Voice",
+      "language": "Language",
+      "videoSettings": "Video Settings",
+      "orientation": "Orientation",
+      "captionPosition": "Caption Position",
+      "musicSettings": "Music Settings",
+      "musicMood": "Music Mood",
+      "musicVolume": "Music Volume",
+      "videoConfig": "Video Configuration",
+      "timeAfterSpeech": "Time after speech (ms)",
+      "timeAfterSpeechHelper": "Video time after narration ends",
+      "captionBackgroundColor": "Caption background color",
+      "captionTextColor": "Caption text color"
+    },
+    "review": {
+      "title": "Final Review",
+      "summary": "Summary",
+      "orientation": "Orientation:",
+      "voice": "Voice:",
+      "music": "Music:",
+      "language": "Language:"
+    },
+    "buttons": {
+      "back": "Back",
+      "next": "Next",
+      "createVideo": "Create Video",
+      "creating": "Creating..."
+    },
+    "orientations": {
+      "portrait": "Portrait (9:16)",
+      "landscape": "Landscape (16:9)",
+      "square": "Square (1:1)"
+    },
+    "captions": {
+      "top": "Top",
+      "center": "Center",
+      "bottom": "Bottom"
+    },
+    "languages": {
+      "pt": "Portuguese",
+      "en": "English"
+    }
+  },
+  "aiScripts": {
+    "title": "AI Script Generator",
+    "subtitle": "Create engaging scripts for your videos with artificial intelligence",
+    "form": {
+      "scriptConfig": "Script Configuration",
+      "scriptType": "Script Type",
+      "videoTopic": "Video Topic",
+      "videoTopicPlaceholder": "E.g., How to increase productivity working from home",
+      "style": "Style",
+      "duration": "Duration",
+      "customPrompt": "Custom Prompt (Optional)",
+      "customPromptPlaceholder": "Describe specific instructions for your script...",
+      "quickTemplates": "Quick Templates:",
+      "videoConfig": "Video Configuration (Optional)",
+      "voice": "Voice",
+      "music": "Music",
+      "overlay": "Overlay",
+      "generateScript": "Generate AI Script",
+      "generating": "Generating Script...",
+      "createVideo": "Create Video",
+      "creating": "Creating..."
+    },
+    "musicMoods": {
+      "happy": "Happy",
+      "sad": "Sad",
+      "excited": "Excited",
+      "chill": "Chill",
+      "inspirational": "Inspirational",
+      "cinematic": "Cinematic",
+      "worship": "Worship"
+    },
+    "overlays": {
+      "none": "None",
+      "jornada": "Journey",
+      "jornadaLandscape": "Journey Landscape",
+      "jornadaOrange": "Journey Orange",
+      "whatsappBanner": "WhatsApp Banner"
+    },
+    "result": {
+      "generatedScript": "Generated Script",
+      "editingKeywords": "Editing keywords for background videos:",
+      "visualSuggestion": "Visual Suggestion:",
+      "keywords": "Keywords for background videos:",
+      "metadata": "Metadata",
+      "aiProvider": "AI Provider:",
+      "duration": "Duration:",
+      "createdAt": "Created at:",
+      "scriptPlaceholder": "Your script will appear here",
+      "scriptInstructions": "Configure the parameters and click \"Generate Script with AI\"",
+      "scriptGeneratedSuccess": "Script generated successfully using {{provider}}! {{scenes}} scenes, ~{{duration}}s estimated duration.",
+      "noScriptError": "No script generated to create video"
+    }
+  },
+  "ttsStudio": {
+    "title": "TTS Studio",
+    "subtitle": "Generate high-quality audio from text",
+    "form": {
+      "audioGeneration": "Audio Generation",
+      "textLabel": "Text to generate audio",
+      "textPlaceholder": "Enter the text you want to convert to audio...",
+      "language": "Language",
+      "voice": "Voice",
+      "generateButton": "Generate Audio",
+      "generating": "Generating..."
+    },
+    "audios": {
+      "title": "Generated Audios ({{count}})",
+      "noAudios": "No audio generated yet",
+      "duration": "Duration: {{duration}}"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Customize your experience",
+    "videoDefaults": "Video Defaults",
+    "preferences": "Preferences",
+    "defaultVoice": "Default Voice",
+    "defaultLanguage": "Default Language",
+    "defaultOrientation": "Default Orientation",
+    "defaultMusicVolume": "Default Music Volume",
+    "autoSave": "Auto Save",
+    "notifications": "Notifications",
+    "darkMode": "Dark Mode",
+    "videoQuality": "Video Quality",
+    "saveSettings": "Save Settings",
+    "restoreDefaults": "Restore Defaults",
+    "settingsSaved": "Settings saved successfully!"
+  },
+  "library": {
+    "title": "Video Library",
+    "subtitle": "Manage and view your created videos",
+    "video": "Video {{id}}...",
+    "createdOn": "Created on {{date}}",
+    "download": "Download",
+    "approve": "Approve",
+    "approving": "Approving...",
+    "reject": "Reject",
+    "rejecting": "Rejecting...",
+    "delete": "Delete",
+    "edit": "Edit Video"
+  },
+  "apiDocs": {
+    "title": "API Documentation",
+    "subtitle": "Complete reference for the Short Video Maker API",
+    "endpoints": "Available Endpoints",
+    "createVideo": "Create a new video",
+    "listVideos": "List all videos",
+    "getVideoStatus": "Get video status",
+    "deleteVideo": "Delete a video",
+    "generateTTS": "Generate TTS audio"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "download": "Download",
+    "play": "Play",
+    "stop": "Stop",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "portuguese": "Portuguese",
+    "english": "English",
+    "spanish": "Spanish",
+    "language": "Language",
+    "createdAt": "Created at",
+    "lastUpdate": "Last update: {{time}}"
+  },
+  "errors": {
+    "videoCreationFailed": "Failed to create video",
+    "audioGenerationFailed": "Failed to generate audio",
+    "deleteVideoFailed": "Error deleting video. Please try again.",
+    "unexpectedError": "Unexpected error occurred"
+  }
+}

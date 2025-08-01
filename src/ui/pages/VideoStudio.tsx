@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   Typography,
@@ -55,17 +56,22 @@ interface FormData {
   config: RenderConfig;
 }
 
-const steps = ['Roteiro & Cenas', 'Configurações', 'Revisão & Criação'];
-
 const VideoStudio: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [videoId, setVideoId] = useState<string | null>(null);
   const [loadingOptions, setLoadingOptions] = useState(false);
+
+  const steps = [
+    t('videoStudio.steps.script'),
+    t('videoStudio.steps.settings'), 
+    t('videoStudio.steps.review')
+  ];
 
   const [formData, setFormData] = useState<FormData>({
     scenes: [
@@ -214,7 +220,7 @@ const VideoStudio: React.FC = () => {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h6" sx={{ fontWeight: 600 }}>
-          Cenas do Vídeo
+          {t('videoStudio.scenes.title')}
         </Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Button
@@ -223,14 +229,14 @@ const VideoStudio: React.FC = () => {
             onClick={generateAIScript}
             sx={{ mr: 1 }}
           >
-            Gerar com IA
+            {t('videoStudio.scenes.generateAI')}
           </Button>
           <Button
             variant="contained"
             startIcon={<AddIcon />}
             onClick={addScene}
           >
-            Adicionar Cena
+            {t('videoStudio.scenes.addScene')}
           </Button>
         </Box>
       </Box>
@@ -249,7 +255,7 @@ const VideoStudio: React.FC = () => {
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 600, flex: 1 }}>
-                Cena {index + 1}
+                {t('videoStudio.scenes.sceneNumber', { number: index + 1 })}
               </Typography>
               {formData.scenes.length > 1 && (
                 <IconButton
@@ -272,8 +278,8 @@ const VideoStudio: React.FC = () => {
                   fullWidth
                   multiline
                   rows={3}
-                  label="Texto da cena"
-                  placeholder="Digite o texto que será narrado nesta cena..."
+                  label={t('videoStudio.scenes.sceneText')}
+                  placeholder={t('videoStudio.scenes.sceneText')}
                   value={scene.text}
                   onChange={(e) => handleSceneChange(index, 'text', e.target.value)}
                   variant="outlined"
@@ -282,11 +288,11 @@ const VideoStudio: React.FC = () => {
               <Grid item xs={12}>
                 <TextField
                   fullWidth
-                  label="Termos de busca"
+                  label={t('videoStudio.scenes.searchTerms')}
                   placeholder="palavra1, palavra2, palavra3"
                   value={scene.searchTerms.join(', ')}
                   onChange={(e) => handleSceneChange(index, 'searchTerms', e.target.value)}
-                  helperText="Palavras-chave para buscar vídeos relacionados, separadas por vírgula"
+                  helperText={t('videoStudio.scenes.searchTermsHelper')}
                   variant="outlined"
                 />
               </Grid>
@@ -317,7 +323,7 @@ const VideoStudio: React.FC = () => {
   const renderConfigStep = () => (
     <Box>
       <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-        Configurações do Vídeo
+        {t('videoStudio.config.videoConfig')}
       </Typography>
 
       <Grid container spacing={3}>
@@ -325,15 +331,15 @@ const VideoStudio: React.FC = () => {
         <Grid item xs={12}>
           <Paper elevation={0} sx={{ p: 3, border: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
             <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-              Configurações de Áudio
+              {t('videoStudio.config.audioSettings')}
             </Typography>
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>
                 <FormControl fullWidth>
-                  <InputLabel>Voz</InputLabel>
+                  <InputLabel>{t('videoStudio.config.voice')}</InputLabel>
                   <Select
                     value={formData.config.voice}
-                    label="Voz"
+                    label={t('videoStudio.config.voice')}
                     onChange={(e) => handleConfigChange('voice', e.target.value)}
                   >
                     {availableOptions.voices.map((voice) => (
@@ -346,14 +352,14 @@ const VideoStudio: React.FC = () => {
               </Grid>
               <Grid item xs={12} sm={6}>
                 <FormControl fullWidth>
-                  <InputLabel>Idioma</InputLabel>
+                  <InputLabel>{t('videoStudio.config.language')}</InputLabel>
                   <Select
                     value={formData.config.language}
-                    label="Idioma"
+                    label={t('videoStudio.config.language')}
                     onChange={(e) => handleConfigChange('language', e.target.value)}
                   >
-                    <MenuItem value="pt">Português</MenuItem>
-                    <MenuItem value="en">Inglês</MenuItem>
+                    <MenuItem value="pt">{t('videoStudio.languages.pt')}</MenuItem>
+                    <MenuItem value="en">{t('videoStudio.languages.en')}</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
@@ -547,10 +553,10 @@ const VideoStudio: React.FC = () => {
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h3" component="h1" sx={{ fontWeight: 700, mb: 1 }}>
-          Video Studio
+          {t('videoStudio.title')}
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Crie vídeos curtos profissionais com IA
+          {t('videoStudio.subtitle')}
         </Typography>
       </Box>
 

@@ -1,0 +1,247 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "videoStudio": "Video Studio",
+    "aiScripts": "Scripts IA",
+    "library": "Biblioteca",
+    "ttsStudio": "TTS Studio",
+    "settings": "Configurações",
+    "apiDocs": "Documentação API",
+    "description": {
+      "dashboard": "Visão geral e estatísticas",
+      "videoStudio": "Criar novos vídeos",
+      "aiScripts": "Gerador de roteiros com IA",
+      "library": "Gerenciar vídeos",
+      "ttsStudio": "Geração de áudio",
+      "settings": "Configurações do sistema",
+      "apiDocs": "Documentação das APIs"
+    }
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Bem-vindo de volta! Aqui está sua visão geral de criação de vídeos",
+    "quickActions": "Ações Rápidas",
+    "createNewVideo": "Criar Novo Vídeo",
+    "generateAIScript": "Gerar Script com IA",
+    "goToLibrary": "Ir para Biblioteca",
+    "stats": {
+      "totalVideos": "Total de Vídeos",
+      "completedVideos": "Concluídos",
+      "processingVideos": "Processando",
+      "failedVideos": "Falhados"
+    },
+    "recentVideos": "Vídeos Recentes",
+    "noVideos": "Nenhum vídeo criado ainda",
+    "status": {
+      "ready": "Concluído",
+      "processing": "Processando",
+      "failed": "Falhou",
+      "pending": "Pendente",
+      "unknown": "Desconhecido"
+    },
+    "timeAgo": {
+      "now": "Agora mesmo",
+      "minutesAgo": "{{count}}m atrás",
+      "hoursAgo": "{{count}}h atrás",
+      "daysAgo": "{{count}}d atrás"
+    }
+  },
+  "videoStudio": {
+    "title": "Video Studio",
+    "subtitle": "Crie vídeos incríveis em 3 passos simples",
+    "steps": {
+      "script": "Roteiro e Cenas",
+      "settings": "Configurações",
+      "review": "Revisão e Criação"
+    },
+    "scenes": {
+      "title": "Cenas do Vídeo",
+      "addScene": "Adicionar Cena",
+      "generateAI": "Gerar com IA",
+      "sceneText": "Texto da cena",
+      "searchTerms": "Termos de busca",
+      "searchTermsHelper": "Palavras-chave para buscar vídeos relacionados, separadas por vírgula",
+      "sceneNumber": "Cena {{number}}"
+    },
+    "config": {
+      "audioSettings": "Configurações de Áudio",
+      "voice": "Voz",
+      "language": "Idioma",
+      "videoSettings": "Configurações de Vídeo",
+      "orientation": "Orientação",
+      "captionPosition": "Posição das Legendas",
+      "musicSettings": "Configurações de Música",
+      "musicMood": "Humor da Música",
+      "musicVolume": "Volume da Música",
+      "videoConfig": "Configurações do Vídeo",
+      "timeAfterSpeech": "Tempo após fala (ms)",
+      "timeAfterSpeechHelper": "Tempo de vídeo após terminar a narração",
+      "captionBackgroundColor": "Cor do fundo da legenda",
+      "captionTextColor": "Cor do texto da legenda"
+    },
+    "review": {
+      "title": "Revisão Final",
+      "summary": "Resumo",
+      "orientation": "Orientação:",
+      "voice": "Voz:",
+      "music": "Música:",
+      "language": "Idioma:"
+    },
+    "buttons": {
+      "back": "Voltar",
+      "next": "Próximo",
+      "createVideo": "Criar Vídeo",
+      "creating": "Criando..."
+    },
+    "orientations": {
+      "portrait": "Retrato (9:16)",
+      "landscape": "Paisagem (16:9)",
+      "square": "Quadrado (1:1)"
+    },
+    "captions": {
+      "top": "Topo",
+      "center": "Centro",
+      "bottom": "Inferior"
+    },
+    "languages": {
+      "pt": "Português",
+      "en": "Inglês"
+    }
+  },
+  "aiScripts": {
+    "title": "Gerador de Scripts IA",
+    "subtitle": "Crie scripts envolventes para seus vídeos com inteligência artificial",
+    "form": {
+      "scriptConfig": "Configuração do Script",
+      "scriptType": "Tipo de Script",
+      "videoTopic": "Tópico do Vídeo",
+      "videoTopicPlaceholder": "Ex: Como aumentar produtividade trabalhando de casa",
+      "style": "Estilo",
+      "duration": "Duração",
+      "customPrompt": "Prompt Personalizado (Opcional)",
+      "customPromptPlaceholder": "Descreva instruções específicas para o seu script...",
+      "quickTemplates": "Templates Rápidos:",
+      "videoConfig": "Configurações do Vídeo (Opcional)",
+      "voice": "Voz",
+      "music": "Música",
+      "overlay": "Overlay",
+      "generateScript": "Gerar Script com IA",
+      "generating": "Gerando Script...",
+      "createVideo": "Criar Vídeo",
+      "creating": "Criando..."
+    },
+    "musicMoods": {
+      "happy": "Alegre",
+      "sad": "Triste",
+      "excited": "Animado",
+      "chill": "Relaxante",
+      "inspirational": "Inspiracional",
+      "cinematic": "Cinematográfico",
+      "worship": "Adoração"
+    },
+    "overlays": {
+      "none": "Nenhum",
+      "jornada": "Jornada",
+      "jornadaLandscape": "Jornada Landscape",
+      "jornadaOrange": "Jornada Laranja",
+      "whatsappBanner": "WhatsApp Banner"
+    },
+    "result": {
+      "generatedScript": "Script Gerado",
+      "editingKeywords": "Editando palavras-chave para vídeos de fundo:",
+      "visualSuggestion": "Sugestão Visual:",
+      "keywords": "Palavras-chave para vídeos de fundo:",
+      "metadata": "Metadados",
+      "aiProvider": "Provedor IA:",
+      "duration": "Duração:",
+      "createdAt": "Criado em:",
+      "scriptPlaceholder": "Seu script aparecerá aqui",
+      "scriptInstructions": "Configure os parâmetros e clique em \"Gerar Script com IA\"",
+      "scriptGeneratedSuccess": "Script gerado com sucesso usando {{provider}}! {{scenes}} cenas, ~{{duration}}s de duração estimada.",
+      "noScriptError": "Nenhum script gerado para criar vídeo"
+    }
+  },
+  "ttsStudio": {
+    "title": "TTS Studio",
+    "subtitle": "Gere áudio de alta qualidade a partir de texto",
+    "form": {
+      "audioGeneration": "Geração de Áudio",
+      "textLabel": "Texto para gerar áudio",
+      "textPlaceholder": "Digite o texto que deseja converter em áudio...",
+      "language": "Idioma",
+      "voice": "Voz",
+      "generateButton": "Gerar Áudio",
+      "generating": "Gerando..."
+    },
+    "audios": {
+      "title": "Áudios Gerados ({{count}})",
+      "noAudios": "Nenhum áudio gerado ainda",
+      "duration": "Duração: {{duration}}"
+    }
+  },
+  "settings": {
+    "title": "Configurações",
+    "subtitle": "Personalize sua experiência",
+    "videoDefaults": "Padrões de Vídeo",
+    "preferences": "Preferências",
+    "defaultVoice": "Voz Padrão",
+    "defaultLanguage": "Idioma Padrão",
+    "defaultOrientation": "Orientação Padrão",
+    "defaultMusicVolume": "Volume de Música Padrão",
+    "autoSave": "Salvamento Automático",
+    "notifications": "Notificações",
+    "darkMode": "Modo Escuro",
+    "videoQuality": "Qualidade de Vídeo",
+    "saveSettings": "Salvar Configurações",
+    "restoreDefaults": "Restaurar Padrões",
+    "settingsSaved": "Configurações salvas com sucesso!"
+  },
+  "library": {
+    "title": "Biblioteca de Vídeos",
+    "subtitle": "Gerencie e visualize seus vídeos criados",
+    "video": "Vídeo {{id}}...",
+    "createdOn": "Criado em {{date}}",
+    "download": "Baixar",
+    "approve": "Aprovar",
+    "approving": "Aprovando...",
+    "reject": "Reprovar",
+    "rejecting": "Reprovando...",
+    "delete": "Deletar",
+    "edit": "Editar Vídeo"
+  },
+  "apiDocs": {
+    "title": "Documentação da API",
+    "subtitle": "Referência completa para a API do Short Video Maker",
+    "endpoints": "Endpoints Disponíveis",
+    "createVideo": "Criar um novo vídeo",
+    "listVideos": "Listar todos os vídeos",
+    "getVideoStatus": "Obter status de um vídeo",
+    "deleteVideo": "Deletar um vídeo",
+    "generateTTS": "Gerar áudio TTS"
+  },
+  "common": {
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "delete": "Deletar",
+    "edit": "Editar",
+    "download": "Baixar",
+    "play": "Reproduzir",
+    "stop": "Parar",
+    "loading": "Carregando...",
+    "error": "Erro",
+    "success": "Sucesso",
+    "portuguese": "Português",
+    "english": "Inglês",
+    "spanish": "Espanhol",
+    "language": "Idioma",
+    "createdAt": "Criado em",
+    "lastUpdate": "Última atualização: {{time}}",
+    "audioGeneratedSuccess": "Áudio gerado com sucesso!"
+  },
+  "errors": {
+    "videoCreationFailed": "Falha ao criar vídeo",
+    "audioGenerationFailed": "Falha ao gerar áudio",
+    "deleteVideoFailed": "Erro ao deletar vídeo. Tente novamente.",
+    "unexpectedError": "Erro inesperado ao gerar áudio"
+  }
+}

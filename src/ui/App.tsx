@@ -4,6 +4,9 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+// i18n initialization
+import './i18n';
+
 // Layout
 import DashboardLayout from './components/DashboardLayout';
 

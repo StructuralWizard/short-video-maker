@@ -273,9 +273,18 @@ docker run -p 3000:3000 gyoridavid/short-video-maker:latest
 
 ### Variáveis de Ambiente
 ```env
-PORT=3000
-REMOTION_HOST=0.0.0.0
-NODE_ENV=production
+PORT=3000 #???
+REMOTION_HOST=0.0.0.0 #???
+NODE_ENV=production #???
+PEXELS_API_KEY= # crucial for the project to work
+LOG_LEVEL=trace # trace, debug, info, warn, error, fatal, silent
+WHISPER_VERBOSE=true
+PORT=3123
+DEV=true # local development mode
+DATA_DIR_PATH= # only for docker, otherwise leave empty
+OPENAI_API_KEY=your_openai_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
+VITE_APPROVAL_URL=https://your-n8n-instance.com/webhook/video-approval
 ```
 
 ## Contribuindo

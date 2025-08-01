@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   Grid,
@@ -50,6 +51,7 @@ interface RecentVideo {
 const Dashboard: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [stats, setStats] = useState<DashboardStats>({
     totalVideos: 0,
     completedVideos: 0,
@@ -114,7 +116,7 @@ const Dashboard: React.FC = () => {
       await fetchDashboardData();
     } catch (error) {
       console.error('Error deleting video:', error);
-      alert('Erro ao deletar vídeo. Tente novamente.');
+      alert(t('errors.deleteVideoFailed'));
     } finally {
       setDeletingVideoId(null);
     }
@@ -144,15 +146,15 @@ const Dashboard: React.FC = () => {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'ready':
-        return 'Concluído';
+        return t('dashboard.status.ready');
       case 'processing':
-        return 'Processando';
+        return t('dashboard.status.processing');
       case 'failed':
-        return 'Falhou';
+        return t('dashboard.status.failed');
       case 'pending':
-        return 'Pendente';
+        return t('dashboard.status.pending');
       default:
-        return 'Desconhecido';
+        return t('dashboard.status.unknown');
     }
   };
 
@@ -164,36 +166,36 @@ const Dashboard: React.FC = () => {
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-    if (diffMins < 1) return 'Agora mesmo';
-    if (diffMins < 60) return `${diffMins}m atrás`;
-    if (diffHours < 24) return `${diffHours}h atrás`;
-    return `${diffDays}d atrás`;
+    if (diffMins < 1) return t('dashboard.timeAgo.now');
+    if (diffMins < 60) return t('dashboard.timeAgo.minutesAgo', { count: diffMins });
+    if (diffHours < 24) return t('dashboard.timeAgo.hoursAgo', { count: diffHours });
+    return t('dashboard.timeAgo.daysAgo', { count: diffDays });
   };
 
   const statCards = [
     {
-      title: 'Total de Vídeos',
+      title: t('dashboard.stats.totalVideos'),
       value: stats.totalVideos,
       icon: <VideoIcon />,
       color: theme.palette.primary.main,
       gradient: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
     },
     {
-      title: 'Concluídos',
+      title: t('dashboard.stats.completedVideos'),
       value: stats.completedVideos,
       icon: <DoneIcon />,
       color: theme.palette.success.main,
       gradient: `linear-gradient(135deg, ${theme.palette.success.main}, ${theme.palette.success.dark})`,
     },
     {
-      title: 'Processando',
+      title: t('dashboard.stats.processingVideos'),
       value: stats.processingVideos,
       icon: <TrendingIcon />,
       color: theme.palette.warning.main,
       gradient: `linear-gradient(135deg, ${theme.palette.warning.main}, ${theme.palette.warning.dark})`,
     },
     {
-      title: 'Hoje',
+      title: t('dashboard.stats.completedVideos'),
       value: stats.todayVideos,
       icon: <TimeIcon />,
       color: theme.palette.secondary.main,
@@ -207,7 +209,7 @@ const Dashboard: React.FC = () => {
       <Box sx={{ mb: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h3" component="h1" sx={{ fontWeight: 700, mb: 1 }}>
-            Dashboard
+            {t('dashboard.title')}
           </Typography>
           <Box sx={{ display: 'flex', gap: 1 }}>
             <IconButton onClick={fetchDashboardData} disabled={loading}>
@@ -224,12 +226,12 @@ const Dashboard: React.FC = () => {
                 },
               }}
             >
-              Novo Vídeo
+              {t('dashboard.createNewVideo')}
             </Button>
           </Box>
         </Box>
         <Typography variant="body1" color="text.secondary">
-          Bem-vindo ao seu estúdio de criação de vídeos curtos com IA
+          {t('dashboard.subtitle')}
         </Typography>
       </Box>
 
@@ -293,7 +295,7 @@ const Dashboard: React.FC = () => {
             }}
           >
             <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-              Ações Rápidas
+              {t('dashboard.quickActions')}
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Button
@@ -304,7 +306,7 @@ const Dashboard: React.FC = () => {
                 onClick={() => navigate('/studio')}
                 sx={{ justifyContent: 'flex-start', py: 1.5 }}
               >
-                Criar Novo Vídeo
+                {t('dashboard.createNewVideo')}
               </Button>
               <Button
                 fullWidth
@@ -314,7 +316,7 @@ const Dashboard: React.FC = () => {
                 onClick={() => navigate('/ai-scripts')}
                 sx={{ justifyContent: 'flex-start', py: 1.5 }}
               >
-                Gerar Script com IA
+                {t('dashboard.generateAIScript')}
               </Button>
               <Button
                 fullWidth
@@ -324,7 +326,7 @@ const Dashboard: React.FC = () => {
                 onClick={() => navigate('/library')}
                 sx={{ justifyContent: 'flex-start', py: 1.5 }}
               >
-                Ver Biblioteca
+                {t('dashboard.goToLibrary')}
               </Button>
             </Box>
           </Paper>
@@ -341,7 +343,7 @@ const Dashboard: React.FC = () => {
             }}
           >
             <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-              Vídeos Recentes
+              {t('dashboard.recentVideos')}
             </Typography>
             
             {loading ? (
@@ -352,14 +354,14 @@ const Dashboard: React.FC = () => {
               <Box sx={{ textAlign: 'center', py: 4 }}>
                 <VideoIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
                 <Typography color="text.secondary" sx={{ mb: 2 }}>
-                  Nenhum vídeo encontrado
+                  {t('dashboard.noVideos')}
                 </Typography>
                 <Button
                   variant="contained"
                   startIcon={<AddIcon />}
                   onClick={() => navigate('/studio')}
                 >
-                  Criar Primeiro Vídeo
+                  {t('dashboard.createNewVideo')}
                 </Button>
               </Box>
             ) : (
@@ -392,7 +394,7 @@ const Dashboard: React.FC = () => {
                           </Avatar>
                           <Box sx={{ flex: 1 }}>
                             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                              Vídeo {video.id.substring(0, 8)}...
+                              {t('library.video', { id: video.id.substring(0, 8) })}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
                               {formatRelativeTime(video.createdAt)}

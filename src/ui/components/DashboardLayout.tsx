@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   Drawer,
@@ -33,6 +34,7 @@ import {
   Search as SearchIcon,
   Add as AddIcon,
 } from '@mui/icons-material';
+import LanguageSwitcher from './LanguageSwitcher';
 
 const drawerWidth = 280;
 
@@ -44,6 +46,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useTranslation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleDrawerToggle = () => {
@@ -52,51 +55,51 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
   const menuItems = [
     {
-      text: 'Dashboard',
+      text: t('nav.dashboard'),
       icon: <DashboardIcon />,
       path: '/',
-      description: 'Visão geral e estatísticas',
+      description: t('nav.description.dashboard'),
     },
     {
-      text: 'Video Studio',
+      text: t('nav.videoStudio'),
       icon: <StudioIcon />,
       path: '/studio',
-      description: 'Criar novos vídeos',
+      description: t('nav.description.videoStudio'),
       isNew: true,
     },
     {
-      text: 'IA Scripts',
+      text: t('nav.aiScripts'),
       icon: <AIIcon />,
       path: '/ai-scripts',
-      description: 'Gerador de roteiros com IA',
+      description: t('nav.description.aiScripts'),
       isNew: true,
     },
     {
-      text: 'Biblioteca',
+      text: t('nav.library'),
       icon: <VideoLibraryIcon />,
       path: '/library',
-      description: 'Gerenciar vídeos',
+      description: t('nav.description.library'),
     },
     {
-      text: 'TTS Studio',
+      text: t('nav.ttsStudio'),
       icon: <TTSIcon />,
       path: '/tts',
-      description: 'Geração de áudio',
+      description: t('nav.description.ttsStudio'),
     },
   ];
 
   const utilityItems = [
     {
-      text: 'Configurações',
+      text: t('nav.settings'),
       icon: <SettingsIcon />,
       path: '/settings',
-      description: 'Configurações do sistema',
+      description: t('nav.description.settings'),
     },
     {
-      text: 'API Docs',
+      text: t('nav.apiDocs'),
       icon: <DocsIcon />,
       path: '/api-docs',
-      description: 'Documentação das APIs',
+      description: t('nav.description.apiDocs'),
       isNew: true,
     },
   ];
@@ -121,7 +124,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           Short Video Maker
         </Typography>
         <Typography variant="body2" sx={{ opacity: 0.9 }}>
-          Criador de vídeos curtos com IA
+          {t('nav.description.dashboard')}
         </Typography>
       </Box>
 
@@ -137,12 +140,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           }}
         >
           <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: theme.palette.primary.main }}>
-            Ações Rápidas
+            {t('dashboard.quickActions')}
           </Typography>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Chip
               icon={<AddIcon />}
-              label="Novo Vídeo"
+              label={t('dashboard.createNewVideo')}
               size="small"
               onClick={() => navigate('/studio')}
               sx={{
@@ -321,6 +324,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           <Box sx={{ flexGrow: 1 }} />
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <LanguageSwitcher />
             <IconButton color="inherit">
               <SearchIcon />
             </IconButton>

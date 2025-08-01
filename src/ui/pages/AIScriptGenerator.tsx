@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Container,
   Typography,
@@ -46,6 +47,7 @@ interface ScriptResponse {
 }
 
 const AIScriptGenerator: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [type, setType] = useState('general');
   const [topic, setTopic] = useState('');
@@ -101,21 +103,21 @@ const AIScriptGenerator: React.FC = () => {
   ];
 
   const musicOptions = [
-    { value: 'happy', label: 'Alegre' },
-    { value: 'sad', label: 'Triste' },
-    { value: 'excited', label: 'Animado' },
-    { value: 'chill', label: 'Relaxante' },
-    { value: 'inspirational', label: 'Inspiracional' },
-    { value: 'cinematic', label: 'Cinematográfico' },
-    { value: 'worship', label: 'Adoração' }
+    { value: 'happy', label: t('aiScripts.musicMoods.happy') },
+    { value: 'sad', label: t('aiScripts.musicMoods.sad') },
+    { value: 'excited', label: t('aiScripts.musicMoods.excited') },
+    { value: 'chill', label: t('aiScripts.musicMoods.chill') },
+    { value: 'inspirational', label: t('aiScripts.musicMoods.inspirational') },
+    { value: 'cinematic', label: t('aiScripts.musicMoods.cinematic') },
+    { value: 'worship', label: t('aiScripts.musicMoods.worship') }
   ];
 
   const overlayOptions = [
-    { value: '', label: 'Nenhum' },
-    { value: 'jornada', label: 'Jornada' },
-    { value: 'jornada_landscape', label: 'Jornada Landscape' },
-    { value: 'jornada_laranja', label: 'Jornada Laranja' },
-    { value: 'whatsappbanner', label: 'WhatsApp Banner' }
+    { value: '', label: t('aiScripts.overlays.none') },
+    { value: 'jornada', label: t('aiScripts.overlays.jornada') },
+    { value: 'jornada_landscape', label: t('aiScripts.overlays.jornadaLandscape') },
+    { value: 'jornada_laranja', label: t('aiScripts.overlays.jornadaOrange') },
+    { value: 'whatsappbanner', label: t('aiScripts.overlays.whatsappBanner') }
   ];
 
   const promptTemplates = [
@@ -177,8 +179,11 @@ const AIScriptGenerator: React.FC = () => {
       if (data.metadata.warning) {
         setError(data.metadata.warning);
       } else {
-        setSuccess(`Script gerado com sucesso usando ${data.metadata.aiProvider}! 
-          ${data.metadata.totalScenes} cenas, ~${data.metadata.estimatedDuration}s de duração estimada.`);
+        setSuccess(t('aiScripts.result.scriptGeneratedSuccess', { 
+          provider: data.metadata.aiProvider,
+          scenes: data.metadata.totalScenes,
+          duration: data.metadata.estimatedDuration
+        }));
       }
 
     } catch (err) {
@@ -195,7 +200,7 @@ const AIScriptGenerator: React.FC = () => {
       
       if (generatedScript?.scenes) {
         // Format structured script for copying
-        textToCopy = `${generatedScript.title || 'Script Gerado'}\n\n`;
+        textToCopy = `${generatedScript.title || t('aiScripts.result.generatedScript')}\n\n`;
         if (generatedScript.description) {
           textToCopy += `${generatedScript.description}\n\n`;
         }
@@ -268,7 +273,7 @@ const AIScriptGenerator: React.FC = () => {
 
   const createVideoFromScript = async () => {
     if (!generatedScript || !metadata) {
-      setError('Nenhum script gerado para criar vídeo');
+      setError(t('aiScripts.result.noScriptError'));
       return;
     }
 
@@ -319,12 +324,12 @@ const AIScriptGenerator: React.FC = () => {
           setMetadata(null);
         }, 3000);
       } else {
-        throw new Error(result.error || 'Falha ao criar vídeo');
+        throw new Error(result.error || t('errors.videoCreationFailed'));
       }
 
     } catch (err) {
       console.error('Error creating video:', err);
-      setError(err instanceof Error ? err.message : 'Falha ao criar vídeo');
+      setError(err instanceof Error ? err.message : t('errors.videoCreationFailed'));
     } finally {
       setCreatingVideo(false);
     }
@@ -341,10 +346,10 @@ const AIScriptGenerator: React.FC = () => {
           color: 'transparent'
         }}>
           <AutoAwesome sx={{ mr: 2, color: '#6366f1' }} />
-          AI Script Generator
+          {t('aiScripts.title')}
         </Typography>
         <Typography variant="h6" color="text.secondary" gutterBottom>
-          Crie scripts envolventes para seus vídeos com inteligência artificial
+          {t('aiScripts.subtitle')}
         </Typography>
       </Box>
 
@@ -359,16 +364,16 @@ const AIScriptGenerator: React.FC = () => {
             <CardContent>
               <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
                 <Lightbulb sx={{ mr: 1, color: '#f59e0b' }} />
-                Configuração do Script
+                {t('aiScripts.form.scriptConfig')}
               </Typography>
 
               <Box component="form" sx={{ mt: 2 }}>
                 <FormControl fullWidth sx={{ mb: 3 }}>
-                  <InputLabel>Tipo de Script</InputLabel>
+                  <InputLabel>{t('aiScripts.form.scriptType')}</InputLabel>
                   <Select
                     value={type}
                     onChange={(e) => setType(e.target.value)}
-                    label="Tipo de Script"
+                    label={t('aiScripts.form.scriptType')}
                   >
                     {scriptTypes.map((option) => (
                       <MenuItem key={option.value} value={option.value}>
@@ -380,8 +385,8 @@ const AIScriptGenerator: React.FC = () => {
 
                 <TextField
                   fullWidth
-                  label="Tópico do Vídeo"
-                  placeholder="Ex: Como aumentar produtividade trabalhando de casa"
+                  label={t('aiScripts.form.videoTopic')}
+                  placeholder={t('aiScripts.form.videoTopicPlaceholder')}
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
                   required
@@ -389,11 +394,11 @@ const AIScriptGenerator: React.FC = () => {
                 />
 
                 <FormControl fullWidth sx={{ mb: 3 }}>
-                  <InputLabel>Estilo</InputLabel>
+                  <InputLabel>{t('aiScripts.form.style')}</InputLabel>
                   <Select
                     value={style}
                     onChange={(e) => setStyle(e.target.value)}
-                    label="Estilo"
+                    label={t('aiScripts.form.style')}
                   >
                     <MenuItem value="">
                       <em>Padrão</em>
@@ -407,11 +412,11 @@ const AIScriptGenerator: React.FC = () => {
                 </FormControl>
 
                 <FormControl fullWidth sx={{ mb: 3 }}>
-                  <InputLabel>Duração</InputLabel>
+                  <InputLabel>{t('aiScripts.form.duration')}</InputLabel>
                   <Select
                     value={duration}
                     onChange={(e) => setDuration(e.target.value)}
-                    label="Duração"
+                    label={t('aiScripts.form.duration')}
                   >
                     {durations.map((option) => (
                       <MenuItem key={option} value={option}>
@@ -423,21 +428,21 @@ const AIScriptGenerator: React.FC = () => {
 
                 <Accordion sx={{ mb: 3 }}>
                   <AccordionSummary expandIcon={<ExpandMore />}>
-                    <Typography>Prompt Personalizado (Opcional)</Typography>
+                    <Typography>{t('aiScripts.form.customPrompt')}</Typography>
                   </AccordionSummary>
                   <AccordionDetails>
                     <TextField
                       fullWidth
                       multiline
                       rows={4}
-                      placeholder="Descreva instruções específicas para o seu script..."
+                      placeholder={t('aiScripts.form.customPromptPlaceholder')}
                       value={customPrompt}
                       onChange={(e) => setCustomPrompt(e.target.value)}
                       sx={{ mb: 2 }}
                     />
                     
                     <Typography variant="subtitle2" gutterBottom>
-                      Templates Rápidos:
+                      {t('aiScripts.form.quickTemplates')}
                     </Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                       {promptTemplates.map((template) => (
@@ -456,17 +461,17 @@ const AIScriptGenerator: React.FC = () => {
 
                 <Accordion sx={{ mb: 3 }}>
                   <AccordionSummary expandIcon={<ExpandMore />}>
-                    <Typography>Configurações do Vídeo (Opcional)</Typography>
+                    <Typography>{t('aiScripts.form.videoConfig')}</Typography>
                   </AccordionSummary>
                   <AccordionDetails>
                     <Grid container spacing={2}>
                       <Grid item xs={12} sm={6}>
                         <FormControl fullWidth sx={{ mb: 2 }}>
-                          <InputLabel>Voz</InputLabel>
+                          <InputLabel>{t('aiScripts.form.voice')}</InputLabel>
                           <Select
                             value={selectedVoice}
                             onChange={(e) => setSelectedVoice(e.target.value)}
-                            label="Voz"
+                            label={t('aiScripts.form.voice')}
                           >
                             {voiceOptions.map((option) => (
                               <MenuItem key={option.value} value={option.value}>
@@ -479,11 +484,11 @@ const AIScriptGenerator: React.FC = () => {
 
                       <Grid item xs={12} sm={6}>
                         <FormControl fullWidth sx={{ mb: 2 }}>
-                          <InputLabel>Música</InputLabel>
+                          <InputLabel>{t('aiScripts.form.music')}</InputLabel>
                           <Select
                             value={selectedMusic}
                             onChange={(e) => setSelectedMusic(e.target.value)}
-                            label="Música"
+                            label={t('aiScripts.form.music')}
                           >
                             {musicOptions.map((option) => (
                               <MenuItem key={option.value} value={option.value}>
@@ -496,11 +501,11 @@ const AIScriptGenerator: React.FC = () => {
 
                       <Grid item xs={12} sm={6}>
                         <FormControl fullWidth sx={{ mb: 2 }}>
-                          <InputLabel>Overlay</InputLabel>
+                          <InputLabel>{t('aiScripts.form.overlay')}</InputLabel>
                           <Select
                             value={selectedOverlay}
                             onChange={(e) => setSelectedOverlay(e.target.value)}
-                            label="Overlay"
+                            label={t('aiScripts.form.overlay')}
                           >
                             {overlayOptions.map((option) => (
                               <MenuItem key={option.value} value={option.value}>
@@ -513,15 +518,15 @@ const AIScriptGenerator: React.FC = () => {
 
                       <Grid item xs={12} sm={6}>
                         <FormControl fullWidth sx={{ mb: 2 }}>
-                          <InputLabel>Orientação</InputLabel>
+                          <InputLabel>{t('videoStudio.config.orientation')}</InputLabel>
                           <Select
                             value={orientation}
                             onChange={(e) => setOrientation(e.target.value)}
-                            label="Orientação"
+                            label={t('videoStudio.config.orientation')}
                           >
-                            <MenuItem value="portrait">Vertical (9:16)</MenuItem>
-                            <MenuItem value="landscape">Horizontal (16:9)</MenuItem>
-                            <MenuItem value="square">Quadrado (1:1)</MenuItem>
+                            <MenuItem value="portrait">{t('videoStudio.orientations.portrait')}</MenuItem>
+                            <MenuItem value="landscape">{t('videoStudio.orientations.landscape')}</MenuItem>
+                            <MenuItem value="square">{t('videoStudio.orientations.square')}</MenuItem>
                           </Select>
                         </FormControl>
                       </Grid>
@@ -545,12 +550,12 @@ const AIScriptGenerator: React.FC = () => {
                   {loading ? (
                     <>
                       <CircularProgress size={20} sx={{ mr: 1 }} />
-                      Gerando Script...
+                      {t('aiScripts.form.generating')}
                     </>
                   ) : (
                     <>
                       <AutoAwesome sx={{ mr: 1 }} />
-                      Gerar Script com IA
+                      {t('aiScripts.form.generateScript')}
                     </>
                   )}
                 </Button>
@@ -580,7 +585,7 @@ const AIScriptGenerator: React.FC = () => {
                 <CardContent>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                     <Typography variant="h6">
-                      Script Gerado
+                      {t('aiScripts.result.generatedScript')}
                     </Typography>
                     <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                       <Button
@@ -612,7 +617,7 @@ const AIScriptGenerator: React.FC = () => {
                           }
                         }}
                       >
-                        {creatingVideo ? 'Criando...' : 'Criar Vídeo'}
+                        {creatingVideo ? t('aiScripts.form.creating') : t('aiScripts.form.createVideo')}
                       </Button>
                     </Box>
                   </Box>
@@ -890,10 +895,10 @@ const AIScriptGenerator: React.FC = () => {
               <CardContent sx={{ py: 6 }}>
                 <AutoAwesome sx={{ fontSize: 48, color: '#6b7280', mb: 2 }} />
                 <Typography variant="h6" color="text.secondary" gutterBottom>
-                  Seu script aparecerá aqui
+                  {t('aiScripts.result.scriptPlaceholder')}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Configure os parâmetros e clique em "Gerar Script com IA"
+                  {t('aiScripts.result.scriptInstructions')}
                 </Typography>
               </CardContent>
             </Card>

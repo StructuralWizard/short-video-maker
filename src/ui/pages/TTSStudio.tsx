@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   Typography,
@@ -45,6 +46,7 @@ interface GeneratedAudio {
 
 const TTSStudio: React.FC = () => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [text, setText] = useState('');
   const [voice, setVoice] = useState('Paulo');
   const [language, setLanguage] = useState('pt');
@@ -86,14 +88,14 @@ const TTSStudio: React.FC = () => {
       };
 
       setGeneratedAudios(prev => [newAudio, ...prev]);
-      setSuccess('Áudio gerado com sucesso!');
+      setSuccess(t('common.audioGeneratedSuccess'));
       setText('');
     } catch (err) {
       console.error('Erro ao gerar áudio:', err);
       if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.error || 'Erro ao gerar áudio');
+        setError(err.response?.data?.error || t('errors.audioGenerationFailed'));
       } else {
-        setError('Erro inesperado ao gerar áudio');
+        setError(t('errors.unexpectedError'));
       }
     } finally {
       setLoading(false);
@@ -152,10 +154,10 @@ const TTSStudio: React.FC = () => {
       
       <Box sx={{ mb: 4 }}>
         <Typography variant="h3" component="h1" sx={{ fontWeight: 700, mb: 1 }}>
-          TTS Studio
+          {t('ttsStudio.title')}
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Gere áudio de alta qualidade a partir de texto
+          {t('ttsStudio.subtitle')}
         </Typography>
       </Box>
 
@@ -176,7 +178,7 @@ const TTSStudio: React.FC = () => {
           <Card elevation={0} sx={{ border: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
             <CardContent sx={{ p: 4 }}>
               <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-                Geração de Áudio
+                {t('ttsStudio.form.audioGeneration')}
               </Typography>
               
               <Grid container spacing={3}>
@@ -185,36 +187,36 @@ const TTSStudio: React.FC = () => {
                     fullWidth
                     multiline
                     rows={4}
-                    label="Texto para gerar áudio"
+                    label={t('ttsStudio.form.textLabel')}
                     variant="outlined"
                     value={text}
                     onChange={(e) => setText(e.target.value)}
-                    placeholder="Digite o texto que deseja converter em áudio..."
+                    placeholder={t('ttsStudio.form.textPlaceholder')}
                     disabled={loading}
                   />
                 </Grid>
                 
                 <Grid item xs={12} sm={6}>
                   <FormControl fullWidth>
-                    <InputLabel>Idioma</InputLabel>
+                    <InputLabel>{t('ttsStudio.form.language')}</InputLabel>
                     <Select
                       value={language}
-                      label="Idioma"
+                      label={t('ttsStudio.form.language')}
                       onChange={(e) => setLanguage(e.target.value)}
                       disabled={loading}
                     >
-                      <MenuItem value="pt">Português</MenuItem>
-                      <MenuItem value="en">Inglês</MenuItem>
+                      <MenuItem value="pt">{t('common.portuguese')}</MenuItem>
+                      <MenuItem value="en">{t('common.english')}</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
                 
                 <Grid item xs={12} sm={6}>
                   <FormControl fullWidth>
-                    <InputLabel>Voz</InputLabel>
+                    <InputLabel>{t('ttsStudio.form.voice')}</InputLabel>
                     <Select
                       value={voice}
-                      label="Voz"
+                      label={t('ttsStudio.form.voice')}
                       onChange={(e) => setVoice(e.target.value)}
                       disabled={loading}
                     >
@@ -242,7 +244,7 @@ const TTSStudio: React.FC = () => {
                       },
                     }}
                   >
-                    {loading ? 'Gerando...' : 'Gerar Áudio'}
+                    {loading ? t('ttsStudio.form.generating') : t('ttsStudio.form.generateButton')}
                   </Button>
                 </Grid>
               </Grid>
@@ -260,12 +262,12 @@ const TTSStudio: React.FC = () => {
             }}
           >
             <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-              Áudios Gerados ({generatedAudios.length})
+              {t('ttsStudio.audios.title', { count: generatedAudios.length })}
             </Typography>
             
             {generatedAudios.length === 0 ? (
               <Typography color="text.secondary" variant="body2">
-                Nenhum áudio gerado ainda
+                {t('ttsStudio.audios.noAudios')}
               </Typography>
             ) : (
               <List>

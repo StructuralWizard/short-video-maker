@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   Typography,
@@ -26,6 +27,7 @@ import {
 
 const Settings: React.FC = () => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [settings, setSettings] = useState({
     defaultVoice: 'Paulo',
     defaultLanguage: 'pt',
@@ -41,7 +43,7 @@ const Settings: React.FC = () => {
   const handleSave = () => {
     // Save to localStorage or API
     localStorage.setItem('userSettings', JSON.stringify(settings));
-    setSuccess('Configurações salvas com sucesso!');
+    setSuccess(t('settings.settingsSaved'));
     setTimeout(() => setSuccess(null), 3000);
   };
 
@@ -49,10 +51,10 @@ const Settings: React.FC = () => {
     <Box>
       <Box sx={{ mb: 4 }}>
         <Typography variant="h3" component="h1" sx={{ fontWeight: 700, mb: 1 }}>
-          Configurações
+          {t('settings.title')}
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Personalize sua experiência
+          {t('settings.subtitle')}
         </Typography>
       </Box>
 
@@ -67,16 +69,16 @@ const Settings: React.FC = () => {
           <Card elevation={0} sx={{ border: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
             <CardContent sx={{ p: 3 }}>
               <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-                Padrões de Vídeo
+                {t('settings.videoDefaults')}
               </Typography>
               
               <Grid container spacing={2}>
                 <Grid item xs={12}>
                   <FormControl fullWidth>
-                    <InputLabel>Voz Padrão</InputLabel>
+                    <InputLabel>{t('settings.defaultVoice')}</InputLabel>
                     <Select
                       value={settings.defaultVoice}
-                      label="Voz Padrão"
+                      label={t('settings.defaultVoice')}
                       onChange={(e) => setSettings({...settings, defaultVoice: e.target.value})}
                     >
                                              <MenuItem value="Paulo">Paulo</MenuItem>
@@ -89,29 +91,30 @@ const Settings: React.FC = () => {
                 
                 <Grid item xs={12}>
                   <FormControl fullWidth>
-                    <InputLabel>Idioma Padrão</InputLabel>
+                    <InputLabel>{t('settings.defaultLanguage')}</InputLabel>
                     <Select
                       value={settings.defaultLanguage}
-                      label="Idioma Padrão"
+                      label={t('settings.defaultLanguage')}
                       onChange={(e) => setSettings({...settings, defaultLanguage: e.target.value})}
                     >
-                      <MenuItem value="pt">Português</MenuItem>
-                      <MenuItem value="en">Inglês</MenuItem>
+                      <MenuItem value="pt">{t('common.portuguese')}</MenuItem>
+                      <MenuItem value="en">{t('common.english')}</MenuItem>
+                      <MenuItem value="es">{t('common.spanish')}</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
                 
                 <Grid item xs={12}>
                   <FormControl fullWidth>
-                    <InputLabel>Orientação Padrão</InputLabel>
+                    <InputLabel>{t('settings.defaultOrientation')}</InputLabel>
                     <Select
                       value={settings.defaultOrientation}
-                      label="Orientação Padrão"
+                      label={t('settings.defaultOrientation')}
                       onChange={(e) => setSettings({...settings, defaultOrientation: e.target.value})}
                     >
-                      <MenuItem value="portrait">Retrato (9:16)</MenuItem>
-                      <MenuItem value="landscape">Paisagem (16:9)</MenuItem>
-                      <MenuItem value="square">Quadrado (1:1)</MenuItem>
+                      <MenuItem value="portrait">{t('settings.portrait')}</MenuItem>
+                      <MenuItem value="landscape">{t('settings.landscape')}</MenuItem>
+                      <MenuItem value="square">{t('settings.square')}</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
@@ -124,7 +127,7 @@ const Settings: React.FC = () => {
           <Card elevation={0} sx={{ border: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
             <CardContent sx={{ p: 3 }}>
               <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-                Preferências
+                {t('settings.preferences')}
               </Typography>
               
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -135,7 +138,7 @@ const Settings: React.FC = () => {
                       onChange={(e) => setSettings({...settings, autoSave: e.target.checked})}
                     />
                   }
-                  label="Salvamento Automático"
+                  label={t('settings.autoSave')}
                 />
                 
                 <FormControlLabel
@@ -145,7 +148,7 @@ const Settings: React.FC = () => {
                       onChange={(e) => setSettings({...settings, notifications: e.target.checked})}
                     />
                   }
-                  label="Notificações"
+                  label={t('settings.notifications')}
                 />
                 
                 <FormControlLabel
@@ -155,7 +158,7 @@ const Settings: React.FC = () => {
                       onChange={(e) => setSettings({...settings, darkMode: e.target.checked})}
                     />
                   }
-                  label="Modo Escuro"
+                  label={t('settings.darkMode')}
                 />
               </Box>
             </CardContent>
