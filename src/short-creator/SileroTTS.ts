@@ -16,7 +16,7 @@ export class SileroTTS {
   private outputDir: string;
 
   constructor(private config: Config, outputDir: string = "output/audio") {
-    this.serviceUrl = "http://localhost:5003";
+    this.serviceUrl = "http://localhost:5003";  // Updated to use hybrid service port
     this.outputDir = outputDir;
   }
 
@@ -66,68 +66,45 @@ export class SileroTTS {
       // Cria o diretório de saída se não existir
       await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
-      // Prepara a requisição
+      // Mapear referenceAudioPath para voice name
+      let voiceName = "Paulo"; // default
+      if (referenceAudioPath) {
+        const baseName = path.basename(referenceAudioPath, path.extname(referenceAudioPath));
+        voiceName = baseName; // Charlotte, Hamilton, Noel, etc.
+      }
+
+      // Prepara a requisição para o serviço híbrido
       const requestData = {
         text,
-        language,
-        reference_audio_filename: refFileNameWithoutExt
+        voice: voiceName
       };
 
       // Log the request details
-      logger.debug("Sending request to TTS server", {
-        url: `${this.serviceUrl}/api/tts`,
+      logger.debug("Sending request to Hybrid TTS server", {
+        url: `${this.serviceUrl}/generate`,
         requestData,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        }
+        voiceName
       });
 
-      // Faz a requisição para o serviço TTS usando fetch
-      const response = await fetch(`${this.serviceUrl}/api/tts`, {
+      // Faz a requisição para o serviço híbrido TTS
+      const response = await fetch(`${this.serviceUrl}/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
         },
         body: JSON.stringify(requestData)
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`TTS server returned status ${response.status}: ${errorText}`);
+        throw new Error(`Hybrid TTS server returned status ${response.status}: ${errorText}`);
       }
 
-      const responseData = await response.json();
-
-      // Log the response
-      logger.debug("Received response from TTS server", {
-        status: response.status,
-        statusText: response.statusText,
-        data: responseData,
-        headers: Object.fromEntries(response.headers.entries())
-      });
-
-      if (!responseData || !responseData.download_link) {
-        throw new Error("Invalid response from TTS server: missing download link");
-      }
-
-      // Faz o download do arquivo de áudio usando a URL completa
-      const downloadUrl = `${this.serviceUrl}${responseData.download_link}`;
-      logger.info("📥 Downloading audio file from URL", { 
-        downloadUrl,
-        originalLink: responseData.download_link,
-        serviceUrl: this.serviceUrl
-      });
-
-      const downloadResponse = await axios.get(downloadUrl, {
-        responseType: "arraybuffer",
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
-      });
-
+      // O serviço híbrido retorna diretamente o arquivo de áudio
+      const audioBuffer = await response.arrayBuffer();
+      
       // Salva o arquivo de áudio
-      await fs.writeFile(outputPath, downloadResponse.data);
+      await fs.writeFile(outputPath, Buffer.from(audioBuffer));
       
       // Verifica se o arquivo foi escrito corretamente
       await this.ensureFileWritten(outputPath);

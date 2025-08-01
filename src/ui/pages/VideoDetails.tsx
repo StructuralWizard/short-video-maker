@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import { 
   Box, 
@@ -25,6 +26,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { Video } from '../../types/shorts';
 
 const VideoDetails: React.FC = () => {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -188,7 +190,10 @@ const VideoDetails: React.FC = () => {
       console.error(`Error ${action} video:`, error);
       setSnackbar({
         open: true,
-        message: `Erro ao ${action === 'approved' ? 'aprovar' : 'reprovar'} vídeo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+        message: t('library.actionError', { 
+          action: action === 'approved' ? t('library.approve').toLowerCase() : t('library.reject').toLowerCase(),
+          error: error instanceof Error ? error.message : t('errors.unknownError')
+        }),
         severity: 'error'
       });
     } finally {
@@ -207,7 +212,7 @@ const VideoDetails: React.FC = () => {
       await axios.delete(`/api/videos/${id}`);
       setSnackbar({
         open: true,
-        message: 'Vídeo deletado com sucesso!',
+        message: t('library.videoDeletedSuccess'),
         severity: 'success'
       });
       
@@ -219,7 +224,7 @@ const VideoDetails: React.FC = () => {
       console.error('Error deleting video:', error);
       setSnackbar({
         open: true,
-        message: 'Erro ao deletar vídeo',
+        message: t('errors.deleteVideoFailed'),
         severity: 'error'
       });
     } finally {
@@ -258,7 +263,7 @@ const VideoDetails: React.FC = () => {
         <Box>
           <Box mb={3} textAlign="center">
             <Typography variant="h6" color="success.main" gutterBottom>
-              Your video is ready!
+              {t('library.videoReadyMessage')}
             </Typography>
           </Box>
           
@@ -295,7 +300,7 @@ const VideoDetails: React.FC = () => {
               startIcon={<DownloadIcon />}
               sx={{ textDecoration: 'none' }}
             >
-              Download Video
+              {t('common.download')} Video
             </Button>
             <Button 
               variant="outlined" 
@@ -303,7 +308,7 @@ const VideoDetails: React.FC = () => {
               startIcon={<EditIcon />}
               onClick={handleEdit}
             >
-              Edit Video
+              {t('common.edit')} Video
             </Button>
             <Button 
               variant="contained" 
@@ -312,7 +317,7 @@ const VideoDetails: React.FC = () => {
               onClick={handleApprove}
               disabled={approving || rejecting}
             >
-              {approving ? 'Aprovando...' : 'Aprovar'}
+              {approving ? t('library.approving') : t('library.approve')}
             </Button>
             <Button 
               variant="contained" 
@@ -321,7 +326,7 @@ const VideoDetails: React.FC = () => {
               onClick={handleReject}
               disabled={approving || rejecting}
             >
-              {rejecting ? 'Reprovando...' : 'Reprovar'}
+              {rejecting ? t('library.rejecting') : t('library.reject')}
             </Button>
             <Button 
               variant="outlined" 
@@ -330,7 +335,7 @@ const VideoDetails: React.FC = () => {
               onClick={() => setDeleteDialogOpen(true)}
               disabled={approving || rejecting}
             >
-              Deletar
+              {t('common.delete')}
             </Button>
           </Box>
         </Box>
@@ -349,7 +354,7 @@ const VideoDetails: React.FC = () => {
             startIcon={<EditIcon />}
             onClick={handleEdit}
           >
-            Edit Video
+            {t('common.edit')} Video
           </Button>
         </Box>
       );
@@ -365,6 +370,17 @@ const VideoDetails: React.FC = () => {
   const capitalizeFirstLetter = (str: string) => {
     if (!str || typeof str !== 'string') return 'Unknown';
     return str.charAt(0).toUpperCase() + str.slice(1);
+  };
+
+  const getStatusText = (status: string | null) => {
+    if (!status) return t('dashboard.status.unknown');
+    switch (status.toLowerCase()) {
+      case 'ready': return t('dashboard.status.ready');
+      case 'processing': return t('dashboard.status.processing');
+      case 'failed': return t('dashboard.status.failed');
+      case 'pending': return t('dashboard.status.pending');
+      default: return t('dashboard.status.unknown');
+    }
   };
 
   return (
@@ -394,7 +410,7 @@ const VideoDetails: React.FC = () => {
           </Grid>
           <Grid item xs={12} sm={6}>
             <Typography variant="body2" color="text.secondary">
-              Status
+              {t('library.status')}
             </Typography>
             <Typography 
               variant="body1" 
@@ -404,7 +420,7 @@ const VideoDetails: React.FC = () => {
                 status === 'failed' ? 'error.main' : 'text.primary'
               }
             >
-              {capitalizeFirstLetter(status || 'unknown')}
+              {getStatusText(status)}
             </Typography>
           </Grid>
         </Grid>

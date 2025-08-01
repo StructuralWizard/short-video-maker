@@ -19,7 +19,7 @@ async function testLocalTTS() {
       outputPath,
       "neutral",
       "pt",
-      "NinoCoelho.wav"
+      "Paulo.wav"
     );
     
     console.log("✅ Test completed successfully!");

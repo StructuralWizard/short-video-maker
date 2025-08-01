@@ -524,9 +524,16 @@ export class APIRouter {
       try {
         const { text, voice = "Paulo", language = "pt", referenceAudioPath } = req.body;
         
-        logger.info({ text, voice, language }, "TTS request received");
+        logger.info("🎯 TTS request received at /api/generate-tts", { 
+          text: text?.substring(0, 100) + (text?.length > 100 ? "..." : ""),
+          voice, 
+          language, 
+          referenceAudioPath,
+          body: req.body
+        });
         
         if (!text || typeof text !== 'string' || !text.trim()) {
+          logger.error("❌ Text validation failed", { text, typeof: typeof text });
           return res.status(400).json({ error: "Text is required" });
         }
 
@@ -537,9 +544,11 @@ export class APIRouter {
         // Configuração para o TTS
         const config: RenderConfig = {
           voice: voice as VoiceEnum,
-          language: language as "pt" | "en",
+          language: language as "pt" | "en" | "es",
           referenceAudioPath: referenceAudioPath || undefined
         };
+
+        logger.info("🔧 TTS config created", { config });
 
         // Gerar o áudio usando o método do ShortCreator
         const audioResult = await this.shortCreator.generateSingleTTSAndUpdate(

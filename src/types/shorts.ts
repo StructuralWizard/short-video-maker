@@ -54,8 +54,10 @@ export type SceneInput = z.infer<typeof sceneInput>;
 export enum VoiceEnum {
   Paulo = "Paulo",
   Noel = "Noel", 
-  Scarlett = "Scarlett",
-  NinoCoelho = "NinoCoelho",
+  Hamilton = "Hamilton",
+  Ines = "Ines",
+  Pilar = "Pilar",
+  Charlotte = "Charlotte",
 }
 
 export enum OrientationEnum {
@@ -110,7 +112,7 @@ export const renderConfig = z.object({
     .nativeEnum(MusicVolumeEnum)
     .optional()
     .describe("Volume of the music, default is high"),
-  language: z.enum(["pt", "en"]).default("pt").describe("Language for text-to-speech"),
+  language: z.enum(["pt", "en", "es"]).default("pt").describe("Language for text-to-speech"),
   referenceAudioPath: z.string().optional().describe("Path to reference audio file for TTS"),
   overlay: z.string().optional().describe("Name of the overlay image file (without extension) from static/overlays directory"),
   port: z.number().optional().describe("Port number for the server"),

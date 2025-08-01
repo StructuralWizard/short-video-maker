@@ -16,7 +16,7 @@ export class LocalTTS {
   private ffmpeg: FFMpeg;
 
   constructor(private config: Config, ffmpeg: FFMpeg, outputDir: string = "output/audio") {
-    this.serviceUrl = "http://localhost:5003";
+    this.serviceUrl = "http://localhost:5003";  // Updated to use hybrid service port
     this.outputDir = outputDir;
     this.ffmpeg = ffmpeg;
   }
@@ -174,13 +174,12 @@ export class LocalTTS {
     language: string = "pt",
     chunkIndex: number = 0
   ): Promise<string> {
-    // Usar a voz como nome do arquivo de referência
-    let refFileName = voice || "Paulo"; // Default para Paulo se não especificado
-    
-    logger.debug("Using voice as reference audio", { 
+    logger.info("🎯 Generating TTS chunk with hybrid service", { 
       voice, 
-      refFileName,
-      text: text.substring(0, 50) + "..." 
+      text: text.substring(0, 100) + (text.length > 100 ? "..." : ""),
+      language,
+      chunkIndex,
+      serviceUrl: this.serviceUrl
     });
     
     // Criar nome único para o chunk
@@ -190,72 +189,82 @@ export class LocalTTS {
     // Cria o diretório de saída se não existir
     await fs.mkdir(path.dirname(chunkPath), { recursive: true });
 
-    // Prepara a requisição como JSON
+    // Prepara a requisição para o híbrido service
     const requestData = {
       text: text,
-      language,
-      reference_audio_filename: refFileName,
+      voice: voice  // Use voice name directly (Charlotte, Hamilton, Noel, etc.)
     };
 
-    logger.debug("TTS request data", {
-      text,
-      language,
-      voice,
-      processedRefFileName: refFileName,
-      requestData
+    logger.info("📤 Sending request to hybrid TTS service", {
+      url: `${this.serviceUrl}/generate`,
+      method: 'POST',
+      requestData,
+      headers: { 'Content-Type': 'application/json' }
     });
 
-    // Faz a requisição para o serviço TTS
-    const response = await fetch(`${this.serviceUrl}/api/tts`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(requestData)
+    // Faz a requisição para o serviço híbrido TTS
+    logger.info("🌐 Making HTTP request to hybrid TTS service...");
+    
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes timeout
+    
+    let response;
+    try {
+      response = await fetch(`${this.serviceUrl}/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    logger.info("📥 Received response from hybrid TTS service", {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+      headers: Object.fromEntries(response.headers.entries())
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`TTS server returned status ${response.status}: ${errorText}`);
+      logger.error("❌ Hybrid TTS server error", {
+        status: response.status,
+        statusText: response.statusText,
+        errorText,
+        requestData
+      });
+      throw new Error(`Hybrid TTS server returned status ${response.status}: ${errorText}`);
     }
 
-    const responseData = await response.json();
-
-    if (!responseData || !responseData.download_link) {
-      logger.error("Invalid response from TTS server", { responseData });
-      throw new Error("Invalid response from TTS server: missing download link");
+    // O serviço híbrido retorna diretamente o arquivo de áudio
+    logger.info("📦 Reading audio buffer from response...");
+    const audioBuffer = await response.arrayBuffer();
+    
+    if (audioBuffer.byteLength === 0) {
+      logger.error("❌ Received empty audio buffer from hybrid TTS service");
+      throw new Error("Received empty audio buffer from hybrid TTS service");
     }
 
-    // Faz o download do arquivo de áudio
-    const downloadUrl = `${this.serviceUrl}${responseData.download_link}`;
-    logger.debug("📥 Downloading chunk audio", { 
-      downloadUrl,
-      chunkIndex,
-      text,
-      responseData
+    logger.info("💾 Saving audio file", {
+      chunkPath,
+      bufferSize: audioBuffer.byteLength
     });
-
-    const downloadResponse = await axios.get(downloadUrl, {
-      responseType: "arraybuffer",
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity,
-    });
-
-    if (downloadResponse.status !== 200) {
-      throw new Error(`Failed to download audio: ${downloadResponse.status}`);
-    }
-
+    
     // Salva o arquivo de áudio
-    await fs.writeFile(chunkPath, Buffer.from(downloadResponse.data));
+    await fs.writeFile(chunkPath, Buffer.from(audioBuffer));
     
     // Aguarda o arquivo estar completamente acessível
     await this.waitForFileReady(chunkPath);
     
-    logger.debug("✅ Chunk audio downloaded and saved", { 
+    logger.info("✅ Chunk audio downloaded and saved from hybrid service", { 
       chunkPath,
       chunkIndex,
-      text,
+      text: text.substring(0, 50) + (text.length > 50 ? "..." : ""),
       fileSize: (await fs.stat(chunkPath)).size
     });
 

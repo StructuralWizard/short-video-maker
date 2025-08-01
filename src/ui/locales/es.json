@@ -14,7 +14,7 @@
       "library": "Gestionar videos",
       "ttsStudio": "Generación de audio",
       "settings": "Configuración del sistema",
-      "apiDocs": "Documentación de API"
+      "apiDocs": "Documentación de APIs"
     }
   },
   "dashboard": {
@@ -22,7 +22,7 @@
     "subtitle": "¡Bienvenido de vuelta! Aquí está tu resumen de creación de videos",
     "quickActions": "Acciones Rápidas",
     "createNewVideo": "Crear Nuevo Video",
-    "generateAIScript": "Generar Script IA",
+    "generateAIScript": "Generar Script con IA",
     "goToLibrary": "Ir a Biblioteca",
     "stats": {
       "totalVideos": "Total de Videos",
@@ -35,7 +35,7 @@
     "status": {
       "ready": "Completado",
       "processing": "Procesando",
-      "failed": "Fallido",
+      "failed": "Falló",
       "pending": "Pendiente",
       "unknown": "Desconocido"
     },
@@ -48,15 +48,15 @@
   },
   "videoStudio": {
     "title": "Estudio de Video",
-    "subtitle": "Crea videos increíbles en 3 pasos simples",
+    "subtitle": "Crea videos increíbles en 3 simples pasos",
     "steps": {
-      "script": "Guión y Escenas",
+      "script": "Script y Escenas",
       "settings": "Configuración",
       "review": "Revisión y Creación"
     },
     "scenes": {
       "title": "Escenas del Video",
-      "addScene": "Añadir Escena",
+      "addScene": "Agregar Escena",
       "generateAI": "Generar con IA",
       "sceneText": "Texto de la escena",
       "searchTerms": "Términos de búsqueda",
@@ -71,7 +71,7 @@
       "orientation": "Orientación",
       "captionPosition": "Posición de Subtítulos",
       "musicSettings": "Configuración de Música",
-      "musicMood": "Ambiente Musical",
+      "musicMood": "Mood Musical",
       "musicVolume": "Volumen de Música",
       "videoConfig": "Configuración de Video",
       "timeAfterSpeech": "Tiempo después del habla (ms)",
@@ -115,7 +115,7 @@
       "scriptConfig": "Configuración del Script",
       "scriptType": "Tipo de Script",
       "videoTopic": "Tema del Video",
-      "videoTopicPlaceholder": "Ej., Cómo aumentar la productividad trabajando desde casa",
+      "videoTopicPlaceholder": "Ej: Cómo aumentar la productividad trabajando desde casa",
       "style": "Estilo",
       "duration": "Duración",
       "customPrompt": "Prompt Personalizado (Opcional)",
@@ -125,7 +125,7 @@
       "voice": "Voz",
       "music": "Música",
       "overlay": "Superposición",
-      "generateScript": "Generar Script IA",
+      "generateScript": "Generar Script con IA",
       "generating": "Generando Script...",
       "createVideo": "Crear Video",
       "creating": "Creando..."
@@ -158,7 +158,7 @@
       "scriptPlaceholder": "Tu script aparecerá aquí",
       "scriptInstructions": "Configura los parámetros y haz clic en \"Generar Script con IA\"",
       "scriptGeneratedSuccess": "¡Script generado exitosamente usando {{provider}}! {{scenes}} escenas, ~{{duration}}s de duración estimada.",
-      "noScriptError": "Ningún script generado para crear video"
+      "noScriptError": "No hay script generado para crear video"
     }
   },
   "ttsStudio": {
@@ -175,7 +175,7 @@
     },
     "audios": {
       "title": "Audios Generados ({{count}})",
-      "noAudios": "Ningún audio generado aún",
+      "noAudios": "Aún no se ha generado audio",
       "duration": "Duración: {{duration}}"
     }
   },
@@ -194,7 +194,11 @@
     "videoQuality": "Calidad de Video",
     "saveSettings": "Guardar Configuración",
     "restoreDefaults": "Restaurar Predeterminados",
-    "settingsSaved": "¡Configuración guardada con éxito!"
+    "settingsSaved": "¡Configuración guardada exitosamente!",
+    "portrait": "Retrato (9:16)",
+    "landscape": "Paisaje (16:9)",
+    "square": "Cuadrado (1:1)",
+    "systemPreferences": "Preferencias del Sistema"
   },
   "library": {
     "title": "Biblioteca de Videos",
@@ -207,11 +211,15 @@
     "reject": "Rechazar",
     "rejecting": "Rechazando...",
     "delete": "Eliminar",
-    "edit": "Editar Video"
+    "edit": "Editar Video",
+    "actionError": "Error al {{action}} video: {{error}}",
+    "videoDeletedSuccess": "¡Video eliminado exitosamente!",
+    "videoReadyMessage": "¡Tu video está listo!",
+    "status": "Estado"
   },
   "apiDocs": {
-    "title": "Documentación de API",
-    "subtitle": "Referencia completa para la API de Short Video Maker",
+    "title": "Documentación API",
+    "subtitle": "Referencia completa para la API del Short Video Maker",
     "endpoints": "Endpoints Disponibles",
     "createVideo": "Crear un nuevo video",
     "listVideos": "Listar todos los videos",
@@ -235,12 +243,14 @@
     "spanish": "Español",
     "language": "Idioma",
     "createdAt": "Creado en",
-    "lastUpdate": "Última actualización: {{time}}"
+    "lastUpdate": "Última actualización: {{time}}",
+    "audioGeneratedSuccess": "¡Audio generado exitosamente!"
   },
   "errors": {
     "videoCreationFailed": "Error al crear video",
     "audioGenerationFailed": "Error al generar audio",
     "deleteVideoFailed": "Error al eliminar video. Inténtalo de nuevo.",
-    "unexpectedError": "Ocurrió un error inesperado"
+    "unexpectedError": "Error inesperado",
+    "unknownError": "Error desconocido"
   }
 }

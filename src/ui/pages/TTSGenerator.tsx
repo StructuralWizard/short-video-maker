@@ -193,6 +193,7 @@ const TTSGenerator: React.FC = () => {
               >
                 <MenuItem value="pt">Português</MenuItem>
                 <MenuItem value="en">Inglês</MenuItem>
+                <MenuItem value="es">Español</MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -206,10 +207,12 @@ const TTSGenerator: React.FC = () => {
                 onChange={(e) => setVoice(e.target.value)}
                 disabled={loading}
               >
-                <MenuItem value="Paulo">Paulo</MenuItem>
-                <MenuItem value="Noel">Noel</MenuItem>
-                <MenuItem value="Scarlett">Scarlett</MenuItem>
-                <MenuItem value="NinoCoelho">NinoCoelho</MenuItem>
+                <MenuItem value="Paulo">Paulo (Português)</MenuItem>
+                <MenuItem value="Noel">Noel (Español)</MenuItem>
+                <MenuItem value="Hamilton">Hamilton (English)</MenuItem>
+                <MenuItem value="Ines">Inês (Português)</MenuItem>
+                <MenuItem value="Pilar">Pilar (Español)</MenuItem>
+                <MenuItem value="Charlotte">Charlotte (English)</MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -272,7 +275,7 @@ const TTSGenerator: React.FC = () => {
                       <Box>
                         <Typography variant="body2" color="text.secondary">
                           Duração: {formatDuration(audio.duration)} | 
-                          Idioma: {audio.language === 'pt' ? 'Português' : 'Inglês'} | 
+                          Idioma: {audio.language === 'pt' ? 'Português' : audio.language === 'es' ? 'Español' : 'Inglês'} | 
                           Voz: {audio.voice}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">

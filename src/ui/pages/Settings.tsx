@@ -81,10 +81,12 @@ const Settings: React.FC = () => {
                       label={t('settings.defaultVoice')}
                       onChange={(e) => setSettings({...settings, defaultVoice: e.target.value})}
                     >
-                                             <MenuItem value="Paulo">Paulo</MenuItem>
-                       <MenuItem value="Noel">Noel</MenuItem>
-                       <MenuItem value="Scarlett">Scarlett</MenuItem>
-                       <MenuItem value="NinoCoelho">NinoCoelho</MenuItem>
+                       <MenuItem value="Paulo">Paulo (Português)</MenuItem>
+                       <MenuItem value="Noel">Noel (Español)</MenuItem>
+                       <MenuItem value="Hamilton">Hamilton (English)</MenuItem>
+                       <MenuItem value="Ines">Inês (Português)</MenuItem>
+                       <MenuItem value="Pilar">Pilar (Español)</MenuItem>
+                       <MenuItem value="Charlotte">Charlotte (English)</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>

@@ -20,7 +20,10 @@
     "ui:dev": "vite",
     "ui:build": "vite build",
     "ui:preview": "vite preview",
-    "tts:service": "python scripts/tts/tts_service.py"
+    "tts:service": "bash -c \"source 'c:/Users/user/OneDrive - Talegon Ltd/UDEMY Courses/7n8n/.venv/Scripts/activate' && cd scripts/tts && python hybrid_tts_service.py\"",
+    "dev:all": "concurrently \"npm:dev:server\" \"npm:dev:ui\" \"npm:tts:service\"",
+    "stop:all": "node -e \"console.log('Stopping all services...'); require('child_process').exec('stop-all.bat', (err, stdout) => { if (err) console.error(err); else console.log(stdout); });\"",
+    "cleanup": "node -e \"console.log('Cleaning up development processes...'); require('child_process').exec('stop-all.bat', () => process.exit(0));\""
   },
   "bin": {
     "short-video-maker": "dist/index.js"

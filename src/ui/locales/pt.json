@@ -207,7 +207,11 @@
     "reject": "Reprovar",
     "rejecting": "Reprovando...",
     "delete": "Deletar",
-    "edit": "Editar Vídeo"
+    "edit": "Editar Vídeo",
+    "actionError": "Erro ao {{action}} vídeo: {{error}}",
+    "videoDeletedSuccess": "Vídeo deletado com sucesso!",
+    "videoReadyMessage": "Seu vídeo está pronto!",
+    "status": "Status"
   },
   "apiDocs": {
     "title": "Documentação da API",
@@ -242,6 +246,7 @@
     "videoCreationFailed": "Falha ao criar vídeo",
     "audioGenerationFailed": "Falha ao gerar áudio",
     "deleteVideoFailed": "Erro ao deletar vídeo. Tente novamente.",
-    "unexpectedError": "Erro inesperado ao gerar áudio"
+    "unexpectedError": "Erro inesperado ao gerar áudio",
+    "unknownError": "Erro desconhecido"
   }
 }

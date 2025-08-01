@@ -20,6 +20,8 @@ from io import BytesIO
 import traceback
 import threading
 import time
+import signal
+import atexit
 
 # Add the parent directory to the Python path
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -28,6 +30,25 @@ sys.path.append(parent_dir)
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Global flag for graceful shutdown
+shutdown_requested = False
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals gracefully"""
+    global shutdown_requested
+    logger.info(f">> Received signal {signum}, initiating graceful shutdown...")
+    shutdown_requested = True
+    sys.exit(0)
+
+def cleanup():
+    """Cleanup function called on exit"""
+    logger.info("** Hybrid TTS Service shutting down gracefully")
+
+# Register signal handlers and cleanup
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
+atexit.register(cleanup)
 
 class HybridTTSService:
     """
@@ -305,28 +326,47 @@ def generate_speech():
     try:
         data = request.get_json()
         
+        logger.info(f"*** /generate endpoint called with data: {data}")
+        
         if not data:
+            logger.error("XX No JSON data provided")
             return jsonify({"error": "No JSON data provided"}), 400
         
         text = data.get('text', '').strip()
         voice = data.get('voice', '').strip()
         
+        logger.info(f">> Processing request - Text: '{text[:50]}...', Voice: '{voice}'")
+        
         if not text:
+            logger.error("XX Text is required")
             return jsonify({"error": "Text is required"}), 400
         
         if not voice:
+            logger.error("XX Voice is required")
             return jsonify({"error": "Voice is required"}), 400
+        
+        # Check if voice is supported
+        if voice not in hybrid_tts.voice_config:
+            logger.error(f"XX Unknown voice '{voice}'. Available: {list(hybrid_tts.voice_config.keys())}")
+            return jsonify({"error": f"Unknown voice: {voice}. Available: {list(hybrid_tts.voice_config.keys())}"}), 400
+        
+        logger.info(f"** Voice '{voice}' will use {hybrid_tts.voice_config[voice]['engine'].upper()} engine")
         
         # Generate speech
         success, result, sample_rate = hybrid_tts.generate_speech(text, voice)
         
         if not success:
+            logger.error(f"XX Speech generation failed: {result}")
             return jsonify({"error": result}), 500
+        
+        logger.info(f"** Speech generated successfully! Sample rate: {sample_rate}, Audio length: {len(result)} samples")
         
         # Create audio file response
         audio_buffer = BytesIO()
         sf.write(audio_buffer, result, sample_rate, format='WAV')
         audio_buffer.seek(0)
+        
+        logger.info(f"** Returning audio file for voice '{voice}'")
         
         return send_file(
             audio_buffer,
@@ -402,4 +442,4 @@ if __name__ == "__main__":
     print()
     
     # Start the Flask application
-    app.run(host='0.0.0.0', port=5003, debug=False) 
+    app.run(host='0.0.0.0', port=5003, debug=False)

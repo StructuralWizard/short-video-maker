@@ -2,3 +2,4 @@ TTS==0.22.0
 torch==2.2.0
 numpy==1.26.4
 soundfile==0.12.1 
+chatterbox-tts

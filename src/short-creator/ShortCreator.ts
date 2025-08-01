@@ -791,6 +791,12 @@ export class ShortCreator {
     }
     
     logger.debug({ text, hash: configHash }, "TTS audio not in cache. Generating...");
+    logger.info("🎤 Generating TTS with config", {
+      voice: config.voice,
+      language: config.language,
+      referenceAudioPath: config.referenceAudioPath,
+      text: text.substring(0, 100) + (text.length > 100 ? "..." : "")
+    });
     const tempId = cuid();
     const tempWavPath = path.join(this.globalConfig.tempDirPath, `${tempId}.wav`);
 

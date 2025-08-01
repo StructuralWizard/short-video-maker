@@ -194,7 +194,11 @@
     "videoQuality": "Video Quality",
     "saveSettings": "Save Settings",
     "restoreDefaults": "Restore Defaults",
-    "settingsSaved": "Settings saved successfully!"
+    "settingsSaved": "Settings saved successfully!",
+    "portrait": "Portrait (9:16)",
+    "landscape": "Landscape (16:9)",
+    "square": "Square (1:1)",
+    "systemPreferences": "System Preferences"
   },
   "library": {
     "title": "Video Library",
@@ -207,7 +211,11 @@
     "reject": "Reject",
     "rejecting": "Rejecting...",
     "delete": "Delete",
-    "edit": "Edit Video"
+    "edit": "Edit Video",
+    "actionError": "Error {{action}} video: {{error}}",
+    "videoDeletedSuccess": "Video deleted successfully!",
+    "videoReadyMessage": "Your video is ready!",
+    "status": "Status"
   },
   "apiDocs": {
     "title": "API Documentation",
@@ -235,12 +243,14 @@
     "spanish": "Spanish",
     "language": "Language",
     "createdAt": "Created at",
-    "lastUpdate": "Last update: {{time}}"
+    "lastUpdate": "Last update: {{time}}",
+    "audioGeneratedSuccess": "Audio generated successfully!"
   },
   "errors": {
     "videoCreationFailed": "Failed to create video",
     "audioGenerationFailed": "Failed to generate audio",
     "deleteVideoFailed": "Error deleting video. Please try again.",
-    "unexpectedError": "Unexpected error occurred"
+    "unexpectedError": "Unexpected error occurred",
+    "unknownError": "Unknown error"
   }
 }

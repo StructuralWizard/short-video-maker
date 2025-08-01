@@ -97,9 +97,11 @@ const AIScriptGenerator: React.FC = () => {
 
   const voiceOptions = [
     { value: 'Paulo', label: 'Paulo (Português)' },
-    { value: 'Noel', label: 'Noel (Português)' },
-    { value: 'Scarlett', label: 'Scarlett (English)' },
-    { value: 'NinoCoelho', label: 'NinoCoelho (Português)' }
+    { value: 'Noel', label: 'Noel (Español)' },
+    { value: 'Hamilton', label: 'Hamilton (English)' },
+    { value: 'Ines', label: 'Inês (Português)' },
+    { value: 'Pilar', label: 'Pilar (Español)' },
+    { value: 'Charlotte', label: 'Charlotte (English)' }
   ];
 
   const musicOptions = [

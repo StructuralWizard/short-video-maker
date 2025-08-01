@@ -91,10 +91,12 @@ const VideoEditor: React.FC = () => {
   
   // Opções de voz disponíveis
   const voiceOptions = [
-    { value: 'Paulo', label: 'Paulo (Padrão)' },
-    { value: 'Noel', label: 'Noel' },
-    { value: 'Scarlett', label: 'Scarlett' },
-    { value: 'NinoCoelho', label: 'NinoCoelho' }
+    { value: 'Paulo', label: 'Paulo (Português)' },
+    { value: 'Noel', label: 'Noel (Español)' },
+    { value: 'Hamilton', label: 'Hamilton (English)' },
+    { value: 'Ines', label: 'Inês (Português)' },
+    { value: 'Pilar', label: 'Pilar (Español)' },
+    { value: 'Charlotte', label: 'Charlotte (English)' }
   ];
   const [generatingAudio, setGeneratingAudio] = useState<{ [key: number]: boolean }>({});
   const [isPlaying, setIsPlaying] = useState(false);

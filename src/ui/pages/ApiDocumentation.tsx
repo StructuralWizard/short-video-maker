@@ -54,7 +54,7 @@ const ApiDocumentation: React.FC = () => {
       body: {
         text: 'Texto para conversão',
         voice: 'Voz selecionada',
-        language: 'pt|en'
+        language: 'pt|en|es'
       },
       response: { filename: 'string', duration: 'number' }
     }

@@ -207,6 +207,7 @@ const TTSStudio: React.FC = () => {
                     >
                       <MenuItem value="pt">{t('common.portuguese')}</MenuItem>
                       <MenuItem value="en">{t('common.english')}</MenuItem>
+                      <MenuItem value="es">{t('common.spanish')}</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
@@ -220,10 +221,12 @@ const TTSStudio: React.FC = () => {
                       onChange={(e) => setVoice(e.target.value)}
                       disabled={loading}
                     >
-                      <MenuItem value="Paulo">Paulo</MenuItem>
-                      <MenuItem value="Noel">Noel</MenuItem>
-                      <MenuItem value="Scarlett">Scarlett</MenuItem>
-                      <MenuItem value="NinoCoelho">NinoCoelho</MenuItem>
+                      <MenuItem value="Paulo">Paulo (Português)</MenuItem>
+                      <MenuItem value="Noel">Noel (Español)</MenuItem>
+                      <MenuItem value="Hamilton">Hamilton (English)</MenuItem>
+                      <MenuItem value="Ines">Inês (Português)</MenuItem>
+                      <MenuItem value="Pilar">Pilar (Español)</MenuItem>
+                      <MenuItem value="Charlotte">Charlotte (English)</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
